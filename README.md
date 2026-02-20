@@ -7,7 +7,3 @@
 Please download the whole package to get started. 
 
 For reference: Uses Visual Studio Code.
-
-
-
-
