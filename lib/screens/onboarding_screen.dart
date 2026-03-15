@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart'; // Required for TapGestureRecognizer
 import '../constants/app_colors.dart';
-import 'unregistered_home_screen.dart'; // changed to home screen
+import 'unregistered_home_screen.dart';
+import 'terms_screen.dart';          // Import terms screen
+import 'privacy_policy_screen.dart'; // Import privacy policy screen
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -128,7 +131,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 cursor: SystemMouseCursors.click,
                 child: GestureDetector(
                   onTap: () {
-                    // Navigate to unregistered home screen
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const UnregisteredHomeScreen()),
@@ -179,13 +181,47 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Text(
-                'By using LinkSentry, you agree to our Terms of Use and Privacy Policy',
+              child: RichText(
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.disabledText,
-                  height: 1.5,
+                text: TextSpan(
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.disabledText,
+                    height: 1.5,
+                  ),
+                  children: [
+                    const TextSpan(text: 'By using LinkSentry, you agree to our '),
+                    TextSpan(
+                      text: 'Terms of Use',
+                      style: const TextStyle(
+                        color: AppColors.primaryPurple,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const TermsScreen()),
+                          );
+                        },
+                    ),
+                    const TextSpan(text: ' and '),
+                    TextSpan(
+                      text: 'Privacy Policy',
+                      style: const TextStyle(
+                        color: AppColors.primaryPurple,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
+                          );
+                        },
+                    ),
+                    const TextSpan(text: '.'),
+                  ],
                 ),
               ),
             ),
