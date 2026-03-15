@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
-import 'login_screen.dart'; // added for navigation
+import 'unregistered_home_screen.dart'; // changed to home screen
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -128,10 +128,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 cursor: SystemMouseCursors.click,
                 child: GestureDetector(
                   onTap: () {
-                    // Navigate to login screen
+                    // Navigate to unregistered home screen
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      MaterialPageRoute(builder: (context) => const UnregisteredHomeScreen()),
                     );
                   },
                   child: TweenAnimationBuilder(
