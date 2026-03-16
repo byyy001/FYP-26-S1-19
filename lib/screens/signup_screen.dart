@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart'; // for TapGestureRecognizer
 import '../constants/app_colors.dart';
+import '../services/auth_service.dart';
 import 'login_screen.dart'; // for navigation back
 
 class SignUpScreen extends StatefulWidget {
@@ -17,6 +18,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final AuthService _authService = AuthService();
+
+  bool _isLoading = false;
   bool _agreeToTerms = false;
   bool _isHoveringSignUp = false;
   bool _isHoveringGoogle = false;
