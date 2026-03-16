@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart'; // for TapGestureRecognizer
 import '../constants/app_colors.dart';
 import '../services/auth_service.dart';
+import 'terms_screen.dart';
+import 'privacy_policy_screen.dart';
 import 'login_screen.dart'; // for navigation back
 
 class SignUpScreen extends StatefulWidget {
@@ -558,15 +560,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       border: Border.all(color: AppColors.divider),
                     ),
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        // TODO: Google Sign-Up
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Google Sign-Up (demo)'),
-                            backgroundColor: AppColors.primaryBlue,
-                          ),
-                        );
-                      },
+                      onPressed: _isLoading ? null : _handleGoogleSignUp,
                       icon: const Icon(
                         Icons.g_mobiledata,
                         color: Colors.white,
