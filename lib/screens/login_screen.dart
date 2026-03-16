@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'signup_screen.dart';
-import 'forgot_password_screen.dart'; // added for navigation
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,7 +15,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _rememberMe = false;
-  bool _isHovering = false;
+  bool _isHoveringLogin = false;
+  bool _isHoveringGoogle = false;
+  bool _obscurePassword = true;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +33,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 40),
+                // Extra top padding for breathing room
+                const SizedBox(height: 30),
                 // Logo
                 Center(
                   child: Image.asset(
@@ -40,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 50),
                 // Welcome Back and Login
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -48,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       'Welcome Back',
                       style: TextStyle(
-                        fontSize: isSmall ? 20 : 22,
+                        fontSize: isSmall ? 22 : 24,
                         fontWeight: FontWeight.w600,
                         color: AppColors.primaryText,
                       ),
@@ -56,12 +59,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       'Login',
                       style: TextStyle(
-                        fontSize: isSmall ? 20 : 22,
+                        fontSize: isSmall ? 22 : 24,
                         fontWeight: FontWeight.w600,
                         color: AppColors.primaryPurple,
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 20),
+                // Subtle divider above the form
+                Divider(
+                  color: AppColors.divider.withAlpha(77), // low opacity
+                  thickness: 0.5,
+                  height: 1,
                 ),
                 const SizedBox(height: 30),
                 // Form
@@ -97,11 +107,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 16),
-                      // Password field
+                      const SizedBox(height: 20),
+                      // Password field with toggle
                       TextFormField(
                         controller: _passwordController,
-                        obscureText: true,
+                        obscureText: _obscurePassword,
                         style: const TextStyle(color: AppColors.primaryText),
                         decoration: InputDecoration(
                           labelText: 'Password',
@@ -115,6 +125,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           prefixIcon: const Icon(
                             Icons.lock_outline,
                             color: AppColors.secondaryText,
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                              color: AppColors.secondaryText,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
                           ),
                         ),
                         validator: (value) {
@@ -136,6 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Checkbox(
                           value: _rememberMe,
@@ -156,7 +178,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     TextButton(
                       onPressed: () {
-                        // Navigate to forgot password screen
                         Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
@@ -166,7 +187,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         padding: EdgeInsets.zero,
                       ),
                       child: const Text(
-                        'Forget password?',
+                        'Forgot password?',
                         style: TextStyle(
                           color: AppColors.primaryPurple,
                           fontWeight: FontWeight.w500,
@@ -175,15 +196,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 30),
-                // Login button with gradient and hover
+                const SizedBox(height: 40),
+                // Login button (larger, with hover)
                 MouseRegion(
-                  onEnter: (_) => setState(() => _isHovering = true),
-                  onExit: (_) => setState(() => _isHovering = false),
+                  onEnter: (_) => setState(() => _isHoveringLogin = true),
+                  onExit: (_) => setState(() => _isHoveringLogin = false),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     width: double.infinity,
-                    height: 56,
+                    height: 60, // increased height
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: AppColors.premiumGradient,
@@ -191,12 +212,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         end: Alignment.centerRight,
                       ),
                       borderRadius: BorderRadius.circular(12),
-                      boxShadow: _isHovering
+                      boxShadow: _isHoveringLogin
                           ? [
                               BoxShadow(
                                 color: AppColors.primaryPurple.withAlpha(102),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
                               ),
                             ]
                           : [
@@ -228,7 +249,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text(
                         'Login',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 18, // larger font
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
@@ -237,7 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Create Account link (navigates to sign-up)
+                // Create Account link
                 Center(
                   child: TextButton(
                     onPressed: () {
@@ -260,40 +281,61 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                // Sign in with Google button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Google Sign-In (demo)'),
-                          backgroundColor: AppColors.primaryBlue,
-                        ),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.g_mobiledata,
-                      color: Colors.white,
-                      size: 28,
+                // Divider above Google button
+                Divider(
+                  color: AppColors.divider.withAlpha(77),
+                  thickness: 0.5,
+                  height: 1,
+                ),
+                const SizedBox(height: 24),
+                // Sign in with Google button with hover effect
+                MouseRegion(
+                  onEnter: (_) => setState(() => _isHoveringGoogle = true),
+                  onExit: (_) => setState(() => _isHoveringGoogle = false),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: _isHoveringGoogle
+                          ? AppColors.cardBackground.withAlpha(204) // lighter on hover
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.divider),
                     ),
-                    label: const Text(
-                      'Sign in with Google',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Google Sign-In (demo)'),
+                            backgroundColor: AppColors.primaryBlue,
+                          ),
+                        );
+                      },
+                      icon: Image.asset(
+                        'assets/images/google_logo.png', // colored Google logo
+                        height: 24,
                       ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.divider),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      label: const Text(
+                        'Sign in with Google',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.transparent),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 30),
+                // Optional extra divider at bottom (commented out)
+                // Divider(color: AppColors.divider.withAlpha(77), thickness: 0.5, height: 1),
+                // const SizedBox(height: 10),
               ],
             ),
           ),
