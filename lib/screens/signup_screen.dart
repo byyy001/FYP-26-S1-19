@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart'; // for TapGestureRecognizer
 import '../constants/app_colors.dart';
-import '../services/auth_service.dart';
+import '../services/auth_service.dart'; // for account creation services
 import 'terms_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'login_screen.dart'; // for navigation back

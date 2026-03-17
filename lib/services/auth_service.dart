@@ -52,41 +52,42 @@ class AuthService {
   }
 
   Future<UserCredential?> signInWithGoogle() async {
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+  final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
-    if (googleUser == null) {
-      return null;
-    }
+  if (googleUser == null) {
+    return null;
+  }
 
-    final GoogleSignInAuthentication googleAuth =
-        await googleUser.authentication;
+  final GoogleSignInAuthentication googleAuth =
+      await googleUser.authentication;
 
-    final credential = GoogleAuthProvider.credential(
-      idToken: googleAuth.idToken,
-    );
+  final credential = GoogleAuthProvider.credential(
+    accessToken: googleAuth.accessToken, // ✅ IMPORTANT
+    idToken: googleAuth.idToken,
+  );
 
-    final userCredential =
-        await _auth.signInWithCredential(credential);
+  final userCredential =
+      await _auth.signInWithCredential(credential);
 
-    final user = userCredential.user;
+  final user = userCredential.user;
 
-    if (user != null) {
-      final docRef = _firestore.collection('users').doc(user.uid);
-      final doc = await docRef.get();
+  if (user != null) {
+    final docRef = _firestore.collection('users').doc(user.uid);
+    final doc = await docRef.get();
 
-      if (!doc.exists) {
-        final nameParts = (user.displayName ?? '').trim().split(' ');
-        final firstName = nameParts.isNotEmpty ? nameParts.first : '';
-        final lastName =
-            nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+    if (!doc.exists) {
+      final nameParts = (user.displayName ?? '').trim().split(' ');
+      final firstName = nameParts.isNotEmpty ? nameParts.first : '';
+      final lastName =
+          nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
-        await docRef.set({
-          'uid': user.uid,
-          'firstName': firstName,
-          'lastName': lastName,
-          'email': user.email ?? '',
-          'authProvider': 'google',
-          'createdAt': FieldValue.serverTimestamp(),
+      await docRef.set({
+        'uid': user.uid,
+        'firstName': firstName,
+        'lastName': lastName,
+        'email': user.email ?? '',
+        'authProvider': 'google',
+        'createdAt': FieldValue.serverTimestamp(),
         });
       }
     }
