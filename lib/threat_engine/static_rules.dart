@@ -149,7 +149,9 @@ class StaticRuleEngine {
           v0[j] + cost        // substitution
         ].reduce(min);
       }
-      for (var j = 0; j <= t.length; j++) v0[j] = v1[j];
+      for (var j = 0; j <= t.length; j++) {
+        v0[j] = v1[j];
+      }
     }
     return v1[t.length];
   }

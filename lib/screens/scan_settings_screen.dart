@@ -183,7 +183,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
         ),
         value: value,
         onChanged: onChanged,
-        activeColor: AppColors.primaryPurple,
+        activeThumbColor: AppColors.primaryPurple,
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         secondary: Icon(
           value ? Icons.check_circle : Icons.radio_button_unchecked,
