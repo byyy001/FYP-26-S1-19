@@ -1,12 +1,13 @@
 // ============================================================================
 // feature_extractor.dart – Base Layer: Feature Extraction
 // ============================================================================
-// This file extracts 16 features from a URL:
-//   - Lengths (URL, domain, subdomain, path)
-//   - Character counts (., -, _, /, ?, =, &, @, %)
-//   - Boolean flags (has IP, has port, uses HTTPS, has query)
-//   - Shannon entropy (measure of randomness)
-// These features are used by the static rules, heuristics, and ML classifier.
+// This file extracts 16 features from a URL for ML and heuristic analysis.
+// Additionally, it provides extra getters for behavior simulation and AI scoring:
+//   - Suspicious redirect parameters
+//   - Path depth
+//   - High entropy
+//   - Suspicious encoding
+//   - Typosquatting detection
 // ============================================================================
 
 import 'dart:math';
@@ -22,7 +23,7 @@ class UrlFeatures {
     tld = tldts.parse(url);
   }
 
-  // Domain parts (using tldts for correct Public Suffix handling)
+  // Domain parts
   String get tldSuffix => tld.publicSuffix ?? '';
   String get domain => tld.domain ?? '';
   String get subdomain => tld.subdomain ?? '';
@@ -50,7 +51,7 @@ class UrlFeatures {
   bool get hasHttps => uri.scheme == 'https';
   bool get hasQuery => uri.query.isNotEmpty;
 
-  // Shannon entropy (high entropy may indicate obfuscation)
+  // Shannon entropy
   double get entropy {
     final freq = <int, int>{};
     for (final c in url.codeUnits) {
@@ -64,7 +65,30 @@ class UrlFeatures {
     return e;
   }
 
-  // Feature vector for ML (16 features in fixed order)
+  // --------------------------------------------------------------------------
+  // Additional getters for BehaviorEngine and RuleBasedAIEngine
+  // --------------------------------------------------------------------------
+
+  // Checks if URL has suspicious redirect parameters
+  bool get hasRedirectParam => url.contains('?redirect=') || url.contains('?url=');
+
+  // Path depth = number of segments in the path
+  int get pathDepth => uri.pathSegments.length;
+
+  // High entropy flag (threshold 4.0)
+  bool get highEntropy => entropy > 4.0;
+
+  // Suspicious encoding characters
+  bool get hasSuspiciousEncoding => url.contains('%') || url.contains('@');
+
+  // Basic typosquatting detection (common substitutions)
+  bool get isTyposquatting {
+    final domainLower = domain.toLowerCase();
+    final patterns = ['goog1e', 'faceb00k', 'paypa1', 'amzon', 'micr0soft'];
+    return patterns.any((p) => domainLower.contains(p));
+  }
+
+  // Feature vector for ML (16 features)
   List<double> toFeatureVector() => [
         length.toDouble(),
         domainLength.toDouble(),
