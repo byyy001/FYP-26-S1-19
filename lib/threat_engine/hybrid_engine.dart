@@ -5,7 +5,7 @@
 // Responsibilities:
 // 1. Extract features from the URL.
 // 2. Run static rules & heuristics to detect threats.
-// 3. Run ML classifier (Logistic Regression) for probability & confidence.
+// 3. Run ML classifiers (Logistic Regression + optional Decision Tree).
 // 4. Run optional Behavior Engine for simulated behavioral analysis.
 // 5. Run optional AI/Rule-based model for extra detection layers.
 // 6. Fuse all scores using weighted ensemble, influenced by user settings.
@@ -17,17 +17,23 @@
 import 'feature_extractor.dart';
 import 'static_rules.dart';
 import 'logistic_regression.dart';
+import 'decision_tree.dart';           // new import
 import 'threat_engine.dart';
 import 'behavior_engine.dart';
 import 'rule_based_ai_engine.dart';
 
 class HybridEngine {
   final LogisticRegression logisticModel;
-  final BehaviorEngine? behaviorEngine; // optional behavior simulation
-  final RuleBasedAIEngine? aiEngine;     // optional additional AI/rule model
+  final DecisionTree? decisionTree;     // optional second model
+  final BehaviorEngine? behaviorEngine;
+  final RuleBasedAIEngine? aiEngine;
+
+  // Map class index to threat type string (from dataset)
+  static const List<String> _classNames = ['benign', 'defacement', 'phishing', 'malware'];
 
   HybridEngine({
     required this.logisticModel,
+    this.decisionTree,
     this.behaviorEngine,
     this.aiEngine,
   });
@@ -37,52 +43,69 @@ class HybridEngine {
   Map<String, dynamic> analyze(String url, {required ScanSettings settings}) {
     // 1. Extract URL features
     final features = UrlFeatures(url);
+    final featureVector = features.toFeatureVector();
 
     // 2. Static rules and heuristics
     final ruleEngine = StaticRuleEngine(features);
     final staticThreats = ruleEngine.analyze();
     final staticScore = _computeStaticScore(staticThreats);
 
-    // 3. ML model scoring
-    final mlResult = logisticModel.classify(features);
-    final mlScore = mlResult['threat_probability'] as double;
-    final mlConfidence = mlResult['confidence'] ?? 'medium';
+    // 3. Logistic Regression
+    final lrResult = logisticModel.classify(features);
+    final lrProb = lrResult['threat_probability'] as double;
+    final mlConfidence = lrResult['confidence'] ?? 'medium';
 
-    // 4. Behavior Engine scoring
-    double behaviorScore = 0.0;
-    if (behaviorEngine != null) {
-      behaviorScore = behaviorEngine!.analyze(features);
+    // 4. Decision Tree (if available)
+    int dtClass = 0; // default benign
+    double dtProb = lrProb; // fallback
+    if (decisionTree != null) {
+      final dtMulti = decisionTree!.predictMultiClass(featureVector);
+      dtClass = dtMulti['class'] as int;
+      // For binary probability, consider any non‑benign as malicious
+      dtProb = dtClass == 0 ? 0.0 : 1.0;
     }
 
-    // 5. AI/Additional model scoring
-    double aiScore = 0.0;
-    if (aiEngine != null) {
-      aiScore = aiEngine!.analyze(features);
+    // Combined binary probability (average of both models)
+    final mlProb = (lrProb + dtProb) / 2.0;
+
+    // Determine final threat type from decision tree if available, else fallback
+    String threatType;
+    if (decisionTree != null) {
+      threatType = _classNames[dtClass];
+    } else {
+      // Fallback based on static rules + logistic
+      threatType = lrProb > 0.7 ? 'phishing' : (lrProb > 0.4 ? 'suspicious' : 'benign');
     }
 
-    // 6. Weighted fusion of all scores
+    // 5. Behavior Engine scoring
+    double behaviorScore = behaviorEngine?.analyze(features) ?? 0.0;
+
+    // 6. AI/Additional model scoring
+    double aiScore = aiEngine?.analyze(features) ?? 0.0;
+
+    // 7. Weighted fusion of all scores
     final combinedScore = _fuseScores(
       staticScore: staticScore,
-      mlScore: mlScore,
+      mlScore: mlProb, // mlProb is 0-1, _fuseScores multiplies by 100 internally
       behaviorScore: behaviorScore,
       aiScore: aiScore,
       settings: settings,
     );
 
-    // 7. Classify severity & threat type
-    final classification = _classify(combinedScore);
+    // 8. Classify severity (based on combined score)
+    final severity = _getSeverity(combinedScore);
 
-    // 8. Generate explanation
+    // 9. Generate explanation
     final explanation = _explain(
-      classification['severity']!,
-      classification['type']!,
+      severity,
+      threatType,
       staticThreats,
       mlConfidence,
       behaviorScore,
       aiScore,
     );
 
-    // 9. Recommended actions
+    // 10. Recommended actions
     final actions = _actions(combinedScore);
 
     // Return structured result
@@ -90,14 +113,16 @@ class HybridEngine {
       'url': url,
       'scan_date': _timestamp(),
       'risk_score': combinedScore.toStringAsFixed(1),
-      'severity': classification['severity'],
-      'threat_type': classification['type'],
+      'severity': severity,
+      'threat_type': threatType,
       'explanation': explanation,
       'detected_threats': staticThreats,
       'actions': actions,
       'ml_confidence': mlConfidence,
       'behavior_score': behaviorScore.toStringAsFixed(2),
       'ai_score': aiScore.toStringAsFixed(2),
+      // optionally include decision tree class for debugging
+      if (decisionTree != null) 'dt_class': dtClass,
     };
   }
 
@@ -149,25 +174,25 @@ class HybridEngine {
         .toDouble();
   }
 
-  /// Maps numeric score to severity and threat type
-  Map<String, String> _classify(double score) {
-    if (score >= 70) return {'severity': 'HIGH RISK', 'type': 'phishing'};
-    if (score >= 40) return {'severity': 'MEDIUM RISK', 'type': 'suspicious'};
-    if (score >= 20) return {'severity': 'LOW RISK', 'type': 'ad_tracker'};
-    return {'severity': 'SAFE', 'type': 'benign'};
+  /// Maps numeric score to severity label
+  String _getSeverity(double score) {
+    if (score >= 70) return 'HIGH RISK';
+    if (score >= 40) return 'MEDIUM RISK';
+    if (score >= 20) return 'LOW RISK';
+    return 'SAFE';
   }
 
   /// Generates human-readable explanation combining all layers
   String _explain(
     String severity,
-    String type,
+    String threatType,
     List<Map<String, dynamic>> staticThreats,
     String mlConfidence,
     double behaviorScore,
     double aiScore,
   ) {
     final buf = StringBuffer('$severity: ');
-    if (type != 'benign') buf.write('This URL is classified as $type. ');
+    if (threatType != 'benign') buf.write('This URL is classified as $threatType. ');
     if (staticThreats.isNotEmpty) {
       buf.write(staticThreats.take(2).map((t) => t['description']).join(' '));
     }

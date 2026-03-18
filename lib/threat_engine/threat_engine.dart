@@ -5,7 +5,7 @@
 //
 // Responsibilities:
 // - Initializes and holds all detection layers
-// - Loads ML models (Logistic Regression for now)
+// - Loads ML models (Logistic Regression + optional Decision Tree)
 // - Optionally loads Behavior Engine & Rule-Based AI Engine
 // - Accepts user-defined scan settings
 // - Orchestrates the full analysis pipeline
@@ -26,6 +26,7 @@
 
 import 'hybrid_engine.dart';
 import 'logistic_regression.dart';
+import 'decision_tree.dart';           // new import
 import 'behavior_engine.dart';
 import 'rule_based_ai_engine.dart';
 
@@ -73,10 +74,19 @@ class ThreatEngine {
   static Future<ThreatEngine> getInstance() async {
     if (_instance != null) return _instance!;
 
-    // Load Logistic Regression model (Layer 3)
-    final ml = await LogisticRegression.fromAsset(
+    // Load Logistic Regression model
+    final lr = await LogisticRegression.fromAsset(
       'assets/models/logistic_regression_weights.json',
     );
+
+    // Load Decision Tree (optional – if file exists)
+    DecisionTree? dt;
+    try {
+      dt = await DecisionTree.fromAsset('assets/models/decision_tree.json');
+    } catch (e) {
+      // If file not found, just proceed without decision tree
+      print('Decision tree not loaded: $e');
+    }
 
     // Optional: Initialize Behavior Engine
     final behavior = BehaviorEngine();
@@ -84,10 +94,11 @@ class ThreatEngine {
     // Optional: Initialize Rule-Based AI Engine
     final aiEngine = RuleBasedAIEngine();
 
-    // Initialize Hybrid Engine (Fusion Layer)
+    // Initialize Hybrid Engine (Fusion Layer) with both models
     final engine = ThreatEngine._();
     engine._engine = HybridEngine(
-      logisticModel: ml,
+      logisticModel: lr,
+      decisionTree: dt,           // pass optional decision tree
       behaviorEngine: behavior,
       aiEngine: aiEngine,
     );
