@@ -1,11 +1,27 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegisteredHomeScreen extends StatelessWidget {
-  // TODO: Replace with actual user name from Firebase
-  final String userName = "Alice";
-
   const RegisteredHomeScreen({super.key});
+
+  Future<String> getUserFirstName() async {
+    // Gettin the current user from FirebaseAuth
+    User? user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      // Fetching the user data from Firestore
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+
+      if (userDoc.exists) {
+        // Fetch the first name from the document
+        String firstName = userDoc ['firstName'] ?? 'User';
+        return firstName;
+      }
+    }
+    return 'User'; // Fallback should no user data be found
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,135 +48,151 @@ class RegisteredHomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              // Greeting
-              Text(
-                'Ready To Scan $userName?',
-                style: TextStyle(
-                  fontSize: isSmall ? 20 : 24,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryText,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tap camera to scan link or paste URL below',
-                style: TextStyle(
-                  fontSize: isSmall ? 14 : 16,
-                  color: AppColors.secondaryText,
-                ),
-              ),
-              const SizedBox(height: 30),
+      body: FutureBuilder<String>(
+        future: getUserFirstName(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-              // Stats cards
-              Row(
-                children: [
-                  _buildStatCard('Total Scans', '100', AppColors.primaryText),
-                  const SizedBox(width: 12),
-                  _buildStatCard('Safe Links', '80', AppColors.safe),
-                  const SizedBox(width: 12),
-                  _buildStatCard('Threats', '20', AppColors.highRisk),
-                ],
-              ),
-              const SizedBox(height: 30),
+          if (snapshot.hasError) {
+            return const Center(child: Text('Error fetching user data'));
+          }
 
-              // Scan section
-              Text(
-                'Scan a Link',
-                style: TextStyle(
-                  fontSize: isSmall ? 18 : 20,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primaryText,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Paste any URL to check if it\'s safe',
-                style: TextStyle(
-                  fontSize: isSmall ? 12 : 14,
-                  color: AppColors.secondaryText,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Scan input row
-              Row(
+          // Retrieve first name from the snapshot
+          String userName = snapshot.data ?? 'User';
+
+          return SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'example-link.com',
-                        hintStyle: TextStyle(color: AppColors.disabledText),
-                        filled: true,
-                        fillColor: AppColors.cardBackground,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      ),
-                      style: const TextStyle(color: AppColors.primaryText),
+                  const SizedBox(height: 20),
+                  // Greeting
+                  Text(
+                    'Ready To Scan $userName?',
+                    style: TextStyle(
+                      fontSize: isSmall ? 20 : 24,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryText,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  _buildScanButton(context),
-                ],
-              ),
-              const SizedBox(height: 30),
-
-              // Recents section header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
+                  const SizedBox(height: 8),
                   Text(
-                    'Recents',
+                    'Tap camera to scan link or paste URL below',
+                    style: TextStyle(
+                      fontSize: isSmall ? 14 : 16,
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+
+                  // Stats cards
+                  Row(
+                    children: [
+                      _buildStatCard('Total Scans', '100', AppColors.primaryText),
+                      const SizedBox(width: 12),
+                      _buildStatCard('Safe Links', '80', AppColors.safe),
+                      const SizedBox(width: 12),
+                      _buildStatCard('Threats', '20', AppColors.highRisk),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+
+                  // Scan section
+                  Text(
+                    'Scan a Link',
                     style: TextStyle(
                       fontSize: isSmall ? 18 : 20,
                       fontWeight: FontWeight.w600,
                       color: AppColors.primaryText,
                     ),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      // TODO: Navigate to full history screen
-                    },
-                    child: const Text(
-                      'View History →',
-                      style: TextStyle(color: AppColors.primaryPurple),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Paste any URL to check if it\'s safe',
+                    style: TextStyle(
+                      fontSize: isSmall ? 12 : 14,
+                      color: AppColors.secondaryText,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  // Scan input row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'example-link.com',
+                            hintStyle: TextStyle(color: AppColors.disabledText),
+                            filled: true,
+                            fillColor: AppColors.cardBackground,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          ),
+                          style: const TextStyle(color: AppColors.primaryText),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _buildScanButton(context),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+
+                  // Recents section header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Recents',
+                        style: TextStyle(
+                          fontSize: isSmall ? 18 : 20,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryText,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          // TODO: Navigate to full history screen
+                        },
+                        child: const Text(
+                          'View History →',
+                          style: TextStyle(color: AppColors.primaryPurple),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Recents list
+                  _buildRecentItem(
+                    'google.com',
+                    'URL scan',
+                    '2m ago',
+                    'threat', // high risk
+                  ),
+                  _buildRecentItem(
+                    'linkbitly.com',
+                    'Camera scan',
+                    '5d ago',
+                    'warning', // medium risk
+                  ),
+                  _buildRecentItem(
+                    'telegramlogin.com',
+                    'URL scan',
+                    '5d ago',
+                    'safe',
+                  ),
+                  const SizedBox(height: 30),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              // Recents list
-              _buildRecentItem(
-                'google.com',
-                'URL scan',
-                '2m ago',
-                'threat', // high risk
-              ),
-              _buildRecentItem(
-                'linkbitly.com',
-                'Camera scan',
-                '5d ago',
-                'warning', // medium risk
-              ),
-              _buildRecentItem(
-                'telegramlogin.com',
-                'URL scan',
-                '5d ago',
-                'safe',
-              ),
-              const SizedBox(height: 30),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: AppColors.cardBackground,
