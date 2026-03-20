@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/google_safe_browsing_service.dart';
+import 'help_screen.dart';
 
 class RegisteredHomeScreen extends StatefulWidget {
   const RegisteredHomeScreen({super.key});
@@ -93,14 +94,20 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         actions: [
           // Notification icon
           IconButton(
-            icon: const Icon(Icons.notifications_none, color: AppColors.primaryText),
+            icon: const Icon(
+              Icons.notifications_none,
+              color: AppColors.primaryText,
+            ),
             onPressed: () {
               // TODO: Open notifications screen
             },
           ),
           // Profile icon
           IconButton(
-            icon: const Icon(Icons.person_outline, color: AppColors.primaryText),
+            icon: const Icon(
+              Icons.person_outline,
+              color: AppColors.primaryText,
+            ),
             onPressed: () {
               // TODO: Navigate to profile screen
             },
@@ -297,6 +304,12 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         ],
         onTap: (index) {
           // TODO: Handle navigation
+          if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const HelpScreen()),
+            );
+          }
         },
       ),
     );
@@ -404,7 +417,12 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   }
 
   // Recent item widget
-  Widget _buildRecentItem(String url, String scanType, String time, String risk) {
+  Widget _buildRecentItem(
+    String url,
+    String scanType,
+    String time,
+    String risk,
+  ) {
     final icon = scanType.contains('Camera') ? Icons.camera_alt : Icons.link;
     Color riskColor;
     String riskLabel;
@@ -467,12 +485,21 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   children: [
                     Text(
                       scanType,
-                      style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondaryText,
+                      ),
                     ),
-                    Text(' • ', style: TextStyle(color: AppColors.secondaryText)),
+                    Text(
+                      ' • ',
+                      style: TextStyle(color: AppColors.secondaryText),
+                    ),
                     Text(
                       time,
-                      style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondaryText,
+                      ),
                     ),
                   ],
                 ),
