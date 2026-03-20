@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/google_safe_browsing_service.dart';
-import 'help_screen.dart';
 
 class RegisteredHomeScreen extends StatefulWidget {
   const RegisteredHomeScreen({super.key});
@@ -100,6 +99,12 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
             ),
             onPressed: () {
               // TODO: Open notifications screen
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Notifications coming soon!'),
+                  backgroundColor: AppColors.primaryPurple,
+                ),
+              );
             },
           ),
           // Profile icon
@@ -110,6 +115,12 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
             ),
             onPressed: () {
               // TODO: Navigate to profile screen
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Profile screen coming soon!'),
+                  backgroundColor: AppColors.primaryPurple,
+                ),
+              );
             },
           ),
         ],
@@ -241,6 +252,12 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                       TextButton(
                         onPressed: () {
                           // TODO: Navigate to full history screen
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('History screen coming soon!'),
+                              backgroundColor: AppColors.primaryPurple,
+                            ),
+                          );
                         },
                         child: const Text(
                           'View History →',
@@ -304,12 +321,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         ],
         onTap: (index) {
           // TODO: Handle navigation
-          if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const HelpScreen()),
-            );
-          }
         },
       ),
     );
