@@ -1,20 +1,9 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'login_screen.dart';
-import 'help_screen.dart';
-import 'scan_settings_screen.dart';
-import '../services/google_safe_browsing_service.dart'; // Import the service
 
-class UnregisteredHomeScreen extends StatefulWidget {
+class UnregisteredHomeScreen extends StatelessWidget {
   const UnregisteredHomeScreen({super.key});
-
-  @override
-  State<UnregisteredHomeScreen> createState() => _UnregisteredHomeScreenState();
-}
-
-class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
-  final TextEditingController _urlController = TextEditingController();
-  bool _isScanning = false;
 
   void _showNotSignedInDialog(BuildContext context) {
     showDialog(
@@ -27,7 +16,7 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
             style: TextStyle(color: AppColors.primaryText),
           ),
           content: const Text(
-            'You need to be signed in to access this feature.',
+            'You need to be signed in to access your profile.',
             style: TextStyle(color: AppColors.secondaryText),
           ),
           actions: [
@@ -58,49 +47,6 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
         );
       },
     );
-  }
-
-  Future<void> _scanURL(String url) async {
-    setState(() => _isScanning = true);
-
-    try {
-      final bool? isSafe = await GoogleSafeBrowsingService().isUrlSafe(url);
-
-      if (!mounted) return;
-
-      if (isSafe == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This URL is safe!'),
-            backgroundColor: AppColors.safe,
-          ),
-        );
-      } else if (isSafe == false) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This URL is unsafe!'),
-            backgroundColor: AppColors.highRisk,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not check URL. API or network error.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: AppColors.highRisk,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isScanning = false);
-    }
   }
 
   @override
@@ -151,7 +97,6 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
                 ),
               ),
               const SizedBox(height: 30),
-
               // Stats cards with icons
               Row(
                 children: [
@@ -163,11 +108,9 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
                 ],
               ),
               const SizedBox(height: 30),
-
               // Divider
               Divider(color: AppColors.divider.withAlpha(77), thickness: 0.5),
               const SizedBox(height: 30),
-
               // Scan section as a card
               Container(
                 width: double.infinity,
@@ -203,11 +146,11 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    // Scan input row
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
-                            controller: _urlController,
                             decoration: InputDecoration(
                               hintText: 'example-link.com',
                               hintStyle: TextStyle(color: AppColors.disabledText),
@@ -230,7 +173,6 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
                 ),
               ),
               const SizedBox(height: 30),
-
               // Recents section as a card
               Container(
                 width: double.infinity,
@@ -293,29 +235,7 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
         ],
         onTap: (index) {
-          switch (index) {
-            case 0: // Scan
-              // Do nothing – we already have a scan section on the home page
-              break;
-            case 1: // Home
-              // Already on home, do nothing
-              break;
-            case 2: // Help
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const HelpScreen()),
-              );
-              break;
-            case 3: // Analytics
-              _showNotSignedInDialog(context);
-              break;
-            case 4: // Settings
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ScanSettingsScreen()),
-              );
-              break;
-          }
+          // TODO: Handle navigation with login prompts
         },
       ),
     );
@@ -376,18 +296,14 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
           borderRadius: BorderRadius.circular(12),
         ),
         child: ElevatedButton(
-          onPressed: _isScanning
-              ? null
-              : () {
-                  final url = _urlController.text.trim();
-                  if (url.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please enter a URL')),
-                    );
-                    return;
-                  }
-                  _scanURL(url);
-                },
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please login to scan'),
+                backgroundColor: AppColors.primaryPurple,
+              ),
+            );
+          },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
@@ -396,23 +312,14 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           ),
-          child: _isScanning
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : const Text(
-                  'Scan',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+          child: const Text(
+            'Scan',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
         ),
       ),
     );
