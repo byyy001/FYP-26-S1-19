@@ -15,31 +15,29 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   final TextEditingController _urlController = TextEditingController();
   bool _isScanning = false;
 
-  // Fetch the user's first name from Firebase Firestore
+  // Fetch user's first name from Firestore
   Future<String> getUserFirstName() async {
-    User? user = FirebaseAuth.instance.currentUser;
-
+    final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+      final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
-
       if (userDoc.exists) {
         return userDoc['firstName'] ?? 'User';
       }
     }
-    return 'User'; // Fallback
+    return 'User';
   }
 
-  // Classify URL using Google Safe Browsing API
+  // Scan using Google Safe Browsing API
   Future<void> _scanURL(String url) async {
-    setState(() {
-      _isScanning = true;
-    });
+    setState(() => _isScanning = true);
 
     try {
-      bool? isSafe = await GoogleSafeBrowsingService().isUrlSafe(url);
+      final bool? isSafe = await GoogleSafeBrowsingService().isUrlSafe(url);
+
+      if (!mounted) return;
 
       if (isSafe == true) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -59,20 +57,20 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Could not check URL. API or network error.'),
-            backgroundColor: AppColors.mediumRisk,
+            backgroundColor: Colors.orange,
           ),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.highRisk),
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: AppColors.highRisk,
+        ),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          _isScanning = false;
-        });
-      }
+      if (mounted) setState(() => _isScanning = false);
     }
   }
 
@@ -93,6 +91,14 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           fit: BoxFit.contain,
         ),
         actions: [
+          // Notification icon
+          IconButton(
+            icon: const Icon(Icons.notifications_none, color: AppColors.primaryText),
+            onPressed: () {
+              // TODO: Open notifications screen
+            },
+          ),
+          // Profile icon
           IconButton(
             icon: const Icon(Icons.person_outline, color: AppColors.primaryText),
             onPressed: () {
@@ -108,7 +114,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return const Center(child: Text('Error fetching user data'));
+            return const Center(child: Text('Error loading user data'));
           }
           final userName = snapshot.data ?? 'User';
 
@@ -138,14 +144,29 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   ),
                   const SizedBox(height: 30),
 
-                  // Stats cards (dummy data for now)
+                  // Stats cards with icons
                   Row(
                     children: [
-                      _buildStatCard('Total Scans', '100', AppColors.primaryText),
+                      _buildStatCard(
+                        icon: Icons.qr_code_scanner,
+                        label: 'Total Scans',
+                        value: '100',
+                        valueColor: AppColors.primaryText,
+                      ),
                       const SizedBox(width: 12),
-                      _buildStatCard('Safe Links', '80', AppColors.safe),
+                      _buildStatCard(
+                        icon: Icons.shield,
+                        label: 'Safe Links',
+                        value: '80',
+                        valueColor: AppColors.safe,
+                      ),
                       const SizedBox(width: 12),
-                      _buildStatCard('Threats', '20', AppColors.highRisk),
+                      _buildStatCard(
+                        icon: Icons.warning_amber,
+                        label: 'Threats',
+                        value: '20',
+                        valueColor: AppColors.highRisk,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 30),
@@ -169,7 +190,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Scan input row
+                  // URL input row
                   Row(
                     children: [
                       Expanded(
@@ -184,7 +205,10 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide.none,
                             ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
                           ),
                           style: const TextStyle(color: AppColors.primaryText),
                         ),
@@ -220,18 +244,18 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Recents list (sample data – later replace with actual history)
+                  // Recents list (sample data)
                   _buildRecentItem(
                     'google.com',
                     'URL scan',
                     '2m ago',
-                    'threat',
+                    'threat', // high risk
                   ),
                   _buildRecentItem(
                     'linkbitly.com',
                     'Camera scan',
                     '5d ago',
-                    'warning',
+                    'warning', // medium risk
                   ),
                   _buildRecentItem(
                     'telegramlogin.com',
@@ -251,13 +275,25 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppColors.primaryPurple,
         unselectedItemColor: AppColors.secondaryText,
-        currentIndex: 1, // Home selected
+        currentIndex: 1,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'Scan'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.qr_code_scanner),
+            label: 'Scan',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.help_outline), label: 'Help'),
-          BottomNavigationBarItem(icon: Icon(Icons.analytics), label: 'Analytics'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.help_outline),
+            label: 'Help',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.analytics),
+            label: 'Analytics',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
         ],
         onTap: (index) {
           // TODO: Handle navigation
@@ -266,10 +302,16 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, Color valueColor) {
+  // Stats card with icon
+  Widget _buildStatCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color valueColor,
+  }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
           borderRadius: BorderRadius.circular(12),
@@ -283,6 +325,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         ),
         child: Column(
           children: [
+            Icon(icon, color: AppColors.primaryPurple, size: 24),
+            const SizedBox(height: 8),
             Text(
               value,
               style: TextStyle(
@@ -306,6 +350,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
+  // Scan button
   Widget _buildScanButton(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
@@ -358,8 +403,9 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
+  // Recent item widget
   Widget _buildRecentItem(String url, String scanType, String time, String risk) {
-    IconData icon = scanType.contains('Camera') ? Icons.camera_alt : Icons.link;
+    final icon = scanType.contains('Camera') ? Icons.camera_alt : Icons.link;
     Color riskColor;
     String riskLabel;
     IconData riskIcon;
