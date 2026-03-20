@@ -20,7 +20,10 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     User? user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
 
       if (userDoc.exists) {
         String firstName = userDoc['firstName'] ?? 'User';
@@ -38,16 +41,29 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
     try {
       // Use Google Safe Browsing API to classify the URL
-      bool isSafe = await GoogleSafeBrowsingService().isUrlSafe(url);
+      bool? isSafe = await GoogleSafeBrowsingService().isUrlSafe(url);
 
-      // Show the result to the user
-      if (isSafe) {
+      if (isSafe == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This URL is safe!'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('This URL is safe!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else if (isSafe == false) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This URL is unsafe!'),
+            backgroundColor: Colors.red,
+          ),
         );
       } else {
+        //ERROR (API failed)
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This URL is unsafe!'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Could not check URL. API or network error.'),
+            backgroundColor: Colors.orange,
+          ),
         );
       }
     } catch (e) {
@@ -79,7 +95,10 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_outline, color: AppColors.primaryText),
+            icon: const Icon(
+              Icons.person_outline,
+              color: AppColors.primaryText,
+            ),
             onPressed: () {
               // Navigate to profile screen
             },
@@ -87,7 +106,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         ],
       ),
       body: FutureBuilder<String>(
-        future: getUserFirstName(), // Fetch the user's first name from Firestore
+        future:
+            getUserFirstName(), // Fetch the user's first name from Firestore
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -128,7 +148,11 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   // Stats cards (dummy data for now)
                   Row(
                     children: [
-                      _buildStatCard('Total Scans', '100', AppColors.primaryText),
+                      _buildStatCard(
+                        'Total Scans',
+                        '100',
+                        AppColors.primaryText,
+                      ),
                       const SizedBox(width: 12),
                       _buildStatCard('Safe Links', '80', AppColors.safe),
                       const SizedBox(width: 12),
@@ -171,7 +195,10 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide.none,
                             ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
                           ),
                           style: const TextStyle(color: AppColors.primaryText),
                         ),
@@ -194,11 +221,23 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         unselectedItemColor: AppColors.secondaryText,
         currentIndex: 1, // Home selected
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'Scan'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.qr_code_scanner),
+            label: 'Scan',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.help_outline), label: 'Help'),
-          BottomNavigationBarItem(icon: Icon(Icons.analytics), label: 'Analytics'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.help_outline),
+            label: 'Help',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.analytics),
+            label: 'Analytics',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
         ],
         onTap: (index) {
           // Handle navigation here
@@ -266,9 +305,9 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           if (url.isNotEmpty) {
             _scanURL(url); // Call the scan function
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Please enter a URL')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Please enter a URL')));
           }
         },
         child: const Text('Scan'),
