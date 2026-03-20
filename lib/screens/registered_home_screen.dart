@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/google_safe_browsing_service.dart';
+import 'help_screen.dart';
+import 'scan_settings_screen.dart';
+import 'security_insights_screen.dart'; // analytics screen
 
 class RegisteredHomeScreen extends StatefulWidget {
   const RegisteredHomeScreen({super.key});
@@ -321,6 +324,37 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         ],
         onTap: (index) {
           // TODO: Handle navigation
+          switch (index) {
+            case 0: // Scan
+              // Already have scan section, can optionally scroll to it
+              // For now, do nothing.
+              break;
+            case 1: // Home
+              // Already on home, do nothing
+              break;
+            case 2: // Help
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HelpScreen()),
+              );
+              break;
+            case 3: // Analytics
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SecurityInsightsScreen(),
+                ),
+              );
+              break;
+            case 4: // Settings
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ScanSettingsScreen(),
+                ),
+              );
+              break;
+          }
         },
       ),
     );
