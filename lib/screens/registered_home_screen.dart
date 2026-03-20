@@ -1,26 +1,64 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // For Firestore querying
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // For getting current user details
+import '../services/google_safe_browsing_service.dart'; // Safe Browsing API
 
-class RegisteredHomeScreen extends StatelessWidget {
+class RegisteredHomeScreen extends StatefulWidget {
   const RegisteredHomeScreen({super.key});
 
+  @override
+  State<RegisteredHomeScreen> createState() => _RegisteredHomeScreenState();
+}
+
+class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
+  final TextEditingController _urlController = TextEditingController();
+  bool _isLoading = false;
+
+  // Fetch the user's first name from Firebase Firestore
   Future<String> getUserFirstName() async {
-    // Gettin the current user from FirebaseAuth
     User? user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
-      // Fetching the user data from Firestore
       DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
       if (userDoc.exists) {
-        // Fetch the first name from the document
-        String firstName = userDoc ['firstName'] ?? 'User';
+        String firstName = userDoc['firstName'] ?? 'User';
         return firstName;
       }
     }
-    return 'User'; // Fallback should no user data be found
+    return 'User'; // Fallback if user data is not found
+  }
+
+  // Classify URL using Google Safe Browsing API
+  Future<void> _scanURL(String url) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Use Google Safe Browsing API to classify the URL
+      bool isSafe = await GoogleSafeBrowsingService().isUrlSafe(url);
+
+      // Show the result to the user
+      if (isSafe) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This URL is safe!'), backgroundColor: Colors.green),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This URL is unsafe!'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -43,13 +81,13 @@ class RegisteredHomeScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.person_outline, color: AppColors.primaryText),
             onPressed: () {
-              // TODO: Navigate to profile screen
+              // Navigate to profile screen
             },
           ),
         ],
       ),
       body: FutureBuilder<String>(
-        future: getUserFirstName(),
+        future: getUserFirstName(), // Fetch the user's first name from Firestore
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -59,7 +97,6 @@ class RegisteredHomeScreen extends StatelessWidget {
             return const Center(child: Text('Error fetching user data'));
           }
 
-          // Retrieve first name from the snapshot
           String userName = snapshot.data ?? 'User';
 
           return SingleChildScrollView(
@@ -69,7 +106,7 @@ class RegisteredHomeScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 20),
-                  // Greeting
+                  // Greeting with actual user name from Firestore
                   Text(
                     'Ready To Scan $userName?',
                     style: TextStyle(
@@ -88,7 +125,7 @@ class RegisteredHomeScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 30),
 
-                  // Stats cards
+                  // Stats cards (dummy data for now)
                   Row(
                     children: [
                       _buildStatCard('Total Scans', '100', AppColors.primaryText),
@@ -118,11 +155,13 @@ class RegisteredHomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Scan input row
+
+                  // URL input row
                   Row(
                     children: [
                       Expanded(
                         child: TextField(
+                          controller: _urlController,
                           decoration: InputDecoration(
                             hintText: 'example-link.com',
                             hintStyle: TextStyle(color: AppColors.disabledText),
@@ -138,54 +177,8 @@ class RegisteredHomeScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      _buildScanButton(context),
+                      _buildScanButton(context), // Scan button
                     ],
-                  ),
-                  const SizedBox(height: 30),
-
-                  // Recents section header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Recents',
-                        style: TextStyle(
-                          fontSize: isSmall ? 18 : 20,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryText,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          // TODO: Navigate to full history screen
-                        },
-                        child: const Text(
-                          'View History →',
-                          style: TextStyle(color: AppColors.primaryPurple),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Recents list
-                  _buildRecentItem(
-                    'google.com',
-                    'URL scan',
-                    '2m ago',
-                    'threat', // high risk
-                  ),
-                  _buildRecentItem(
-                    'linkbitly.com',
-                    'Camera scan',
-                    '5d ago',
-                    'warning', // medium risk
-                  ),
-                  _buildRecentItem(
-                    'telegramlogin.com',
-                    'URL scan',
-                    '5d ago',
-                    'safe',
                   ),
                   const SizedBox(height: 30),
                 ],
@@ -208,12 +201,13 @@ class RegisteredHomeScreen extends StatelessWidget {
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
         ],
         onTap: (index) {
-          // TODO: Handle navigation
+          // Handle navigation here
         },
       ),
     );
   }
 
+  // Stats card widget
   Widget _buildStatCard(String label, String value, Color valueColor) {
     return Expanded(
       child: Container(
@@ -254,6 +248,7 @@ class RegisteredHomeScreen extends StatelessWidget {
     );
   }
 
+  // Scan button widget
   Widget _buildScanButton(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
@@ -266,143 +261,17 @@ class RegisteredHomeScreen extends StatelessWidget {
       ),
       child: ElevatedButton(
         onPressed: () {
-          // TODO: Trigger scan with threat engine
+          // Trigger scan with the URL
+          String url = _urlController.text.trim();
+          if (url.isNotEmpty) {
+            _scanURL(url); // Call the scan function
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Please enter a URL')),
+            );
+          }
         },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        ),
-        child: const Text(
-          'Scan',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecentItem(String url, String scanType, String time, String risk) {
-    // Determine icon based on scan type
-    IconData icon = scanType.contains('Camera') ? Icons.camera_alt : Icons.link;
-    // Determine color and label based on risk
-    Color riskColor;
-    String riskLabel;
-    IconData riskIcon;
-    switch (risk) {
-      case 'threat':
-        riskColor = AppColors.highRisk;
-        riskLabel = 'Threat';
-        riskIcon = Icons.warning;
-        break;
-      case 'warning':
-        riskColor = AppColors.mediumRisk;
-        riskLabel = 'Warning';
-        riskIcon = Icons.warning_amber;
-        break;
-      case 'safe':
-      default:
-        riskColor = AppColors.safe;
-        riskLabel = 'Safe';
-        riskIcon = Icons.check_circle;
-        break;
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(10),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Icon for scan type
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.mainBackground,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: AppColors.primaryPurple, size: 20),
-          ),
-          const SizedBox(width: 12),
-          // URL and details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  url,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryText,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      scanType,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                    Text(
-                      ' • ',
-                      style: TextStyle(color: AppColors.secondaryText),
-                    ),
-                    Text(
-                      time,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Risk indicator
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: riskColor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: riskColor.withOpacity(0.5)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(riskIcon, color: riskColor, size: 14),
-                const SizedBox(width: 4),
-                Text(
-                  riskLabel,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: riskColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        child: const Text('Scan'),
       ),
     );
   }
