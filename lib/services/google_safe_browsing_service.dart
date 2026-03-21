@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 class GoogleSafeBrowsingService {
   final String apiKey =
-      'AIzaSyAl7HTLg5_0Iqc18Y0VzCDgTiE_mvTvmmE'; // Replace with your API key
+      'AIzaSyBguQy3kVHT3ZTYQEJiT6PnMeJAMp8dGvs'; // Replace with your API key
 
   // Safe Browsing API endpoint
   final String endpoint =
