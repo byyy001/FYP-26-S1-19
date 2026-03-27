@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart'; // for TapGestureRecognizer
 import '../constants/app_colors.dart';
-import '../services/auth_service.dart'; // for account creation services
-import 'terms_screen.dart';
-import 'privacy_policy_screen.dart';
 import 'login_screen.dart'; // for navigation back
 
 class SignUpScreen extends StatefulWidget {
@@ -20,127 +16,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final AuthService _authService = AuthService();
-
-  bool _isLoading = false;
   bool _agreeToTerms = false;
   bool _isHoveringSignUp = false;
   bool _isHoveringGoogle = false;
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
 
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _handleSignUp() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    if (!_agreeToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You must agree to the terms'),
-          backgroundColor: AppColors.highRisk,
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await _authService.signUpWithEmail(
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Account created successfully'),
-          backgroundColor: AppColors.primaryPurple,
-        ),
-      );
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sign up failed: $e'),
-          backgroundColor: AppColors.highRisk,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _handleGoogleSignUp() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final result = await _authService.signInWithGoogle();
-
-      if (result == null) {
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Google sign-in successful'),
-          backgroundColor: AppColors.primaryBlue,
-        ),
-      );
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Google sign-in failed: $e'),
-          backgroundColor: AppColors.highRisk,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -155,9 +34,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Top padding
                 const SizedBox(height: 30),
-                // Logo
+                // Logo at top
                 Center(
                   child: Image.asset(
                     'assets/images/LinkSentryLogoTop.png',
@@ -165,8 +43,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: 40),
-                // Join us Today and Sign Up
+                const SizedBox(height: 30),
+                // Join us Today and Sign Up (as two lines or side by side? wireframe shows "Join us Today" above "Sign Up")
+                // We'll follow the wireframe: two separate texts stacked.
                 Text(
                   'Join us Today',
                   style: TextStyle(
@@ -184,84 +63,64 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     color: AppColors.primaryPurple,
                   ),
                 ),
-                const SizedBox(height: 20),
-                // Subtle divider above form
-                Divider(
-                  color: AppColors.divider.withAlpha(77),
-                  thickness: 0.5,
-                  height: 1,
-                ),
                 const SizedBox(height: 30),
                 // Form
                 Form(
                   key: _formKey,
                   child: Column(
                     children: [
-                      // First & Last Name side by side
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _firstNameController,
-                              style: const TextStyle(color: AppColors.primaryText),
-                              decoration: InputDecoration(
-                                labelText: 'First Name',
-                                labelStyle: const TextStyle(color: AppColors.secondaryText),
-                                filled: true,
-                                fillColor: AppColors.cardBackground,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                prefixIcon: const Icon(
-                                  Icons.person_outline,
-                                  color: AppColors.secondaryText,
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Required';
-                                }
-                                if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(value)) {
-                                  return 'Only letters allowed';
-                                }
-                                return null;
-                              },
-                            ),
+                      // First Name
+                      TextFormField(
+                        controller: _firstNameController,
+                        style: const TextStyle(color: AppColors.primaryText),
+                        decoration: InputDecoration(
+                          labelText: 'First Name',
+                          labelStyle: const TextStyle(color: AppColors.secondaryText),
+                          filled: true,
+                          fillColor: AppColors.cardBackground,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _lastNameController,
-                              style: const TextStyle(color: AppColors.primaryText),
-                              decoration: InputDecoration(
-                                labelText: 'Last Name',
-                                labelStyle: const TextStyle(color: AppColors.secondaryText),
-                                filled: true,
-                                fillColor: AppColors.cardBackground,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                prefixIcon: const Icon(
-                                  Icons.person_outline,
-                                  color: AppColors.secondaryText,
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Required';
-                                }
-                                if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(value)) {
-                                  return 'Only letters allowed';
-                                }
-                                return null;
-                              },
-                            ),
+                          prefixIcon: const Icon(
+                            Icons.person_outline,
+                            color: AppColors.secondaryText,
                           ),
-                        ],
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your first name';
+                          }
+                          return null;
+                        },
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
+                      // Last Name
+                      TextFormField(
+                        controller: _lastNameController,
+                        style: const TextStyle(color: AppColors.primaryText),
+                        decoration: InputDecoration(
+                          labelText: 'Last Name',
+                          labelStyle: const TextStyle(color: AppColors.secondaryText),
+                          filled: true,
+                          fillColor: AppColors.cardBackground,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.person_outline,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your last name';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
                       // Email
                       TextFormField(
                         controller: _emailController,
@@ -290,11 +149,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 20),
-                      // Password with toggle
+                      const SizedBox(height: 16),
+                      // Password
                       TextFormField(
                         controller: _passwordController,
-                        obscureText: _obscurePassword,
+                        obscureText: true,
                         style: const TextStyle(color: AppColors.primaryText),
                         decoration: InputDecoration(
                           labelText: 'Password',
@@ -309,37 +168,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             Icons.lock_outline,
                             color: AppColors.secondaryText,
                           ),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                              color: AppColors.secondaryText,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                          ),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Please enter your password';
                           }
                           if (value.length < 6) {
-                            return 'Must be at least 6 characters';
+                            return 'Password must be at least 6 characters';
                           }
-                          // Optional: require at least one uppercase, one number, one special
-                          // if (!RegExp(r'^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])').hasMatch(value)) {
-                          //   return 'Password must contain uppercase, number, and special character';
-                          // }
                           return null;
                         },
                       ),
-                      const SizedBox(height: 20),
-                      // Confirm Password with toggle
+                      const SizedBox(height: 16),
+                      // Confirm Password
                       TextFormField(
                         controller: _confirmPasswordController,
-                        obscureText: _obscureConfirmPassword,
+                        obscureText: true,
                         style: const TextStyle(color: AppColors.primaryText),
                         decoration: InputDecoration(
                           labelText: 'Confirm Password',
@@ -353,17 +197,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           prefixIcon: const Icon(
                             Icons.lock_outline,
                             color: AppColors.secondaryText,
-                          ),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                              color: AppColors.secondaryText,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _obscureConfirmPassword = !_obscureConfirmPassword;
-                              });
-                            },
                           ),
                         ),
                         validator: (value) {
@@ -380,9 +213,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                // Agreement checkbox with tappable terms
+                // Agreement checkbox and terms
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Checkbox(
                       value: _agreeToTerms,
@@ -401,7 +233,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           style: TextStyle(
                             color: AppColors.secondaryText,
                             fontSize: 14,
-                            height: 1.5,
                           ),
                           children: [
                             const TextSpan(text: 'I agree to the '),
@@ -411,13 +242,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 color: AppColors.primaryPurple,
                                 decoration: TextDecoration.underline,
                               ),
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const TermsScreen()),
-                                  );
-                                },
                             ),
                             const TextSpan(text: ' and '),
                             TextSpan(
@@ -426,13 +250,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 color: AppColors.primaryPurple,
                                 decoration: TextDecoration.underline,
                               ),
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
-                                  );
-                                },
                             ),
                             const TextSpan(text: '.'),
                           ],
@@ -441,15 +258,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 40),
-                // Sign Up button (larger, with hover)
+                const SizedBox(height: 24),
+                // Sign Up button with gradient and hover
                 MouseRegion(
                   onEnter: (_) => setState(() => _isHoveringSignUp = true),
                   onExit: (_) => setState(() => _isHoveringSignUp = false),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     width: double.infinity,
-                    height: 60,
+                    height: 56,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: AppColors.premiumGradient,
@@ -461,8 +278,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ? [
                               BoxShadow(
                                 color: AppColors.primaryPurple.withAlpha(102),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
                               ),
                             ]
                           : [
@@ -474,7 +291,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ],
                     ),
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _handleSignUp,
+                      onPressed: () {
+                        if (_formKey.currentState!.validate() && _agreeToTerms) {
+                          // TODO: Perform sign up
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Sign Up tapped (demo)'),
+                              backgroundColor: AppColors.primaryPurple,
+                            ),
+                          );
+                        } else if (!_agreeToTerms) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('You must agree to the terms'),
+                              backgroundColor: AppColors.highRisk,
+                            ),
+                          );
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         shadowColor: Colors.transparent,
@@ -537,14 +371,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                // Divider above Google button
-                Divider(
-                  color: AppColors.divider.withAlpha(77),
-                  thickness: 0.5,
-                  height: 1,
-                ),
-                const SizedBox(height: 24),
-                // Sign up with Google button (colored logo, hover effect)
+                // Sign up with Google button
                 MouseRegion(
                   onEnter: (_) => setState(() => _isHoveringGoogle = true),
                   onExit: (_) => setState(() => _isHoveringGoogle = false),
@@ -553,14 +380,29 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     width: double.infinity,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: _isHoveringGoogle
-                          ? AppColors.cardBackground.withAlpha(204)
-                          : Colors.transparent,
+                      color: Colors.transparent,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.divider),
+                      boxShadow: _isHoveringGoogle
+                          ? [
+                              BoxShadow(
+                                color: AppColors.primaryPurple.withAlpha(51),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
                     ),
                     child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _handleGoogleSignUp,
+                      onPressed: () {
+                        // TODO: Google Sign-Up
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Google Sign-Up (demo)'),
+                            backgroundColor: AppColors.primaryBlue,
+                          ),
+                        );
+                      },
                       icon: const Icon(
                         Icons.g_mobiledata,
                         color: Colors.white,

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
+import 'package:flutter/gestures.dart'; // Required for TapGestureRecognizer
 import '../constants/app_colors.dart';
 import 'unregistered_home_screen.dart';
-import 'login_screen.dart';
-import 'terms_screen.dart';
-import 'privacy_policy_screen.dart';
+import 'terms_screen.dart';          // Import terms screen
+import 'privacy_policy_screen.dart'; // Import privacy policy screen
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -43,54 +42,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           'Clear severity levels with plain-English explanations so you know exactly what to do next.',
     },
   ];
-
-  void _showChoiceDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: AppColors.cardBackground,
-          title: const Text(
-            'Welcome to LinkSentry!',
-            style: TextStyle(color: AppColors.primaryText),
-          ),
-          content: const Text(
-            'Would you like to continue as a guest or log in to access all features?',
-            style: TextStyle(color: AppColors.secondaryText),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const UnregisteredHomeScreen()),
-                );
-              },
-              child: const Text(
-                'Continue as Guest',
-                style: TextStyle(color: AppColors.primaryPurple),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryPurple,
-              ),
-              child: const Text('Login'),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +130,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,
                 child: GestureDetector(
-                  onTap: _showChoiceDialog,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const UnregisteredHomeScreen()),
+                    );
+                  },
                   child: TweenAnimationBuilder(
                     tween: Tween<double>(begin: 0.95, end: 1.0),
                     duration: const Duration(milliseconds: 200),
