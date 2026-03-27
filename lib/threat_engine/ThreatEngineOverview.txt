@@ -1,0 +1,155 @@
+Threat Engine – Overview and Documentation
+===========================================
+
+1. Introduction
+---------------
+This Threat Engine analyzes URLs and classifies them according to potential security risks. It integrates multiple layers of analysis including static rule‑based checks, machine learning (logistic regression + decision tree), and optional behavioral and AI/rule‑based models.
+
+The engine is implemented in Flutter/Dart and is structured to allow easy integration with the UI while remaining modular for future expansions.
+
+---
+
+2. Architecture and Pipeline
+----------------------------
+The engine is structured in **5 layers**, each handling a specific responsibility:
+
+Layer 1: Feature Extraction (feature_extractor.dart)
+  - Extracts numerical and boolean features from a URL.
+  - Features include:
+      * URL, domain, subdomain, and path lengths
+      * Character counts: '.', '-', '_', '/', '?', '=', '&', '@', '%'
+      * Boolean flags: hasIp, hasPort, hasHttps, hasQuery
+      * Shannon entropy (detects randomness / obfuscation)
+  - Provides a 16‑element feature vector for ML models.
+
+Layer 2: Static Rules & Heuristics (static_rules.dart)
+  - Applies predefined rules and heuristics to detect suspicious URL patterns.
+  - Examples:
+      * Presence of phishing keywords
+      * Suspicious TLDs, URL shorteners, IP addresses
+      * Abnormal URL structure (double slash, heavy encoding, punycode)
+      * Typosquatting detection via Levenshtein distance
+  - Outputs a list of detected threats with severity (low/medium/high).
+
+Layer 3: Machine Learning Models
+  logistic_regression.dart
+    - Pre‑trained logistic regression model (binary: malicious vs benign).
+    - Input: feature vector from Layer 1.
+    - Output: threat probability (0–1) and confidence level.
+
+  decision_tree.dart (optional)
+    - Pre‑trained decision tree supporting multi‑class prediction.
+    - Classes: benign, defacement, phishing, malware (from dataset).
+    - Input: feature vector from Layer 1.
+    - Output:
+        * Predicted class index
+        * Class probabilities (if leaf stores distribution)
+        * Confidence level
+    - Also provides a binary probability (any malicious class = 1) for score fusion.
+
+Layer 4: Hybrid Engine (hybrid_engine.dart)
+  - Orchestrates the full analysis pipeline:
+      1. Extract features (Layer 1).
+      2. Run static rules (Layer 2).
+      3. Run logistic regression and (if available) decision tree (Layer 3).
+      4. Optionally run Behavior Engine and Rule‑Based AI Engine.
+      5. Fuse all scores using weighted ensemble (weights influenced by user settings).
+      6. Determine final risk score (0–100), severity, and threat type.
+      7. Generate human‑readable explanation and recommended actions.
+  - Threat type is taken from decision tree if present; otherwise falls back to logistic regression‑based heuristics.
+
+Layer 5: Threat Engine Facade (threat_engine.dart)
+  - Singleton interface for the entire engine.
+  - Loads models and initializes all layers.
+  - Accepts ScanSettings from the UI (derived from the user’s preferences screen).
+  - Provides a single asynchronous method analyze(url, settings) returning the full threat report.
+
+---
+
+3. Current Models and Engines
+-----------------------------
+- Logistic Regression (binary)
+    * Provides baseline malicious probability.
+    * Weights and bias loaded from assets/models/logistic_regression_weights.json.
+
+- Decision Tree (multi‑class)
+    * Predicts specific threat type among benign, defacement, phishing, malware.
+    * Loaded from assets/models/decision_tree.json (optional; if missing, engine falls back to logistic regression only).
+
+- Behavior Engine (optional)
+    * Simulates URL behavior (redirects, script activity, etc.) to produce a behavior score.
+
+- Rule‑Based AI Engine (optional)
+    * Applies additional heuristics (e.g., tracking parameters, free shorteners, unusual TLDs) to produce an AI score.
+
+---
+
+4. Scan Output
+--------------
+Each scan returns a structured report (wrapped in scan_result):
+
+| Field              | Description                                               |
+|--------------------|-----------------------------------------------------------|
+| url                | The URL analyzed                                          |
+| scan_date          | Human‑readable timestamp (e.g., Feb 18, 2026 6:08pm)      |
+| risk_score         | Numeric score 0–100                                       |
+| severity           | HIGH RISK, MEDIUM RISK, LOW RISK, or SAFE                 |
+| threat_type        | One of: benign, defacement, phishing, malware (or fallback) |
+| explanation        | Plain‑English description combining all detections        |
+| detected_threats   | List of individual threats from static rules (each with type, severity, description) |
+| actions            | Recommended user actions based on risk level              |
+| ml_confidence      | Confidence from logistic regression (high/medium/low)     |
+| behavior_score     | Optional behavior engine score (0–1)                      |
+| ai_score           | Optional AI engine score (0–1)                            |
+| dt_class           | (Debug) Decision tree class index if available            |
+
+---
+
+5. Threats Identified
+---------------------
+The engine can detect:
+- Phishing – URLs attempting to steal credentials.
+- Malware – URLs hosting or distributing malware.
+- Defacement – URLs that have been defaced (site alterations).
+- Benign – Safe URLs.
+- Additional heuristic flags (suspicious TLDs, shorteners, etc.) appear in detected_threats.
+
+---
+
+6. Requirements Met
+-------------------
+- ✅ Modular multi‑layer design
+- ✅ Singleton interface for Flutter integration
+- ✅ Async API for easy UI calls
+- ✅ Incorporates user‑defined scan preferences
+- ✅ Combines static rules, heuristics, ML, and optional engines
+- ✅ Generates detailed explanations and actionable guidance
+- ✅ Supports expansion with additional models (decision tree already added)
+
+---
+
+7. Remaining Tasks Before Final Deployment
+------------------------------------------
+1. Train and export real models using the dataset:
+   - Train logistic regression (binary) and export weights to logistic_regression_weights.json.
+   - Train decision tree (multi‑class) and export to decision_tree.json (ensure JSON format matches the expected structure).
+2. Integrate blacklist – add a static blacklist of known malicious domains (e.g., loaded from a text file) and check against it in static_rules.dart.
+3. UI integration – ensure the scan result screen correctly displays the four threat types with appropriate colors/icons.
+4. Testing & tuning – validate the engine on real URLs, adjust fusion weights and severity thresholds based on performance.
+5. Performance optimisation – ensure model loading and inference times are acceptable on mobile devices.
+6. Documentation – keep in‑code comments and provide usage examples for the frontend team.
+
+---
+
+8. Future Improvements (Planned / Ideas)
+----------------------------------------
+- Enable/disable layers – allow users to toggle ML, behavior, or AI engines in settings.
+- Additional ML models – Random Forest, Gradient Boosting, or a small neural network (TensorFlow Lite) for higher accuracy.
+- Sandboxing / external API integration – call services like VirusTotal or URLScan.io for behavioral reports (optional, with user consent).
+- Threat history and learning – store past scans and use them to fine‑tune model weights or update heuristics.
+- More threat types – expand to include scam, spam, or crypto‑related threats.
+- Real‑time blacklist updates – periodically download updated blacklists from a server.
+
+---
+
+End of Documentation

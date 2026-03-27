@@ -1,9 +1,20 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'login_screen.dart';
+import 'help_screen.dart';
+import 'scan_settings_screen.dart';
+import '../services/google_safe_browsing_service.dart'; // Import the service
 
-class UnregisteredHomeScreen extends StatelessWidget {
+class UnregisteredHomeScreen extends StatefulWidget {
   const UnregisteredHomeScreen({super.key});
+
+  @override
+  State<UnregisteredHomeScreen> createState() => _UnregisteredHomeScreenState();
+}
+
+class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
+  final TextEditingController _urlController = TextEditingController();
+  bool _isScanning = false;
 
   void _showNotSignedInDialog(BuildContext context) {
     showDialog(
@@ -16,12 +27,12 @@ class UnregisteredHomeScreen extends StatelessWidget {
             style: TextStyle(color: AppColors.primaryText),
           ),
           content: const Text(
-            'You need to be signed in to access your profile.',
+            'You need to be signed in to access this feature.',
             style: TextStyle(color: AppColors.secondaryText),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context), // Cancel
+              onPressed: () => Navigator.pop(context),
               child: const Text(
                 'Cancel',
                 style: TextStyle(color: AppColors.secondaryText),
@@ -29,7 +40,7 @@ class UnregisteredHomeScreen extends StatelessWidget {
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context); // Close dialog
+                Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -47,6 +58,49 @@ class UnregisteredHomeScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _scanURL(String url) async {
+    setState(() => _isScanning = true);
+
+    try {
+      final bool? isSafe = await GoogleSafeBrowsingService().isUrlSafe(url);
+
+      if (!mounted) return;
+
+      if (isSafe == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This URL is safe!'),
+            backgroundColor: AppColors.safe,
+          ),
+        );
+      } else if (isSafe == false) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This URL is unsafe!'),
+            backgroundColor: AppColors.highRisk,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not check URL. API or network error.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: AppColors.highRisk,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isScanning = false);
+    }
   }
 
   @override
@@ -97,134 +151,128 @@ class UnregisteredHomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 30),
-              // Stats cards
+
+              // Stats cards with icons
               Row(
                 children: [
-                  _buildStatCard('Total Scans', '0'),
+                  _buildStatCard(Icons.qr_code_scanner, 'Total Scans', '0'),
                   const SizedBox(width: 12),
-                  _buildStatCard('Safe Links', '0'),
+                  _buildStatCard(Icons.shield, 'Safe Links', '0'),
                   const SizedBox(width: 12),
-                  _buildStatCard('Threats', '0'),
+                  _buildStatCard(Icons.warning_amber, 'Threats', '0'),
                 ],
               ),
               const SizedBox(height: 30),
-              // Scan section
-              Text(
-                'Scan a Link',
-                style: TextStyle(
-                  fontSize: isSmall ? 18 : 20,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primaryText,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Paste any URL to check if it\'s safe',
-                style: TextStyle(
-                  fontSize: isSmall ? 12 : 14,
-                  color: AppColors.secondaryText,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'example-link.com',
-                        hintStyle: TextStyle(color: AppColors.disabledText),
-                        filled: true,
-                        fillColor: AppColors.cardBackground,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      style: const TextStyle(color: AppColors.primaryText),
+
+              // Divider
+              Divider(color: AppColors.divider.withAlpha(77), thickness: 0.5),
+              const SizedBox(height: 30),
+
+              // Scan section as a card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: AppColors.premiumGradient,
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Scan a Link',
+                      style: TextStyle(
+                        fontSize: isSmall ? 18 : 20,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primaryText,
                       ),
-                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        // TODO: Implement scan (prompt login if not signed in)
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please login to scan'),
-                            backgroundColor: AppColors.primaryPurple,
+                    const SizedBox(height: 8),
+                    Text(
+                      'Paste any URL to check if it\'s safe',
+                      style: TextStyle(
+                        fontSize: isSmall ? 12 : 14,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _urlController,
+                            decoration: InputDecoration(
+                              hintText: 'example-link.com',
+                              hintStyle: TextStyle(color: AppColors.disabledText),
+                              filled: true,
+                              fillColor: AppColors.mainBackground,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            ),
+                            style: const TextStyle(color: AppColors.primaryText),
                           ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ),
-                      child: const Text(
-                        'Scan',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
+                        const SizedBox(width: 12),
+                        _buildScanButton(context),
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 30),
-              // Recents section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Recents',
-                        style: TextStyle(
-                          fontSize: isSmall ? 18 : 20,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryText,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Sign in to save your scan history',
-                        style: TextStyle(
-                          fontSize: isSmall ? 12 : 14,
-                          color: AppColors.secondaryText,
-                        ),
-                      ),
-                    ],
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryPurple,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+
+              // Recents section as a card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
-                    child: const Text('Login'),
-                  ),
-                ],
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Recents',
+                          style: TextStyle(
+                            fontSize: isSmall ? 16 : 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryText,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Sign in to save your scan history',
+                          style: TextStyle(
+                            fontSize: isSmall ? 11 : 12,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                    _buildGradientLoginButton(context),
+                  ],
+                ),
               ),
               const SizedBox(height: 30),
             ],
@@ -236,7 +284,7 @@ class UnregisteredHomeScreen extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppColors.primaryPurple,
         unselectedItemColor: AppColors.secondaryText,
-        currentIndex: 1, // Home selected
+        currentIndex: 1,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'Scan'),
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
@@ -245,22 +293,53 @@ class UnregisteredHomeScreen extends StatelessWidget {
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
         ],
         onTap: (index) {
-          // TODO: Handle navigation (prompt login if needed)
+          switch (index) {
+            case 0: // Scan
+              // Do nothing – we already have a scan section on the home page
+              break;
+            case 1: // Home
+              // Already on home, do nothing
+              break;
+            case 2: // Help
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HelpScreen()),
+              );
+              break;
+            case 3: // Analytics
+              _showNotSignedInDialog(context);
+              break;
+            case 4: // Settings
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ScanSettingsScreen()),
+              );
+              break;
+          }
         },
       ),
     );
   }
 
-  Widget _buildStatCard(String label, String value) {
+  Widget _buildStatCard(IconData icon, String label, String value) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
           borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(20),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           children: [
+            Icon(icon, color: AppColors.primaryPurple, size: 24),
+            const SizedBox(height: 8),
             Text(
               value,
               style: const TextStyle(
@@ -279,6 +358,102 @@ class UnregisteredHomeScreen extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScanButton(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: AppColors.premiumGradient,
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: ElevatedButton(
+          onPressed: _isScanning
+              ? null
+              : () {
+                  final url = _urlController.text.trim();
+                  if (url.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter a URL')),
+                    );
+                    return;
+                  }
+                  _scanURL(url);
+                },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          ),
+          child: _isScanning
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text(
+                  'Scan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGradientLoginButton(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: AppColors.premiumGradient,
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: ElevatedButton.icon(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const LoginScreen()),
+            );
+          },
+          icon: const Icon(Icons.login, color: Colors.white, size: 18),
+          label: const Text(
+            'Login',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          ),
         ),
       ),
     );
