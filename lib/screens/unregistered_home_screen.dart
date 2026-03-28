@@ -4,6 +4,7 @@ import 'login_screen.dart';
 import 'help_screen.dart';
 import 'scan_settings_screen.dart';
 import '../services/google_safe_browsing_service.dart'; // Import the service
+import "camera_scanner.dart";
 
 class UnregisteredHomeScreen extends StatefulWidget {
   const UnregisteredHomeScreen({super.key});
@@ -295,7 +296,10 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
         onTap: (index) {
           switch (index) {
             case 0: // Scan
-              // Do nothing – we already have a scan section on the home page
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CameraScanner()),
+              );
               break;
             case 1: // Home
               // Already on home, do nothing
