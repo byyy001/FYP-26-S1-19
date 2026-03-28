@@ -6,6 +6,7 @@ import '../services/google_safe_browsing_service.dart';
 import 'help_screen.dart';
 import 'scan_settings_screen.dart';
 import 'security_insights_screen.dart'; // analytics screen
+import '../services/scan_history_service.dart'; // scan history 
 
 class RegisteredHomeScreen extends StatefulWidget {
   const RegisteredHomeScreen({super.key});
@@ -17,6 +18,7 @@ class RegisteredHomeScreen extends StatefulWidget {
 class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   final TextEditingController _urlController = TextEditingController();
   bool _isScanning = false;
+  final ScanHistoryService _scanHistoryService = ScanHistoryService();
 
   // Fetch user's first name from Firestore
   Future<String> getUserFirstName() async {
@@ -43,6 +45,14 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       if (!mounted) return;
 
       if (isSafe == true) {
+
+        await _scanHistoryService.saveScan(
+          url:url,
+          result: 'safe',
+          source : 'manual',
+          threatType:'',
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('This URL is safe!'),
@@ -50,6 +60,14 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           ),
         );
       } else if (isSafe == false) {
+
+        await _scanHistoryService.saveScan(
+          url:url,
+          result: 'unsafe',
+          source : 'manual',
+          threatType:'flagged_by_google_safe_browsing',
+        );
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('This URL is unsafe!'),
@@ -57,6 +75,15 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           ),
         );
       } else {
+
+        await _scanHistoryService.saveScan(
+        url: url,
+        result: 'error',
+        source: 'manual',
+        threatType: 'api_or_network_error',
+      );
+
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Could not check URL. API or network error.'),

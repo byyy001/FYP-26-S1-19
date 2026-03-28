@@ -15,6 +15,7 @@ import 'screens/security_management_screen.dart';
 import 'screens/scan_statistics_screen.dart';
 import 'screens/flagged_reviews_screen.dart';
 import 'screens/system_settings_screen.dart';
+import 'screens/splash_screen.dart';
 
 
 void main() async {
@@ -40,7 +41,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: AppColors.mainBackground,
       ),
-      home: const SystemSettingsScreen()
+      home: const SplashScreen()
     );
   }
 }
