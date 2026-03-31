@@ -1,36 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
+
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  String _selectedFilter = 'All';
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final bool isSmall = screenWidth < 360;
-
-    final List<Map<String, String>> historyItems = [
-      {
-        'url': 'exampleurl1.com',
-        'date': 'Jan 21, 19:00',
-        'status': 'Safe',
-      },
-      {
-        'url': 'exampleurl2.com',
-        'date': 'Jan 22, 19:00',
-        'status': 'Suspicious',
-      },
-      {
-        'url': 'exampleurl3.com',
-        'date': 'Jan 25, 19:00',
-        'status': 'Malicious',
-      },
-      {
-        'url': 'exampleurl4.com',
-        'date': 'Feb 14, 13:00',
-        'status': 'Malicious',
-      },
-    ];
 
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
@@ -99,58 +85,99 @@ class HistoryScreen extends StatelessWidget {
                     const SizedBox(height: 14),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        _HistoryFilter(label: 'All', selected: true),
-                        _HistoryFilter(label: 'Safe', selected: false),
-                        _HistoryFilter(label: 'Suspicious', selected: false),
-                        _HistoryFilter(label: 'Malicious', selected: false),
-                      ],
+                      children: ['All', 'Safe', 'Suspicious', 'Malicious']
+                          .map((filter) => GestureDetector(
+                                onTap: () => setState(() => _selectedFilter = filter),
+                                child: _HistoryFilter(
+                                  label: filter,
+                                  selected: _selectedFilter == filter,
+                                ),
+                              ))
+                          .toList(),
                     ),
                     const SizedBox(height: 14),
-                    ...historyItems.map(
-                      (item) => Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.mainBackground,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.divider),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(FirebaseAuth.instance.currentUser?.uid)
+                          .collection('scans')
+                          .orderBy('scannedAt', descending: true)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Text("No scans found"),
+                            ),
+                          );
+                        }
+
+                        final docs = snapshot.data!.docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          if (_selectedFilter == 'All') return true;
+                          final status = (data['result'] ?? '').toString().toLowerCase();
+                          return status == _selectedFilter.toLowerCase();
+                        }).toList();
+
+                        return Column(
+                          children: docs.map((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.mainBackground,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.divider),
+                              ),
+                              child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    item['url']!,
-                                    style: const TextStyle(
-                                      color: AppColors.primaryText,
-                                      fontSize: 14,
-                                      fontStyle: FontStyle.italic,
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          data['url'] ?? 'No Content',
+                                          style: const TextStyle(
+                                            color: AppColors.primaryText,
+                                            fontSize: 14,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          data['scannedAt'] != null
+                                              ? (data['scannedAt'] as Timestamp)
+                                                  .toDate()
+                                                  .toString()
+                                                  .substring(0, 19)
+                                              : 'Recently',
+                                          style: const TextStyle(
+                                            color: AppColors.secondaryText,
+                                            fontSize: 13,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    item['date']!,
-                                    style: const TextStyle(
-                                      color: AppColors.secondaryText,
-                                      fontSize: 13,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
+                                  const SizedBox(width: 12),
+                                  _HistoryStatusBadge(status: data['result'] ?? 'safe'),
                                 ],
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            _HistoryStatusBadge(status: item['status']!),
-                          ],
-                        ),
-                      ),
+                            );
+                          }).toList(),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -170,7 +197,6 @@ class HistoryScreen extends StatelessWidget {
           BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
         ],
-        onTap: (index) {},
       ),
     );
   }
@@ -180,10 +206,7 @@ class _HistoryFilter extends StatelessWidget {
   final String label;
   final bool selected;
 
-  const _HistoryFilter({
-    required this.label,
-    required this.selected,
-  });
+  const _HistoryFilter({required this.label, required this.selected});
 
   @override
   Widget build(BuildContext context) {
@@ -205,27 +228,16 @@ class _HistoryFilter extends StatelessWidget {
 class _HistoryStatusBadge extends StatelessWidget {
   final String status;
 
-  const _HistoryStatusBadge({
-    required this.status,
-  });
+  const _HistoryStatusBadge({required this.status});
 
   @override
   Widget build(BuildContext context) {
     Color backgroundColor;
-    Color textColor = Colors.white;
-
     switch (status) {
-      case 'Safe':
-        backgroundColor = Colors.green;
-        break;
-      case 'Suspicious':
-        backgroundColor = Colors.orange;
-        break;
-      case 'Malicious':
-        backgroundColor = Colors.redAccent;
-        break;
-      default:
-        backgroundColor = AppColors.primaryPurple;
+      case 'safe': backgroundColor = Colors.green; break;
+      case 'suspicious': backgroundColor = Colors.orange; break;
+      case 'malicious': backgroundColor = Colors.redAccent; break;
+      default: backgroundColor = AppColors.primaryPurple;
     }
 
     return Container(
@@ -236,8 +248,8 @@ class _HistoryStatusBadge extends StatelessWidget {
       ),
       child: Text(
         status,
-        style: TextStyle(
-          color: textColor,
+        style: const TextStyle(
+          color: Colors.white,
           fontSize: 12,
           fontWeight: FontWeight.w600,
           fontStyle: FontStyle.italic,

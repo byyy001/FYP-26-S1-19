@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/google_safe_browsing_service.dart';
@@ -7,6 +8,12 @@ import 'help_screen.dart';
 import 'scan_settings_screen.dart';
 import 'security_insights_screen.dart'; // analytics screen
 import '../services/scan_history_service.dart'; // scan history 
+import 'history_screen.dart'; 
+
+String formatFirestoreTimestamp(Timestamp timestamp) {
+  DateTime dateTime = timestamp.toDate();
+  return DateFormat('MMM d, hh:mm a').format(dateTime);
+}
 
 class RegisteredHomeScreen extends StatefulWidget {
   const RegisteredHomeScreen({super.key});
@@ -49,7 +56,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         await _scanHistoryService.saveScan(
           url:url,
           result: 'safe',
-          source : 'manual',
+          source : 'URL scan',
           threatType:'',
         );
 
@@ -281,11 +288,17 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          // TODO: Navigate to full history screen
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('History screen coming soon!'),
-                              backgroundColor: AppColors.primaryPurple,
+                          // // TODO: Navigate to full history screen
+                          // ScaffoldMessenger.of(context).showSnackBar(
+                          //   const SnackBar(
+                          //     content: Text('History screen coming soon!'),
+                          //     backgroundColor: AppColors.primaryPurple,
+                          //   ),
+                          // );
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const HistoryScreen(),
                             ),
                           );
                         },
@@ -298,24 +311,45 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Recents list (sample data)
-                  _buildRecentItem(
-                    'google.com',
-                    'URL scan',
-                    '2m ago',
-                    'threat', // high risk
-                  ),
-                  _buildRecentItem(
-                    'linkbitly.com',
-                    'Camera scan',
-                    '5d ago',
-                    'warning', // medium risk
-                  ),
-                  _buildRecentItem(
-                    'telegramlogin.com',
-                    'URL scan',
-                    '5d ago',
-                    'safe',
+                  // Recent Scan History List
+                  StreamBuilder<QuerySnapshot>(
+                    stream: _scanHistoryService.getHistoryStream(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+
+                      final docs = snapshot.data?.docs ?? [];
+                      if (docs.isEmpty) {
+                        return _buildEmptyState();
+                      }
+                      
+                      return ListView.builder(
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: docs.length,
+                        itemBuilder: (context, index) {
+                          final docSnap = docs[index];
+                          final doc = docSnap.data() as Map<String, dynamic>;
+                          String formattedTime = 'Just now';
+                          if (doc['scannedAt'] != null && doc['scannedAt'] is Timestamp) {
+                            formattedTime = formatFirestoreTimestamp(doc['scannedAt'] as Timestamp);
+                          } else if (doc['scannedAt'] != null) {
+                            formattedTime = doc['scannedAt'].toString();
+                          }
+                          return _buildRecentItem(
+                            doc['url']?.toString() ?? 'Unknown URL',
+                            doc['source']?.toString() ?? 'URL scan',
+                            formattedTime,
+                            doc['result']?.toString() ?? 'Unknown',
+                          );
+                        },
+                      );
+                    },
                   ),
                   const SizedBox(height: 30),
                 ],
@@ -324,6 +358,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           );
         },
       ),
+      
+      // Navigators
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: AppColors.cardBackground,
         type: BottomNavigationBarType.fixed,
@@ -383,6 +419,41 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
               break;
           }
         },
+      ),
+    );
+  }
+
+  // Empty Scan
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      width: double.infinity,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.history_toggle_off,
+            color: AppColors.secondaryText,
+            size: 60,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "No recent scans found",
+            style: TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Your scan history will appear here",
+            style: TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 14,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -458,6 +529,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   return;
                 }
                 _scanURL(url);
+                _urlController.clear();
               },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
@@ -555,17 +627,17 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Text(
-                      scanType,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.secondaryText,
+                    Flexible(
+                      child: Text(
+                        scanType,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.secondaryText,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    Text(
-                      ' • ',
-                      style: TextStyle(color: AppColors.secondaryText),
-                    ),
+                    const Text(' • ', style: TextStyle(color: AppColors.secondaryText)),
                     Text(
                       time,
                       style: TextStyle(

@@ -17,16 +17,32 @@ class ScanHistoryService {
       return;
     }
 
-    await _firestore
-      .collection('users')
-      .doc(user.uid)
-      .collection('scans')
-      .add({
-    'url':url,
-    'result':result,
-    'source':source,
-    'threatType': threatType,
-    'scannedAt': FieldValue.serverTimestamp(),
-      });
+  final docRef = _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('scans')
+        .doc();
+
+    await docRef.set({
+      'url': url,
+      'result': result,
+      'source': source,
+      'sid': docRef.id,
+      'threatType': threatType,
+      'scannedAt': FieldValue.serverTimestamp(),
+    });
   }
+
+  Stream<QuerySnapshot> getHistoryStream() {
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('scans')
+        .orderBy('scannedAt', descending: true)
+        .limit(3)
+        .snapshots();
+  }
+
 }
