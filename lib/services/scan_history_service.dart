@@ -44,5 +44,4 @@ class ScanHistoryService {
         .limit(3)
         .snapshots();
   }
-
 }
