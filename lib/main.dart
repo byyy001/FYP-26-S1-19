@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:linksentry/screens/scan_settings_screen.dart';
 import 'package:linksentry/screens/signup_screen.dart';
 import 'firebase_options.dart';
 import 'constants/app_colors.dart';
@@ -16,6 +17,9 @@ import 'screens/scan_statistics_screen.dart';
 import 'screens/flagged_reviews_screen.dart';
 import 'screens/system_settings_screen.dart';
 import 'screens/splash_screen.dart';
+import 'screens/unregistered_home_screen.dart';
+import 'screens/registered_home_screen.dart';
+import 'screens/result_screen.dart';
 
 
 void main() async {
@@ -41,7 +45,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: AppColors.mainBackground,
       ),
-      home: const SplashScreen()
+      home: const SplashScreen(),
     );
   }
 }

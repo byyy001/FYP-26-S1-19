@@ -26,6 +26,10 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
 
   bool _isLoading = false;
 
+  // New top settings
+  bool _isPremiumUser = false; // placeholder for now
+  String _selectedMode = 'Default';
+
   @override
   void initState() {
     super.initState();
@@ -171,6 +175,137 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildSectionHeader(
+  icon: Icons.tune,
+  title: 'PLAN & MODE',
+),
+const SizedBox(height: 8),
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.all(16),
+  decoration: BoxDecoration(
+    color: AppColors.cardBackground,
+    borderRadius: BorderRadius.circular(12),
+  ),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.workspace_premium,
+            color: AppColors.primaryPurple,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Plan',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: AppColors.primaryText,
+              ),
+            ),
+          ),
+          Text(
+            _isPremiumUser ? 'Premium' : 'Free',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryPurple,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 4),
+      const Padding(
+        padding: EdgeInsets.only(left: 28),
+        child: Text(
+          'Your current feature tier',
+          style: TextStyle(
+            fontSize: 12,
+            color: AppColors.disabledText,
+          ),
+        ),
+      ),
+      const SizedBox(height: 18),
+      Row(
+        children: [
+          const Icon(
+            Icons.analytics_outlined,
+            color: AppColors.primaryPurple,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'Scan Mode',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: AppColors.primaryText,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 4),
+      const Padding(
+        padding: EdgeInsets.only(left: 28),
+        child: Text(
+          'Choose how detailed the scan result should be',
+          style: TextStyle(
+            fontSize: 12,
+            color: AppColors.disabledText,
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(
+            child: RadioListTile<String>(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text(
+                'Default',
+                style: TextStyle(color: AppColors.primaryText),
+              ),
+              value: 'Default',
+              groupValue: _selectedMode,
+              activeColor: AppColors.primaryPurple,
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _selectedMode = value);
+                }
+              },
+            ),
+          ),
+          Expanded(
+            child: RadioListTile<String>(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text(
+                'Advanced',
+                style: TextStyle(color: AppColors.primaryText),
+              ),
+              value: 'Advanced',
+              groupValue: _selectedMode,
+              activeColor: AppColors.primaryPurple,
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _selectedMode = value);
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    ],
+  ),
+),
+const SizedBox(height: 24),
+
+                  _buildSectionHeader(
                     icon: Icons.shield,
                     title: 'THREAT DETECTION',
                   ),
@@ -206,41 +341,47 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
                     value: _adReductionAnalysis,
                     onChanged: (val) => setState(() => _adReductionAnalysis = val),
                   ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Ad density alert level',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.secondaryText,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            _buildRadioButton('Low', 0),
-                            const SizedBox(width: 16),
-                            _buildRadioButton('Medium', 1),
-                            const SizedBox(width: 16),
-                            _buildRadioButton('High', 2),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'High = stricter ad density alerts',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.disabledText,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                 Container(
+  width: double.infinity,
+  margin: const EdgeInsets.symmetric(vertical: 4),
+  padding: const EdgeInsets.all(16),
+  decoration: BoxDecoration(
+    color: AppColors.cardBackground,
+    borderRadius: BorderRadius.circular(12),
+  ),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        'Ad density alert level',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: AppColors.primaryText,
+        ),
+      ),
+      const SizedBox(height: 4),
+      const Text(
+        'Choose how strict the app should be when detecting ad-heavy pages',
+        style: TextStyle(
+          fontSize: 12,
+          color: AppColors.disabledText,
+        ),
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          _buildRadioButton('Low', 0),
+          const SizedBox(width: 16),
+          _buildRadioButton('Medium', 1),
+          const SizedBox(width: 16),
+          _buildRadioButton('High', 2),
+        ],
+      ),
+    ],
+  ),
+),
+const SizedBox(height: 24),
 
                   _buildSectionHeader(
                     icon: Icons.smart_toy,
