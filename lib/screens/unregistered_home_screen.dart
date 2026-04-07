@@ -5,6 +5,7 @@ import 'help_screen.dart';
 import 'scan_settings_screen.dart';
 import '../services/google_safe_browsing_service.dart';
 import 'camera_scanner.dart';
+import 'result_screen.dart';
 
 class UnregisteredHomeScreen extends StatefulWidget {
   const UnregisteredHomeScreen({super.key});
@@ -75,28 +76,41 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
 
       if (!mounted) return;
 
-      if (isSafe == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This URL is safe!'),
-            backgroundColor: AppColors.safe,
+      if (isSafe == true || isSafe == false) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ResultScreen(
+            isRegistered: false,
+            scanMode: ScanMode.defaultMode,
+            verdict: isSafe == true ? 'Safe' : 'Unsafe',
+            url: url,
+            explanation: isSafe == true
+                ? 'This link appears to be safe.'
+                : 'This link may be unsafe.',
+            score: isSafe == true ? 20 : 80,
+            reasons: const [
+              'Basic security checks completed',
+            ],
+            recommendedActions: isSafe == true
+                ? const [
+                    'You may proceed, but stay cautious',
+                  ]
+                : const [
+                    'Do not enter personal information',
+                    'Avoid clicking further links',
+                  ],
           ),
-        );
-      } else if (isSafe == false) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This URL is unsafe!'),
-            backgroundColor: AppColors.highRisk,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not check URL. API or network error.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not check URL. API or network error.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

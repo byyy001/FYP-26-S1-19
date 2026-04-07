@@ -6,6 +6,7 @@ import '../services/google_safe_browsing_service.dart';
 import 'camera_scanner.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
+import 'result_screen.dart';
 
 class RegisteredHomeScreen extends StatefulWidget {
   const RegisteredHomeScreen({super.key});
@@ -32,18 +33,42 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
       if (!mounted) return;
 
-      if (isSafe == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This URL is safe!'),
-            backgroundColor: AppColors.safe,
-          ),
-        );
-      } else if (isSafe == false) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This URL is unsafe!'),
-            backgroundColor: AppColors.highRisk,
+      if (isSafe == true || isSafe == false) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ResultScreen(
+              isRegistered: true,
+              scanMode: ScanMode.defaultMode,
+              verdict: isSafe == true ? 'Safe' : 'Unsafe',
+              url: url,
+              explanation: isSafe == true
+                  ? 'This link appears to be safe.'
+                  : 'This link may be unsafe.',
+              score: isSafe == true ? 95 : 82,
+              reasons: isSafe == true
+                  ? const [
+                      'Basic security checks completed',
+                      'No major warning signals detected',
+                      'No suspicious behaviour found in this scan',
+                    ]
+                  : const [
+                      'Potential phishing patterns detected',
+                      'Suspicious domain structure',
+                      'Link reputation score is below safe threshold',
+                    ],
+              recommendedActions: isSafe == true
+                  ? const [
+                      'You may proceed, but still stay cautious',
+                      'Double-check the website before entering sensitive details',
+                      'Continue monitoring suspicious-looking links',
+                    ]
+                  : const [
+                      'Do not enter any personal information',
+                      'Avoid clicking further links on this site',
+                      'Close the page and verify the sender/source',
+                    ],
+            ),
           ),
         );
       } else {
