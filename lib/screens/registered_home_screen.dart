@@ -7,6 +7,8 @@ import 'camera_scanner.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
 import 'result_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RegisteredHomeScreen extends StatefulWidget {
   const RegisteredHomeScreen({super.key});
@@ -24,17 +26,66 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     _urlController.dispose();
     super.dispose();
   }
+  
+  Future<String> getUserFirstName() async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    print('No logged in user');
+    return 'User';
+  }
+
+  final userDoc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .get();
+
+  print('User data: ${userDoc.data()}');
+
+  if (userDoc.exists) {
+    return userDoc['firstName'] ?? 'User';
+  }
+
+  return 'User';
+  }
+
+  Future<void> _saveScanToFirestore({
+  required String url,
+  required bool isSafe,
+}) async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) return;
+
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .collection('scans')
+      .add({
+    'url': url,
+    'verdict': isSafe ? 'Safe' : 'Unsafe',
+    'isSafe': isSafe,
+    'scannedAt': FieldValue.serverTimestamp(),
+  });
+  }
 
   Future<void> _scanURL(String url) async {
-    setState(() => _isScanning = true);
+  setState(() => _isScanning = true);
 
-    try {
-      final bool? isSafe = await GoogleSafeBrowsingService().isUrlSafe(url);
+  try {
+    final bool? isSafe = await GoogleSafeBrowsingService().isUrlSafe(url);
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      if (isSafe == true || isSafe == false) {
-        Navigator.push(
+    if (isSafe == true || isSafe == false) {
+      final bool safeValue = isSafe!;
+
+      await _saveScanToFirestore(
+      url: url,
+      isSafe: safeValue,
+      );
+
+      Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => ResultScreen(
@@ -152,13 +203,22 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
+      body: FutureBuilder<String>(
+        future: getUserFirstName(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+          }
+
+        String userName = snapshot.data ?? 'User';
+        
+        return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Ready To Scan Alice?',
+              'Ready To Scan $userName?',
               style: TextStyle(
                 fontSize: isSmall ? 20 : 24,
                 fontWeight: FontWeight.bold,
@@ -347,10 +407,12 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                 ],
               ),
             ),
-          ],
-        ),
+              ],
+            ),
+          );
+        },
       ),
-      bottomNavigationBar: _buildCustomBottomNav(context),
+         bottomNavigationBar: _buildCustomBottomNav(context),
     );
   }
 
