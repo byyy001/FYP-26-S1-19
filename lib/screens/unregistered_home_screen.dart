@@ -19,6 +19,9 @@ class UnregisteredHomeScreen extends StatefulWidget {
 class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
   final TextEditingController _urlController = TextEditingController();
   bool _isScanning = false;
+  bool _engineReady = false;
+  bool _engineLoading = true;      // shows loading indicator
+  String? _engineError;
   late final ThreatEngine _engine;
 
   @override
@@ -28,7 +31,32 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
   }
 
   Future<void> _initEngine() async {
-    _engine = await ThreatEngine.getInstance();
+    setState(() {
+      _engineLoading = true;
+      _engineError = null;
+    });
+    try {
+      _engine = await ThreatEngine.getInstance();
+      if (mounted) {
+        setState(() {
+          _engineReady = true;
+          _engineLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Engine initialization error: $e');
+      if (mounted) {
+        setState(() {
+          _engineError = e.toString();
+          _engineLoading = false;
+          _engineReady = false;
+        });
+      }
+    }
+  }
+
+  void _retryInit() {
+    _initEngine();
   }
 
   @override
@@ -95,10 +123,19 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
   }
 
   Future<void> _scanURL(String url) async {
+    if (!_engineReady) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Scanner is still loading, please wait...'),
+          backgroundColor: AppColors.primaryPurple,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isScanning = true);
 
     try {
-      // Free user settings (default)
       final settings = ScanSettings.defaultSettings();
       final result = await _engine.analyze(url, settings: settings);
 
@@ -285,6 +322,45 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
                       _buildScanButton(context),
                     ],
                   ),
+                  if (_engineLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Loading security engine...',
+                              style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_engineError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Failed to load scanner: $_engineError',
+                            style: const TextStyle(color: AppColors.highRisk, fontSize: 12),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            onPressed: _retryInit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryPurple,
+                            ),
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -383,6 +459,8 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
   }
 
   Widget _buildScanButton(BuildContext context) {
+    // Disable button while engine is loading or scanning
+    final bool isDisabled = _engineLoading || _isScanning || _engineError != null;
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -393,7 +471,7 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: ElevatedButton.icon(
-        onPressed: _isScanning
+        onPressed: isDisabled
             ? null
             : () {
                 final url = _urlController.text.trim();
@@ -547,7 +625,6 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
             top: -2,
             child: GestureDetector(
               onTap: () {
-                // Camera scanner works for unregistered users (free tier)
                 Navigator.push(
                   context,
                   MaterialPageRoute(

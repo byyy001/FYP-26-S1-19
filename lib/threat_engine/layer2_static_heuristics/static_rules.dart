@@ -2,10 +2,12 @@
 // static_rules.dart – Layer 2: Static Rule Engine + Heuristic Scoring + External Blacklists
 // ============================================================================
 import 'dart:math';
-import 'dart:io'; // For file reading (CSA/SPF) and HttpClient
+import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:archive/archive.dart';
 import '../layer1_feature_extraction/feature_extractor.dart';
 import '../scan_settings.dart';
 import '../services/google_safe_browsing.dart';
@@ -15,20 +17,149 @@ import '../services/virustotal.dart';
 // Helper class to hold API keys (you should move these to a secure config)
 // --------------------------------------------------------------------------
 class ApiKeys {
-  // ⚠️ SECURITY WARNING: These keys are exposed in source code.
-  // Revoke them immediately and replace with environment variables.
-  // Example: static const String ipQualityScoreApiKey = String.fromEnvironment('IPQS_KEY');
-  static const String openPhishApiKey = '';           // OpenPhish public feed needs no key
-  static const String urlhausApiKey = '';             // URLhaus is public, no key needed
-  static const String ipQualityScoreApiKey = '41x7jw1Zwbqgd4UAbeuwpJaHyC4JOyy3'; // REPLACE THIS (revoked)
+  static const String openPhishApiKey = '';
+  static const String urlhausApiKey = '';
+  static const String ipQualityScoreApiKey = '41x7jw1Zwbqgd4UAbeuwpJaHyC4JOyy3'; // REPLACE THIS
   static const String whoisApiKey = 'at_RL2ksZSnT1Lk6EdCG7tEZldd84gJi';           // REPLACE THIS
 }
 
-class StaticRuleEngine {
-  // --------------------------------------------------------------------------
-  // Blacklists / Whitelists (static data)
-  // --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// Dynamic Whitelist Manager (Cisco Umbrella Top 1 Million)
+// --------------------------------------------------------------------------
+class DynamicWhitelistManager {
+  static DynamicWhitelistManager? _instance;
+  static const String _cacheFileName = 'umbrella_top1m.cache';
+  static const Duration _cacheMaxAge = Duration(days: 1);
+  static const int _maxDomains = 100000; // top 100,000 domains
 
+  Set<String>? _whitelist;
+  DateTime? _lastUpdated;
+
+  DynamicWhitelistManager._();
+
+  static Future<DynamicWhitelistManager> getInstance() async {
+    if (_instance == null) {
+      _instance = DynamicWhitelistManager._();
+      await _instance!._loadCache();
+      // Refresh in background if stale
+      if (_instance!._isStale()) {
+        _instance!._refreshInBackground();
+      }
+    }
+    return _instance!;
+  }
+
+  Future<void> _loadCache() async {
+    try {
+      final file = await _getCacheFile();
+      if (await file.exists()) {
+        final contents = await file.readAsString();
+        final lines = contents.split('\n');
+        if (lines.isNotEmpty) {
+          final timestampLine = lines.first;
+          final timestamp = DateTime.tryParse(timestampLine);
+          if (timestamp != null) {
+            _lastUpdated = timestamp;
+            _whitelist = {};
+            for (int i = 1; i < lines.length; i++) {
+              final domain = lines[i].trim();
+              if (domain.isNotEmpty) {
+                _whitelist!.add(domain);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('DynamicWhitelistManager: Failed to load cache: $e');
+    }
+    _whitelist ??= {};
+    _lastUpdated ??= DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  Future<void> _saveCache() async {
+    try {
+      final file = await _getCacheFile();
+      final buffer = StringBuffer();
+      buffer.writeln(_lastUpdated!.toIso8601String());
+      if (_whitelist != null) {
+        for (final domain in _whitelist!) {
+          buffer.writeln(domain);
+        }
+      }
+      await file.writeAsString(buffer.toString());
+    } catch (e) {
+      print('DynamicWhitelistManager: Failed to save cache: $e');
+    }
+  }
+
+  Future<File> _getCacheFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/$_cacheFileName');
+  }
+
+  bool _isStale() {
+    if (_lastUpdated == null) return true;
+    return DateTime.now().difference(_lastUpdated!) > _cacheMaxAge;
+  }
+
+  Future<void> _refreshInBackground() async {
+    // Run without awaiting (fire and forget)
+    _refresh().catchError((e) => print('Background refresh failed: $e'));
+  }
+
+  Future<void> _refresh() async {
+    try {
+      print('DynamicWhitelistManager: Fetching latest Umbrella top 1M list...');
+      final response = await http.get(Uri.parse('https://s3-us-west-1.amazonaws.com/umbrella-static/top-1m.csv.zip'));
+      if (response.statusCode != 200) {
+        print('Failed to download whitelist: HTTP ${response.statusCode}');
+        return;
+      }
+
+      // Unzip
+      final archive = ZipDecoder().decodeBytes(response.bodyBytes);
+      if (archive.isEmpty) {
+        print('Zip file empty');
+        return;
+      }
+      final zipEntry = archive.first;
+      final csvContent = utf8.decode(zipEntry.content as List<int>);
+      final lines = csvContent.split('\n');
+
+      final newWhitelist = <String>{};
+      int count = 0;
+      for (final line in lines) {
+        if (count >= _maxDomains) break;
+        final parts = line.split(',');
+        if (parts.length >= 2) {
+          final domain = parts[1].trim().toLowerCase();
+          if (domain.isNotEmpty) {
+            newWhitelist.add(domain);
+            count++;
+          }
+        }
+      }
+      _whitelist = newWhitelist;
+      _lastUpdated = DateTime.now();
+      await _saveCache();
+      print('DynamicWhitelistManager: Updated whitelist with ${_whitelist!.length} domains');
+    } catch (e) {
+      print('DynamicWhitelistManager: Refresh error: $e');
+    }
+  }
+
+  /// Public method to check if a domain is in the dynamic whitelist.
+  Future<bool> contains(String domain) async {
+    if (_whitelist == null) await _loadCache();
+    return _whitelist?.contains(domain) ?? false;
+  }
+}
+
+// --------------------------------------------------------------------------
+// Static Rule Engine (unchanged except isTrustedDomain now uses dynamic whitelist)
+// --------------------------------------------------------------------------
+class StaticRuleEngine {
   static const Set<String> suspiciousTlds = {
     'tk', 'xyz', 'top', 'club', 'work', 'date', 'stream', 'gq', 'ml', 'cf',
     'ga', 'ru', 'cn', 'pw', 'cc', 'bid', 'trade', 'webcam', 'science'
@@ -47,7 +178,8 @@ class StaticRuleEngine {
     'bit.ly', 'tinyurl', 'goo.gl', 'ow.ly', 'is.gd', 'buff.ly', 'short.link'
   ];
 
-  static const Set<String> trustedDomains = {
+  // Static whitelist (fallback)
+  static const Set<String> staticTrustedDomains = {
     'google.com', 'microsoft.com', 'apple.com', 'amazon.com', 'paypal.com',
     'facebook.com', 'twitter.com', 'linkedin.com', 'github.com', 'zoom.us',
     'dropbox.com', 'drive.google.com', 'yahoo.com', 'bing.com', 'duckduckgo.com',
@@ -60,6 +192,7 @@ class StaticRuleEngine {
     'harvard.edu', 'stanford.edu', 'mit.edu', 'ox.ac.uk', 'cam.ac.uk',
     'bbc.com', 'cnn.com', 'nytimes.com', 'wsj.com', 'reuters.com',
     'aljazeera.com', 'theguardian.com', 'economist.com',
+    'youtube.com', // added
   };
 
   // --------------------------------------------------------------------------
@@ -69,47 +202,6 @@ class StaticRuleEngine {
   static DateTime? _openPhishLastUpdate;
   static const Duration _openPhishCacheDuration = Duration(minutes: 30);
 
-  /// Fetches the OpenPhish feed (public, no API key) and caches it.
-  static Future<void> _refreshOpenPhishFeed() async {
-    try {
-      final response = await http.get(Uri.parse('https://openphish.com/feed.txt'));
-      if (response.statusCode == 200) {
-        final lines = response.body.split('\n');
-        final urls = <String>{};
-        for (final line in lines) {
-          final trimmed = line.trim();
-          if (trimmed.isNotEmpty) {
-            urls.add(trimmed);
-          }
-        }
-        _openPhishCache = urls;
-        _openPhishLastUpdate = DateTime.now();
-        print('OpenPhish feed refreshed: ${urls.length} URLs loaded.');
-      } else {
-        print('OpenPhish feed error: HTTP ${response.statusCode}');
-      }
-    } catch (e) {
-      print('OpenPhish feed error: $e');
-    }
-  }
-
-  /// Checks if a URL is in the OpenPhish database.
-  /// Uses the cached feed, refreshing it if older than 30 minutes.
-  static Future<bool> _isInOpenPhish(String url) async {
-    if (_openPhishCache == null ||
-        _openPhishLastUpdate == null ||
-        DateTime.now().difference(_openPhishLastUpdate!) > _openPhishCacheDuration) {
-      await _refreshOpenPhishFeed();
-    }
-    if (_openPhishCache == null) return false;
-    final normalized = url.toLowerCase().replaceAll(RegExp(r'/$'), '');
-    return _openPhishCache!.contains(normalized);
-  }
-
-  // --------------------------------------------------------------------------
-  // Instance data
-  // --------------------------------------------------------------------------
-
   final UrlFeatures features;
   final ScanSettings? settings;
 
@@ -118,16 +210,23 @@ class StaticRuleEngine {
   // --------------------------------------------------------------------------
   // Core rule checks (synchronous)
   // --------------------------------------------------------------------------
-
   bool get isSuspiciousTld => suspiciousTlds.contains(features.tldSuffix);
   bool get isShortener => shorteners.any((s) => features.url.contains(s));
 
-  // FIXED: features.domain already includes TLD, so no need to append .tldSuffix
-  bool get isTrustedDomain {
+  // UPDATED: Check dynamic whitelist first, then static whitelist
+  Future<bool> get isTrustedDomain async {
     final full = features.domain;
     if (full.isEmpty) return false;
-    if (trustedDomains.contains(full)) return true;
-    for (final trusted in trustedDomains) {
+
+    // Check dynamic whitelist (Cisco Umbrella)
+    final dynamicManager = await DynamicWhitelistManager.getInstance();
+    if (await dynamicManager.contains(full)) {
+      return true;
+    }
+
+    // Fallback to static whitelist
+    if (staticTrustedDomains.contains(full)) return true;
+    for (final trusted in staticTrustedDomains) {
       if (full.endsWith('.$trusted') || full == trusted) return true;
     }
     return false;
@@ -147,7 +246,6 @@ class StaticRuleEngine {
   // --------------------------------------------------------------------------
   // Heuristic anomaly detection (synchronous)
   // --------------------------------------------------------------------------
-
   List<String> findSuspiciousPatterns() {
     final patterns = <String>[];
     if (features.hasIp) patterns.add('IP address used');
@@ -188,7 +286,6 @@ class StaticRuleEngine {
   // --------------------------------------------------------------------------
   // External Blacklist Checks (Async)
   // --------------------------------------------------------------------------
-
   Future<bool> _isInCsaOrSpfList() async {
     try {
       final csaFile = File('assets/blacklists/csa_malicious.txt');
@@ -197,7 +294,7 @@ class StaticRuleEngine {
       final csaContent = await csaFile.readAsString();
       final spfContent = await spfFile.readAsString();
       final domains = csaContent.split('\n') + spfContent.split('\n');
-      final host = features.domain; // already includes TLD
+      final host = features.domain;
       return domains.any((line) => line.trim().toLowerCase() == host.toLowerCase());
     } catch (e) {
       return false;
@@ -210,31 +307,67 @@ class StaticRuleEngine {
     return score ?? 0.0;
   }
 
-  Future<double> _checkVirusTotal() async {
-    if (settings != null && !settings!.useExternalApis) return 0.0;
-    final score = await VirusTotal.checkUrl(features.url);
-    return score ?? 0.0;
+  Future<Map<String, dynamic>> _checkVirusTotal() async {
+    if (settings != null && !settings!.useExternalApis) {
+      return {'score': 0.0, 'details': null};
+    }
+    final result = await VirusTotal.checkUrl(features.url);
+    if (result == null) return {'score': 0.0, 'details': null};
+    return {
+      'score': result['score'] as double,
+      'details': {
+        'malicious': result['malicious'],
+        'suspicious': result['suspicious'],
+        'total': result['total'],
+      },
+    };
   }
 
-  // ==========================================================================
-  // OpenPhish – public feed (replaces dead PhishTank)
-  // ==========================================================================
+  // OpenPhish
+  static Future<void> _refreshOpenPhishFeed() async {
+    try {
+      final response = await http.get(Uri.parse('https://openphish.com/feed.txt'));
+      if (response.statusCode == 200) {
+        final lines = response.body.split('\n');
+        final urls = <String>{};
+        for (final line in lines) {
+          final trimmed = line.trim();
+          if (trimmed.isNotEmpty) urls.add(trimmed);
+        }
+        _openPhishCache = urls;
+        _openPhishLastUpdate = DateTime.now();
+        print('OpenPhish feed refreshed: ${urls.length} URLs loaded.');
+      } else {
+        print('OpenPhish feed error: HTTP ${response.statusCode}');
+      }
+    } catch (e) {
+      print('OpenPhish feed error: $e');
+    }
+  }
+
+  static Future<bool> _isInOpenPhish(String url) async {
+    if (_openPhishCache == null ||
+        _openPhishLastUpdate == null ||
+        DateTime.now().difference(_openPhishLastUpdate!) > _openPhishCacheDuration) {
+      await _refreshOpenPhishFeed();
+    }
+    if (_openPhishCache == null) return false;
+    final normalized = url.toLowerCase().replaceAll(RegExp(r'/$'), '');
+    return _openPhishCache!.contains(normalized);
+  }
+
   Future<Map<String, dynamic>> _checkOpenPhish() async {
     if (settings != null && !settings!.useExternalApis) {
       return {'score': 0.0, 'found': false, 'details': null};
     }
     try {
       final found = await _isInOpenPhish(features.url);
-      // Always print the result so the user knows OpenPhish was checked
       print('OpenPhish: ${found ? "URL found in feed" : "URL not found"}');
       if (found) {
         return {
           'score': 1.0,
           'found': true,
-          'details': {
-            'source': 'OpenPhish',
-            'note': 'URL found in public feed (updated every 30 minutes)',
-          }
+          'details': {'source': 'OpenPhish', 'note': 'URL found in public feed (updated every 30 minutes)'}
         };
       }
       return {'score': 0.0, 'found': false, 'details': null};
@@ -244,18 +377,14 @@ class StaticRuleEngine {
     }
   }
 
-  // ==========================================================================
-  // URLhaus – public API, fixed SSL certificate issue with IOClient
-  // ==========================================================================
+  // URLhaus
   Future<Map<String, dynamic>> _checkURLhaus() async {
     if (settings != null && !settings!.useExternalApis) {
       return {'score': 0.0, 'found': false, 'details': null};
     }
     try {
       final httpClient = HttpClient()
-        ..badCertificateCallback = (X509Certificate cert, String host, int port) {
-          return host == 'urlhaus-api.abuse.ch';
-        };
+        ..badCertificateCallback = (X509Certificate cert, String host, int port) => host == 'urlhaus-api.abuse.ch';
       final client = IOClient(httpClient);
       final url = Uri.parse('https://urlhaus-api.abuse.ch/v1/url/');
       final response = await client.post(
@@ -264,9 +393,7 @@ class StaticRuleEngine {
         body: 'url=${Uri.encodeComponent(features.url)}',
       ).timeout(const Duration(seconds: 5));
       client.close();
-      if (response.statusCode != 200) {
-        return {'score': 0.0, 'found': false, 'details': null};
-      }
+      if (response.statusCode != 200) return {'score': 0.0, 'found': false, 'details': null};
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       if (json['query_status'] == 'ok') {
         final urlInfo = json['url'] as Map<String, dynamic>?;
@@ -289,13 +416,9 @@ class StaticRuleEngine {
     }
   }
 
-  // ==========================================================================
-  // IPQualityScore – requires API key
-  // ==========================================================================
+  // IPQualityScore
   Future<Map<String, dynamic>> _checkIpQualityScore() async {
-    if (settings != null && !settings!.useExternalApis) {
-      return {'score': 0.0, 'details': null};
-    }
+    if (settings != null && !settings!.useExternalApis) return {'score': 0.0, 'details': null};
     if (ApiKeys.ipQualityScoreApiKey.isEmpty) {
       print('IPQualityScore API key missing. Skipping.');
       return {'score': 0.0, 'details': null};
@@ -303,9 +426,7 @@ class StaticRuleEngine {
     try {
       final url = Uri.parse('https://ipqualityscore.com/api/json/url/${ApiKeys.ipQualityScoreApiKey}/${Uri.encodeComponent(features.url)}');
       final response = await http.get(url).timeout(const Duration(seconds: 5));
-      if (response.statusCode != 200) {
-        return {'score': 0.0, 'details': null};
-      }
+      if (response.statusCode != 200) return {'score': 0.0, 'details': null};
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       if (json['success'] == true) {
         final riskScore = (json['risk_score'] as num?)?.toDouble() ?? 0.0;
@@ -327,14 +448,9 @@ class StaticRuleEngine {
     }
   }
 
-  // ==========================================================================
-  // WhoisAPI – gets domain registration age, with full null safety
-  // FIXED: Use features.domain directly (already contains TLD)
-  // ==========================================================================
+  // WhoisAPI
   Future<Map<String, dynamic>> _checkWhoisAPI() async {
-    if (settings != null && !settings!.useExternalApis) {
-      return {'score': 0.0, 'details': null};
-    }
+    if (settings != null && !settings!.useExternalApis) return {'score': 0.0, 'details': null};
     if (ApiKeys.whoisApiKey.isEmpty) {
       print('WhoisAPI key missing. Skipping.');
       return {'score': 0.0, 'details': null};
@@ -373,7 +489,6 @@ class StaticRuleEngine {
       }
       final created = DateTime.parse(createdDateStr);
       final ageDays = DateTime.now().difference(created).inDays;
-      // Always print the age result so the user sees WhoisAPI was checked
       print('WhoisAPI: Domain age $ageDays days (${ageDays < 30 ? "new" : "established"})');
       if (ageDays < 30) {
         return {
@@ -395,7 +510,7 @@ class StaticRuleEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Main external check – returns score and whether it's malicious
+  // Main external check
   // --------------------------------------------------------------------------
   Future<Map<String, dynamic>> checkExternalBlacklists() async {
     double maxScore = 0.0;
@@ -415,11 +530,11 @@ class StaticRuleEngine {
       details['google_sb'] = googleScore;
     }
 
-    final vtScore = await _checkVirusTotal();
-    if (vtScore > 0) {
-      maxScore = max(maxScore, vtScore);
+    final vtResult = await _checkVirusTotal();
+    if (vtResult['score'] > 0) {
+      maxScore = max(maxScore, vtResult['score'] as double);
       sources.add('VirusTotal');
-      details['virustotal'] = vtScore;
+      details['virustotal'] = vtResult['details'];
     }
 
     final opResult = await _checkOpenPhish();
@@ -461,9 +576,9 @@ class StaticRuleEngine {
   // --------------------------------------------------------------------------
   // Public API: Run full static + heuristic analysis (synchronous part)
   // --------------------------------------------------------------------------
-  List<Map<String, dynamic>> analyzeSync() {
+  Future<List<Map<String, dynamic>>> analyzeSync() async {
     final threats = <Map<String, dynamic>>[];
-    if (isTrustedDomain) return threats;
+    if (await isTrustedDomain) return threats;
 
     if (features.isMalformed) {
       threats.add({
@@ -527,7 +642,7 @@ class StaticRuleEngine {
 
   /// Async full analysis including external blacklists
   Future<Map<String, dynamic>> analyzeAsync() async {
-    final syncThreats = analyzeSync();
+    final syncThreats = await analyzeSync();
     final external = await checkExternalBlacklists();
     return {
       'threats': syncThreats,

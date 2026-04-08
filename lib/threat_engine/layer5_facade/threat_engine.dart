@@ -1,13 +1,11 @@
 // lib/threat_engine/layer5_facade/threat_engine.dart
-import 'dart:io';
-import 'package:path/path.dart' as p;
-
+import 'package:flutter/services.dart' show rootBundle;
 import '../layer2_static_heuristics/static_rules.dart';
 import '../layer4_hybrid/hybrid_engine.dart';
 import '../layer3_ml/logistic_regression.dart';
 import '../layer3_ml/decision_tree.dart';
 import '../layer3_ml/xgboost.dart';
-import '../layer3_ml/lightgbm.dart';           // NEW
+import '../layer3_ml/lightgbm.dart';
 import '../layer4_hybrid/behavior_engine.dart';
 import '../layer4_hybrid/rule_based_ai_engine.dart';
 import '../utils/scaler.dart';
@@ -23,56 +21,30 @@ class ThreatEngine {
   static Future<ThreatEngine> getInstance() async {
     if (_instance != null) return _instance!;
 
-    final assetsDir = p.join(Directory.current.path, 'assets', 'models');
-    final lrWeightsPath = p.join(assetsDir, 'logistic_regression_weights.json');
-    final lrScalerPath = p.join(assetsDir, 'scaler_params.json');
-    final dtPath = p.join(assetsDir, 'decision_tree.json');
-    final xgbPath = p.join(assetsDir, 'xgboost_model.json');
-    final lgbPath = p.join(assetsDir, 'lightgbm_model.json');   // NEW
+    // Load model JSON files from assets using rootBundle
+    final lrWeightsJson = await rootBundle.loadString('assets/models/logistic_regression_weights.json');
+    final lrScalerJson = await rootBundle.loadString('assets/models/scaler_params.json');
+    final dtJson = await rootBundle.loadString('assets/models/decision_tree.json');
+    final xgbJson = await rootBundle.loadString('assets/models/xgboost_model.json');
+    String? lgbJson;
+    try {
+      lgbJson = await rootBundle.loadString('assets/models/lightgbm_model.json');
+    } catch (e) {
+      print('LightGBM model not found – continuing without it');
+    }
 
     // Load Logistic Regression
-    late LogisticRegression lr;
-    try {
-      final lrWeightsJson = await File(lrWeightsPath).readAsString();
-      final lrScalerJson = await File(lrScalerPath).readAsString();
-      lr = await LogisticRegression.fromJson(lrWeightsJson, lrScalerJson);
-    } catch (e) {
-      print('Error loading Logistic Regression: $e');
-      rethrow;
-    }
-
-    // Load scaler
-    final scaler = await StandardScaler.load(lrScalerPath);
-
+    final lr = await LogisticRegression.fromJson(lrWeightsJson, lrScalerJson);
+    // Load scaler from JSON string
+    final scaler = StandardScaler.fromJsonString(lrScalerJson);
     // Load Decision Tree
-    late DecisionTree dt;
-    try {
-      final dtJson = await File(dtPath).readAsString();
-      dt = DecisionTree.fromJson(dtJson);
-    } catch (e) {
-      print('Error loading Decision Tree: $e');
-      rethrow;
-    }
-
+    final dt = DecisionTree.fromJson(dtJson);
     // Load XGBoost
-    late XGBoostModel xgb;
-    try {
-      final xgbJson = await File(xgbPath).readAsString();
-      xgb = XGBoostModel.fromJson(xgbJson);
-    } catch (e) {
-      print('Error loading XGBoost: $e');
-      rethrow;
-    }
-
-    // Load LightGBM (optional – continue if not found)
+    final xgb = XGBoostModel.fromJson(xgbJson);
+    // Load LightGBM (optional)
     LightGBMModel? lgb;
-    try {
-      final lgbJson = await File(lgbPath).readAsString();
+    if (lgbJson != null) {
       lgb = await LightGBMModel.fromJson(lgbJson);
-      print('LightGBM model loaded successfully.');
-    } catch (e) {
-      print('Warning: LightGBM model not found or invalid. Continuing without it: $e');
-      lgb = null;
     }
 
     final behavior = BehaviorEngine();
@@ -84,7 +56,7 @@ class ThreatEngine {
       decisionTree: dt,
       xgboost: xgb,
       scaler: scaler,
-      lightGBM: lgb,                // NEW
+      lightGBM: lgb,
       behaviorEngine: behavior,
       aiEngine: aiEngine,
     );

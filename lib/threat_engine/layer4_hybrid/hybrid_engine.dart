@@ -47,13 +47,13 @@ class HybridEngine {
 
     final features = UrlFeatures(url);
     
-    // 🛡️ Whitelist early exit: trusted domains are safe, skip all analysis
     final staticEngine = StaticRuleEngine(features);
-    if (staticEngine.isTrustedDomain) {
+    // ✅ await the async getter
+    if (await staticEngine.isTrustedDomain) {
       return _buildSafeResult(url);
     }
 
-    // 🔄 Redirect chain analysis (if deepScan enabled)
+    // Redirect chain analysis
     Map<String, dynamic>? redirectResult;
     List<String> redirectChain = [];
     String finalUrl = url;
@@ -81,10 +81,9 @@ class HybridEngine {
     final rawVector = features.toFeatureVector();
     final scaledVector = _scaler.transform(rawVector);
 
-    // Static threats (original)
-    List<Map<String, dynamic>> staticThreats = StaticRuleEngine(features).analyzeSync();
+    // ✅ await analyzeSync (now async)
+    List<Map<String, dynamic>> staticThreats = await staticEngine.analyzeSync();
     
-    // Add redirect‑based static threat if applicable
     if (redirectMalicious && redirectThreatDesc.isNotEmpty) {
       staticThreats.add({
         'type': 'malicious_redirect',
@@ -94,7 +93,6 @@ class HybridEngine {
       });
     }
 
-    // Domain age / WHOIS static threat (strong signal for new domains)
     if (externalResult.containsKey('details')) {
       final details = externalResult['details'] as Map<String, dynamic>;
       if (details.containsKey('whois')) {
@@ -178,12 +176,11 @@ class HybridEngine {
     final fusedClass = ensembleProbs.indexOf(maxProb);
     const double confidenceThreshold = 0.85;
     final lowConfidence = maxProb < confidenceThreshold;
-    // FIX: Do NOT default to benign when low confidence – keep original class
-    final adjustedClass = fusedClass;
+    final adjustedClass = fusedClass; // keep original class
     final mlScore = maxProb;
     String threatType = _classNames[adjustedClass];
     String mlConfidence = (!mlUsed || lowConfidence)
-        ? 'low'   // changed from 'none' to 'low' to reflect uncertainty
+        ? 'low'
         : (mlScore >= 0.9 ? 'high' : 'medium');
 
     // ---- Behavior & AI ----
@@ -204,7 +201,6 @@ class HybridEngine {
     final externalScore = (externalResult['score'] as double?) ?? 0.0;
     final externalSources = externalResult['sources'] as List? ?? [];
 
-    // ---- Score fusion with dynamic external weight ----
     double hybridScore = _fuseScores(
       staticScore: staticScore,
       mlScore: mlScore,
@@ -215,22 +211,36 @@ class HybridEngine {
       mlConfidence: mlConfidence,
     );
 
-    // ---- EXTERNAL OVERRIDE: If external score is very high, force HIGH RISK and set threat type ----
+    if (adjustedClass == 2 && mlConfidence == 'high') {
+      hybridScore = math.max(hybridScore, 80.0);
+      if (mlScore > 0.98) hybridScore = math.min(100, hybridScore + 15);
+    }
+
+    // External override (high confidence external sources)
     if (externalScore >= 0.9) {
       hybridScore = math.max(hybridScore, 85.0);
-      // Force threat type to 'malicious' if any strong external source flagged it
       if (externalSources.contains('VirusTotal') ||
           externalSources.contains('OpenPhish') ||
           externalSources.contains('IPQualityScore')) {
         threatType = 'malicious';
       }
-      mlConfidence = 'low'; // external overrides ML
+      mlConfidence = 'low';
     }
 
-    if (adjustedClass == 2 && mlConfidence == 'high') {
-      hybridScore = math.max(hybridScore, 80.0);
-      if (mlScore > 0.98) hybridScore = math.min(100, hybridScore + 15);
+    // ========== FINAL SAFETY: Prevent false positives on safe websites ==========
+    // If risk score is very low, force benign
+    if (hybridScore < 25.0) {
+      threatType = 'benign';
     }
+    // If risk score is low-to-medium and no strong external evidence, also downgrade to benign
+    else if (hybridScore < 50.0 && externalScore < 0.8) {
+      threatType = 'benign';
+    }
+    // If threat type is phishing but risk score is low (< 50), also downgrade
+    if (threatType == 'phishing' && hybridScore < 50.0) {
+      threatType = 'benign';
+    }
+    // ============================================================================
 
     final severity = _getSeverity(hybridScore);
 
@@ -334,11 +344,11 @@ class HybridEngine {
       final finalFeatures = UrlFeatures(finalUrl);
       final staticEngine = StaticRuleEngine(finalFeatures);
       
-      if (staticEngine.isTrustedDomain) {
+      if (await staticEngine.isTrustedDomain) {
         isMalicious = false;
         threatDescription = '';
       } else {
-        final finalThreats = staticEngine.analyzeSync();
+        final finalThreats = await staticEngine.analyzeSync();
         if (finalThreats.isNotEmpty) {
           isMalicious = true;
           threatDescription = 'Redirects to suspicious URL: $finalUrl. Issues: ${finalThreats.map((t) => t['description']).join('; ')}';
@@ -422,18 +432,14 @@ class HybridEngine {
     return 'Low confidence – consider manual verification.';
   }
 
-  // Updated fusion weights: external gets more weight when score is high
   Map<String, double> _getFusionWeights(ScanSettings s, String mlConf, double extScore) {
     double staticW = s.phishingSensitivity ? 0.35 : 0.25;
     double mlW = mlConf == 'high' ? 0.3 : (mlConf == 'medium' ? 0.2 : 0.0);
     double behaviorW = s.deepScan ? 0.2 : 0.0;
     double aiW = s.deepScan ? 0.1 : 0.0;
     double extW = 0.0;
-    if (extScore > 0.8) {
-      extW = 0.5;
-    } else if (extScore > 0) {
-      extW = 0.3;
-    }
+    if (extScore > 0.8) extW = 0.5;
+    else if (extScore > 0) extW = 0.3;
     final total = staticW + mlW + behaviorW + aiW + extW;
     return {
       'static': staticW / total,
@@ -458,15 +464,9 @@ class HybridEngine {
     double score = 0;
     for (final t in threats) {
       switch (t['severity']) {
-        case 'high':
-          score += 30;
-          break;
-        case 'medium':
-          score += 15;
-          break;
-        case 'low':
-          score += 8;
-          break;
+        case 'high': score += 30; break;
+        case 'medium': score += 15; break;
+        case 'low': score += 8; break;
       }
     }
     return score.clamp(0, 100).toDouble();
@@ -486,11 +486,8 @@ class HybridEngine {
     double behaviorWeight = settings.deepScan ? 0.2 : 0.0;
     double aiWeight = settings.deepScan ? 0.1 : 0.0;
     double externalWeight = 0.0;
-    if (externalScore > 0.8) {
-      externalWeight = 0.5;
-    } else if (externalScore > 0) {
-      externalWeight = 0.3;
-    }
+    if (externalScore > 0.8) externalWeight = 0.5;
+    else if (externalScore > 0) externalWeight = 0.3;
     final total = staticWeight + mlWeight + behaviorWeight + aiWeight + externalWeight;
     double adjStatic = staticWeight / total;
     double adjMl = mlWeight / total;
@@ -534,15 +531,9 @@ class HybridEngine {
     } else if (!mlUsed) {
       buffer.write('Machine learning was disabled for this scan. ');
     }
-    if (behaviorScore > 0.5) {
-      buffer.write('Suspicious script behaviors observed. ');
-    }
-    if (aiScore > 0.5) {
-      buffer.write('Advanced AI analysis confirms suspicious patterns. ');
-    }
-    if (externalScore > 0.5) {
-      buffer.write('Verified by external threat intelligence sources. ');
-    }
+    if (behaviorScore > 0.5) buffer.write('Suspicious script behaviors observed. ');
+    if (aiScore > 0.5) buffer.write('Advanced AI analysis confirms suspicious patterns. ');
+    if (externalScore > 0.5) buffer.write('Verified by external threat intelligence sources. ');
     if (threatType == 'benign' && threats.isEmpty && mlConfidence == 'none' && externalScore == 0) {
       buffer.write('No threats detected.');
     }

@@ -62,8 +62,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             style: TextStyle(color: AppColors.secondaryText),
           ),
           actions: [
-            // Option 1: Guest
-            TextButton(
+            // Guest option
+            OutlinedButton(
               onPressed: () async {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('onboardingCompleted', true);
@@ -75,13 +75,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   MaterialPageRoute(builder: (_) => const UnregisteredHomeScreen()),
                 );
               },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.primaryPurple),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
               child: const Text(
                 'Continue as Guest',
                 style: TextStyle(color: AppColors.primaryPurple),
               ),
             ),
-            // Option 2: Login
-            ElevatedButton(
+            // Login option
+            OutlinedButton(
               onPressed: () async {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('onboardingCompleted', true);
@@ -93,12 +99,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
                 );
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryPurple,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.primaryPurple),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: const Text('Login'),
+              child: const Text(
+                'Login',
+                style: TextStyle(color: AppColors.primaryPurple),
+              ),
             ),
-            // Option 3: Sign Up
+            // Sign Up option
             OutlinedButton(
               onPressed: () async {
                 final prefs = await SharedPreferences.getInstance();
@@ -113,6 +125,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               },
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.primaryPurple),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: const Text(
                 'Sign Up',

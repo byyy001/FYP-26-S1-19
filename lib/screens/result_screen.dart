@@ -37,7 +37,7 @@ class ResultScreen extends StatefulWidget {
     this.settings,
   });
 
-  // Factory constructor from engine result – avoids redirecting constructor issues
+  // Factory constructor from engine result
   factory ResultScreen.fromEngineResult({
     required Map<String, dynamic> engineResult,
     required ScanSettings settings,
@@ -89,18 +89,36 @@ class _ResultScreenState extends State<ResultScreen> {
     return [];
   }
 
-  Color get _verdictColor {
-    final v = widget.verdict.toLowerCase();
-    if (v == 'safe') return const Color(0xFF22C55E);
-    if (v == 'suspicious') return const Color(0xFFF59E0B);
-    return const Color(0xFFEF4444);
+  List<String> get _externalSources {
+    if (widget.engineResult != null) {
+      return List<String>.from(widget.engineResult!['external_sources'] ?? []);
+    }
+    return [];
   }
 
-  String get _simpleVerdictText {
-    final v = widget.verdict.toLowerCase();
-    if (v == 'safe') return 'Safe';
-    if (v == 'suspicious') return 'Use Caution';
-    return 'Unsafe';
+  double get _riskScore => widget.score.toDouble();
+
+  // Updated risk level and colour logic
+  String get _riskLevelText {
+    if (_riskScore >= 76) return 'High Risk';
+    if (_riskScore >= 51) return 'Medium Risk';
+    if (_riskScore >= 26) return 'Low Risk';
+    return 'Safe';
+  }
+
+  Color get _riskColor {
+    if (_riskScore >= 76) return AppColors.highRisk;
+    if (_riskScore >= 51) return AppColors.mediumRisk;
+    if (_riskScore >= 26) return AppColors.mediumRisk; // Low risk uses same as medium? Better use a lighter orange.
+    return AppColors.safe;
+  }
+
+  // Verdict text for the top banner (for unregistered users)
+  String _getSimpleVerdict() {
+    if (_riskScore >= 76) return 'Unsafe';
+    if (_riskScore >= 51) return 'Suspicious';
+    if (_riskScore >= 26) return 'Low Risk';
+    return 'Safe';
   }
 
   @override
@@ -142,14 +160,41 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 
   Widget _buildTopCard(bool isSmall) {
+    LinearGradient cardGradient;
+    if (_riskScore >= 76) {
+      cardGradient = LinearGradient(
+        colors: [AppColors.highRisk.withOpacity(0.15), AppColors.cardBackground],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else if (_riskScore >= 51) {
+      cardGradient = LinearGradient(
+        colors: [AppColors.mediumRisk.withOpacity(0.15), AppColors.cardBackground],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else if (_riskScore >= 26) {
+      cardGradient = LinearGradient(
+        colors: [AppColors.mediumRisk.withOpacity(0.1), AppColors.cardBackground],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else {
+      cardGradient = LinearGradient(
+        colors: [AppColors.safe.withOpacity(0.1), AppColors.cardBackground],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _verdictColor.withAlpha(120), width: 1),
-        boxShadow: [BoxShadow(color: _verdictColor.withAlpha(35), blurRadius: 14, offset: const Offset(0, 4))],
+        gradient: cardGradient,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _riskColor.withOpacity(0.3), width: 1),
+        boxShadow: [BoxShadow(color: _riskColor.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 6))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,23 +203,81 @@ class _ResultScreenState extends State<ResultScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  widget.isRegistered ? widget.verdict : _simpleVerdictText,
-                  style: TextStyle(fontSize: isSmall ? 24 : 28, fontWeight: FontWeight.bold, color: AppColors.primaryText),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.isRegistered ? widget.verdict : _getSimpleVerdict(),
+                      style: TextStyle(
+                        fontSize: isSmall ? 24 : 28,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryText,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _riskLevelText,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _riskColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              if (widget.isRegistered)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: AppColors.premiumGradient),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text('${widget.score}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _riskColor,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [BoxShadow(color: _riskColor.withOpacity(0.4), blurRadius: 8)],
                 ),
+                child: Text(
+                  '${widget.score}%',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Risk Score', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                  Text('${widget.score}%', style: TextStyle(color: _riskColor, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: _riskScore / 100,
+                  backgroundColor: AppColors.divider,
+                  color: _riskColor,
+                  minHeight: 8,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const [
+                  Text('Safe', style: TextStyle(color: AppColors.safe, fontSize: 11)),
+                  Text('Low', style: TextStyle(color: AppColors.mediumRisk, fontSize: 11)),
+                  Text('Medium', style: TextStyle(color: AppColors.mediumRisk, fontSize: 11)),
+                  Text('High', style: TextStyle(color: AppColors.highRisk, fontSize: 11)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           Text(widget.explanation, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14)),
           const SizedBox(height: 16),
           Center(
@@ -186,39 +289,114 @@ class _ResultScreenState extends State<ResultScreen> {
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: AppColors.divider),
               ),
-              child: Text(widget.url, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w500), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
+              child: Text(
+                widget.url,
+                style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w500),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          const Align(alignment: Alignment.centerRight, child: Text('Scanned just now', style: TextStyle(color: AppColors.disabledText, fontSize: 11))),
+          const SizedBox(height: 12),
+          const Align(
+            alignment: Alignment.centerRight,
+            child: Text('Scanned just now', style: TextStyle(color: AppColors.disabledText, fontSize: 11)),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildUnregisteredSection(bool isSmall) {
+    String externalMsg = '';
+    if (_externalSources.isNotEmpty) {
+      final sources = _externalSources.map((s) {
+        if (s == 'VirusTotal') return 'VirusTotal';
+        if (s == 'OpenPhish') return 'OpenPhish';
+        if (s == 'IPQualityScore') return 'IPQualityScore';
+        return s;
+      }).join(', ');
+      externalMsg = '✓ Flagged by $sources';
+    }
+
+    // Determine message based on risk level
+    String whatThisMeans;
+    String whatToDo;
+    if (_riskScore >= 76) {
+      whatThisMeans = 'This link is highly likely to be malicious. Do not proceed.';
+      whatToDo = 'Close the page immediately. Do not enter any information. Report the link if possible.';
+    } else if (_riskScore >= 51) {
+      whatThisMeans = 'This link shows clear signs of suspicious activity. Proceed with extreme caution.';
+      whatToDo = 'Avoid entering personal details. Consider verifying the link with another scanner.';
+    } else if (_riskScore >= 26) {
+      whatThisMeans = 'This link has a low but non‑zero risk. It may be safe, but some indicators are unusual.';
+      whatToDo = 'You can proceed, but avoid entering sensitive information. Double‑check the URL.';
+    } else {
+      whatThisMeans = 'No security issues were detected. This link appears safe.';
+      whatToDo = 'You may proceed, but always stay cautious. Keep your browser and antivirus updated.';
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('What this means', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
+        if (externalMsg.isNotEmpty) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _riskColor.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.shield_outlined, color: _riskColor, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    externalMsg,
+                    style: const TextStyle(color: AppColors.primaryText, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        Text(
+          'What this means',
+          style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText),
+        ),
         const SizedBox(height: 10),
-        _buildInfoCard(widget.verdict.toLowerCase() == 'safe' ? 'This link looks safe to open.' : 'This link may not be safe. Avoid opening it unless you trust the source.'),
+        _buildInfoCard(whatThisMeans),
         const SizedBox(height: 16),
-        Text('What you should do', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
+        Text(
+          'What you should do',
+          style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText),
+        ),
         const SizedBox(height: 10),
-        _buildInfoCard(widget.verdict.toLowerCase() == 'safe' ? 'You may continue, but still stay alert.' : 'Do not enter personal information and avoid clicking further.'),
+        _buildInfoCard(whatToDo),
         const SizedBox(height: 20),
         SizedBox(
           width: double.infinity,
           height: 48,
           child: ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryPurple,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
             child: const Text('Go Back', style: TextStyle(fontWeight: FontWeight.w600)),
           ),
         ),
         const SizedBox(height: 12),
-        Center(child: Text('Sign up for more detailed scan results', style: TextStyle(color: AppColors.secondaryText, fontSize: 13))),
+        Center(
+          child: Text(
+            'Sign up for more detailed scan results',
+            style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+          ),
+        ),
       ],
     );
   }

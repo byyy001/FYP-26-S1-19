@@ -2,93 +2,81 @@
 // feature_extractor.dart – Base Layer: Feature Extraction (Full 59 Features)
 // ============================================================================
 import 'dart:math';
-import 'package:tldts/tldts.dart' as tldts;
+import 'package:tldts/tldts.dart' as tldts; // kept for compatibility
 
 class UrlFeatures {
   final String url;
   late final Uri uri;
-  late final _TldResult _tldResult; // custom result object
   bool _parseFailed = false;
+  late final String _domain;
+  late final String _tldSuffix;
+  late final String _subdomain;
 
   UrlFeatures(this.url) {
+    // ✅ Normalize URL: add https:// if no scheme
+    String normalizedUrl = url.trim();
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = 'https://$normalizedUrl';
+    }
     try {
-      uri = Uri.parse(url.trim());
+      uri = Uri.parse(normalizedUrl);
     } catch (_) {
       uri = Uri();
-      _parseFailed = true;
-      _tldResult = _TldResult(domain: '', publicSuffix: '', subdomain: '');
+      _markFailed();
       return;
     }
 
     final host = uri.host;
     if (host.isEmpty) {
-      _parseFailed = true;
-      _tldResult = _TldResult(domain: '', publicSuffix: '', subdomain: '');
+      _markFailed();
       return;
     }
 
-    // Try tldts first
-    dynamic tld;
-    bool parsed = false;
-    try {
-      tld = tldts.parse(host);
-      if (tld != null && (tld.domain?.isNotEmpty == true)) {
-        _tldResult = _TldResult(
-          domain: tld.domain ?? '',
-          publicSuffix: tld.publicSuffix ?? '',
-          subdomain: tld.subdomain ?? '',
-        );
-        parsed = true;
-      }
-    } catch (_) {
-      // fallback
-    }
-
-    // If tldts failed, use manual fallback
-    if (!parsed) {
-      _tldResult = _manualParse(host);
-      if (_tldResult.domain.isEmpty) {
-        _parseFailed = true;
-      }
-    }
-  }
-
-  // Manual fallback parser for hosts like "sub.example.com" or "paypal-verify-account.tk"
-  _TldResult _manualParse(String host) {
+    // Manual parser – works for almost all cases
     final parts = host.split('.');
     if (parts.length < 2) {
-      return _TldResult(domain: '', publicSuffix: '', subdomain: '');
+      _markFailed();
+      return;
     }
 
-    // Known multi-part TLDs (extend as needed)
+    // Multi-part TLDs (common ones – extend as needed)
     const multiTlds = {
-      'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'com.au', 'org.au', 'net.au',
-      'co.jp', 'or.jp', 'ne.jp', 'co.za', 'org.za', 'com.br', 'org.br'
+      'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'ltd.uk', 'me.uk',
+      'com.au', 'org.au', 'net.au', 'id.au', 'asn.au',
+      'co.jp', 'or.jp', 'ne.jp', 'ac.jp', 'ad.jp',
+      'com.br', 'org.br', 'net.br', 'gov.br',
+      'co.za', 'org.za', 'net.za',
+      'co.nz', 'org.nz', 'net.nz',
+      'com.mx', 'org.mx', 'net.mx',
+      'com.cn', 'org.cn', 'net.cn',
     };
 
     String publicSuffix;
     String domain;
     String subdomain;
 
-    // Check for multi-part TLD (last two parts combined)
     final lastTwo = '${parts[parts.length-2]}.${parts[parts.length-1]}';
     if (parts.length >= 3 && multiTlds.contains(lastTwo)) {
       publicSuffix = lastTwo;
-      // domain = second-last + publicSuffix? Actually domain = parts[parts.length-3] + '.' + lastTwo
       domain = '${parts[parts.length-3]}.$lastTwo';
       subdomain = parts.sublist(0, parts.length - 3).join('.');
     } else {
-      // Standard single-part TLD
       publicSuffix = parts.last;
       domain = '${parts[parts.length-2]}.$publicSuffix';
       subdomain = parts.sublist(0, parts.length - 2).join('.');
     }
 
-    return _TldResult(
-      domain: domain,
-      publicSuffix: publicSuffix,
-      subdomain: subdomain,
-    );
+    _domain = domain;
+    _tldSuffix = publicSuffix;
+    _subdomain = subdomain;
+    _parseFailed = false;
+  }
+
+  void _markFailed() {
+    _parseFailed = true;
+    _domain = '';
+    _tldSuffix = '';
+    _subdomain = '';
   }
 
   bool get isMalformed => _parseFailed;
@@ -96,12 +84,12 @@ class UrlFeatures {
   // ================================
   // Domain Info
   // ================================
-  String get tldSuffix => _tldResult.publicSuffix;
-  String get domain => _tldResult.domain;
-  String get subdomain => _tldResult.subdomain;
+  String get tldSuffix => _tldSuffix;
+  String get domain => _domain;
+  String get subdomain => _subdomain;
 
   // ================================
-  // Length & Basic Counts
+  // Length & Basic Counts (keep from your existing file)
   // ================================
   int get length => url.length;
   int get domainLength => domain.length;
@@ -320,12 +308,4 @@ class UrlFeatures {
         pathUnderscoreCount.toDouble(),
         isGovEdu ? 1.0 : 0.0,
       ];
-}
-
-// Helper class to hold parsed domain parts
-class _TldResult {
-  final String domain;
-  final String publicSuffix;
-  final String subdomain;
-  _TldResult({required this.domain, required this.publicSuffix, required this.subdomain});
 }

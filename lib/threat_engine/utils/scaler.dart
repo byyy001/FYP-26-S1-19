@@ -14,10 +14,16 @@ class StandardScaler {
     );
   }
 
+  // New method: load from JSON string (for asset loading)
+  static StandardScaler fromJsonString(String jsonString) {
+    final json = jsonDecode(jsonString);
+    return StandardScaler.fromJson(json);
+  }
+
+  // Keep the original file-based load for desktop compatibility (optional)
   static Future<StandardScaler> load(String path) async {
     final content = await File(path).readAsString();
-    final json = jsonDecode(content);
-    return StandardScaler.fromJson(json);
+    return fromJsonString(content);
   }
 
   List<double> transform(List<double> features) {
