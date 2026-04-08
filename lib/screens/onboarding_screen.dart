@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
 import 'unregistered_home_screen.dart';
 import 'login_screen.dart';
+import 'signup_screen.dart';
 import 'terms_screen.dart';
 import 'privacy_policy_screen.dart';
 
@@ -57,18 +58,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             style: TextStyle(color: AppColors.primaryText),
           ),
           content: const Text(
-            'Would you like to continue as a guest or log in to access all features?',
+            'How would you like to proceed?',
             style: TextStyle(color: AppColors.secondaryText),
           ),
           actions: [
+            // Option 1: Guest
             TextButton(
               onPressed: () async {
-                // Guest choice
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('onboardingCompleted', true);
                 await prefs.setBool('isGuestMode', true);
                 if (!context.mounted) return;
-                Navigator.pop(context); // close dialog
+                Navigator.pop(context);
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (_) => const UnregisteredHomeScreen()),
@@ -79,14 +80,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 style: TextStyle(color: AppColors.primaryPurple),
               ),
             ),
+            // Option 2: Login
             ElevatedButton(
               onPressed: () async {
-                // Login choice
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('onboardingCompleted', true);
-                await prefs.remove('isGuestMode'); // clear any guest flag
+                await prefs.remove('isGuestMode');
                 if (!context.mounted) return;
-                Navigator.pop(context); // close dialog
+                Navigator.pop(context);
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -96,6 +97,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 backgroundColor: AppColors.primaryPurple,
               ),
               child: const Text('Login'),
+            ),
+            // Option 3: Sign Up
+            OutlinedButton(
+              onPressed: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('onboardingCompleted', true);
+                await prefs.remove('isGuestMode');
+                if (!context.mounted) return;
+                Navigator.pop(context);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SignUpScreen()),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.primaryPurple),
+              ),
+              child: const Text(
+                'Sign Up',
+                style: TextStyle(color: AppColors.primaryPurple),
+              ),
             ),
           ],
         );

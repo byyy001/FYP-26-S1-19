@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'login_screen.dart';
+import 'signup_screen.dart';
 import 'help_screen.dart';
 import 'scan_settings_screen.dart';
 import 'camera_scanner.dart';
@@ -36,19 +37,19 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
     super.dispose();
   }
 
-  void _showNotSignedInDialog(BuildContext context) {
+  void _showAuthDialog({String feature = 'this feature'}) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: AppColors.cardBackground,
           title: const Text(
-            'Not Signed In',
+            'Sign In Required',
             style: TextStyle(color: AppColors.primaryText),
           ),
-          content: const Text(
-            'You need to be signed in to access this feature.',
-            style: TextStyle(color: AppColors.secondaryText),
+          content: Text(
+            'You need to be signed in to use $feature. Would you like to log in or create an account?',
+            style: const TextStyle(color: AppColors.secondaryText),
           ),
           actions: [
             TextButton(
@@ -69,9 +70,22 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryPurple,
               ),
+              child: const Text('Login'),
+            ),
+            OutlinedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SignUpScreen()),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.primaryPurple),
+              ),
               child: const Text(
-                'Login',
-                style: TextStyle(color: Colors.white),
+                'Sign Up',
+                style: TextStyle(color: AppColors.primaryPurple),
               ),
             ),
           ],
@@ -84,13 +98,12 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
     setState(() => _isScanning = true);
 
     try {
-      // Use free user settings (default)
+      // Free user settings (default)
       final settings = ScanSettings.defaultSettings();
       final result = await _engine.analyze(url, settings: settings);
 
       if (!mounted) return;
 
-      // Navigate to result screen using the new named constructor
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -141,7 +154,7 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
               color: AppColors.primaryText,
               size: 25,
             ),
-            onPressed: () => _showNotSignedInDialog(context),
+            onPressed: () => _showAuthDialog(feature: 'notifications'),
           ),
           const SizedBox(width: 0),
           IconButton(
@@ -152,7 +165,7 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
               color: AppColors.primaryText,
               size: 25,
             ),
-            onPressed: () => _showNotSignedInDialog(context),
+            onPressed: () => _showAuthDialog(feature: 'your profile'),
           ),
           const SizedBox(width: 18),
         ],
@@ -512,7 +525,7 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
                   _buildNavItem(
                     icon: Icons.analytics_outlined,
                     label: 'Analytics',
-                    onTap: () => _showNotSignedInDialog(context),
+                    onTap: () => _showAuthDialog(feature: 'analytics'),
                   ),
                   _buildNavItem(
                     icon: Icons.settings_outlined,
@@ -534,6 +547,7 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
             top: -2,
             child: GestureDetector(
               onTap: () {
+                // Camera scanner works for unregistered users (free tier)
                 Navigator.push(
                   context,
                   MaterialPageRoute(
