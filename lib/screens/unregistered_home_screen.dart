@@ -3,9 +3,10 @@ import '../constants/app_colors.dart';
 import 'login_screen.dart';
 import 'help_screen.dart';
 import 'scan_settings_screen.dart';
-import '../services/google_safe_browsing_service.dart';
 import 'camera_scanner.dart';
 import 'result_screen.dart';
+import '../threat_engine/layer5_facade/threat_engine.dart';
+import '../threat_engine/scan_settings.dart';
 
 class UnregisteredHomeScreen extends StatefulWidget {
   const UnregisteredHomeScreen({super.key});
@@ -17,6 +18,17 @@ class UnregisteredHomeScreen extends StatefulWidget {
 class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
   final TextEditingController _urlController = TextEditingController();
   bool _isScanning = false;
+  late final ThreatEngine _engine;
+
+  @override
+  void initState() {
+    super.initState();
+    _initEngine();
+  }
+
+  Future<void> _initEngine() async {
+    _engine = await ThreatEngine.getInstance();
+  }
 
   @override
   void dispose() {
@@ -72,50 +84,27 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
     setState(() => _isScanning = true);
 
     try {
-      final bool? isSafe = await GoogleSafeBrowsingService().isUrlSafe(url);
+      // Use free user settings (default)
+      final settings = ScanSettings.defaultSettings();
+      final result = await _engine.analyze(url, settings: settings);
 
       if (!mounted) return;
 
-      if (isSafe == true || isSafe == false) {
+      // Navigate to result screen using the new named constructor
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ResultScreen(
-            isRegistered: false,
-            scanMode: ScanMode.defaultMode,
-            verdict: isSafe == true ? 'Safe' : 'Unsafe',
-            url: url,
-            explanation: isSafe == true
-                ? 'This link appears to be safe.'
-                : 'This link may be unsafe.',
-            score: isSafe == true ? 20 : 80,
-            reasons: const [
-              'Basic security checks completed',
-            ],
-            recommendedActions: isSafe == true
-                ? const [
-                    'You may proceed, but stay cautious',
-                  ]
-                : const [
-                    'Do not enter personal information',
-                    'Avoid clicking further links',
-                  ],
+          builder: (context) => ResultScreen.fromEngineResult(
+            engineResult: result['scan_result'],
+            settings: settings,
           ),
         ),
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not check URL. API or network error.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: $e'),
+          content: Text('Scan error: $e'),
           backgroundColor: AppColors.highRisk,
         ),
       );
