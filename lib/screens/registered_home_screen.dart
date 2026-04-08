@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'help_screen.dart';
 import 'scan_settings_screen.dart';
-import '../services/google_safe_browsing_service.dart';
 import 'camera_scanner.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
 import 'result_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../threat_engine/layer5_facade/threat_engine.dart';
+import '../threat_engine/scan_settings.dart';
 
 class RegisteredHomeScreen extends StatefulWidget {
   const RegisteredHomeScreen({super.key});
@@ -20,121 +21,151 @@ class RegisteredHomeScreen extends StatefulWidget {
 class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   final TextEditingController _urlController = TextEditingController();
   bool _isScanning = false;
+  late final ThreatEngine _engine;
+  ScanSettings _userSettings = ScanSettings.forBeginner(); // default
+
+  @override
+  void initState() {
+    super.initState();
+    _initEngine();
+    _loadUserSettings();
+  }
+
+  Future<void> _initEngine() async {
+    _engine = await ThreatEngine.getInstance();
+  }
+
+  Future<void> _loadUserSettings() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('scan_preferences')
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data()!;
+        final userLevel = data['userLevel'] ?? 'beginner';
+        final isPremium = data['isPremium'] ?? true;
+        final phishingSensitivity = data['phishingSensitivity'] ?? true;
+        final deepScan = data['deepScan'] ?? true;
+        final scriptAnalysis = data['scriptAnalysis'] ?? true;
+        final useExternalApis = data['useExternalApis'] ?? true;
+        final useEnsemble = data['useEnsemble'] ?? (userLevel == 'beginner');
+        final useLogisticRegression = data['useLogisticRegression'] ?? true;
+        final useDecisionTree = data['useDecisionTree'] ?? true;
+        final useXGBoost = data['useXGBoost'] ?? true;
+        final useLightGBM = data['useLightGBM'] ?? true;
+
+        setState(() {
+          _userSettings = ScanSettings(
+            phishingSensitivity: phishingSensitivity,
+            httpSitesWarning: false,
+            scriptAnalysis: scriptAnalysis,
+            adReductionAnalysis: false,
+            adDensityLevel: 1,
+            autoRecheckScans: false,
+            sharingConfiguration: false,
+            useExternalApis: useExternalApis,
+            isPremium: isPremium,
+            userLevel: userLevel,
+            enableMachineLearning: true,
+            useEnsemble: useEnsemble,
+            useLogisticRegression: useLogisticRegression,
+            useDecisionTree: useDecisionTree,
+            useXGBoost: useXGBoost,
+            useLightGBM: useLightGBM,
+            deepScan: deepScan,
+            adFilter: false,
+          );
+        });
+      } else {
+        // Default beginner settings
+        setState(() {
+          _userSettings = ScanSettings.forBeginner();
+        });
+      }
+    } catch (e) {
+      // Keep default
+    }
+  }
 
   @override
   void dispose() {
     _urlController.dispose();
     super.dispose();
   }
-  
-  Future<String> getUserFirstName() async {
-  final user = FirebaseAuth.instance.currentUser;
 
-  if (user == null) {
-    print('No logged in user');
+  Future<String> getUserFirstName() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return 'User';
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    if (userDoc.exists) {
+      return userDoc['firstName'] ?? 'User';
+    }
     return 'User';
   }
 
-  final userDoc = await FirebaseFirestore.instance
-      .collection('users')
-      .doc(user.uid)
-      .get();
-
-  print('User data: ${userDoc.data()}');
-
-  if (userDoc.exists) {
-    return userDoc['firstName'] ?? 'User';
-  }
-
-  return 'User';
-  }
-
   Future<void> _saveScanToFirestore({
-  required String url,
-  required bool isSafe,
-}) async {
-  final user = FirebaseAuth.instance.currentUser;
+    required String url,
+    required Map<String, dynamic> scanResult,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-  if (user == null) return;
+    final riskScore = double.tryParse(scanResult['risk_score'] ?? '0') ?? 0.0;
+    final verdict = riskScore >= 50 ? 'Unsafe' : (riskScore >= 25 ? 'Suspicious' : 'Safe');
+    final threatType = scanResult['threat_type'] ?? 'unknown';
 
-  await FirebaseFirestore.instance
-      .collection('users')
-      .doc(user.uid)
-      .collection('scans')
-      .add({
-    'url': url,
-    'verdict': isSafe ? 'Safe' : 'Unsafe',
-    'isSafe': isSafe,
-    'scannedAt': FieldValue.serverTimestamp(),
-  });
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('scans')
+        .add({
+      'url': url,
+      'verdict': verdict,
+      'riskScore': riskScore,
+      'threatType': threatType,
+      'explanation': scanResult['explanation'] ?? '',
+      'detectedThreats': scanResult['detected_threats'] ?? [],
+      'externalSources': scanResult['external_sources'] ?? [],
+      'scannedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> _scanURL(String url) async {
-  setState(() => _isScanning = true);
+    setState(() => _isScanning = true);
 
-  try {
-    final bool? isSafe = await GoogleSafeBrowsingService().isUrlSafe(url);
+    try {
+      final result = await _engine.analyze(url, settings: _userSettings);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (isSafe == true || isSafe == false) {
-      final bool safeValue = isSafe!;
+      // Save to history
+      await _saveScanToFirestore(url: url, scanResult: result['scan_result']);
 
-      await _saveScanToFirestore(
-      url: url,
-      isSafe: safeValue,
-      );
-
+      // Navigate to result screen
       Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ResultScreen(
-              isRegistered: true,
-              scanMode: ScanMode.defaultMode,
-              verdict: isSafe == true ? 'Safe' : 'Unsafe',
-              url: url,
-              explanation: isSafe == true
-                  ? 'This link appears to be safe.'
-                  : 'This link may be unsafe.',
-              score: isSafe == true ? 95 : 82,
-              reasons: isSafe == true
-                  ? const [
-                      'Basic security checks completed',
-                      'No major warning signals detected',
-                      'No suspicious behaviour found in this scan',
-                    ]
-                  : const [
-                      'Potential phishing patterns detected',
-                      'Suspicious domain structure',
-                      'Link reputation score is below safe threshold',
-                    ],
-              recommendedActions: isSafe == true
-                  ? const [
-                      'You may proceed, but still stay cautious',
-                      'Double-check the website before entering sensitive details',
-                      'Continue monitoring suspicious-looking links',
-                    ]
-                  : const [
-                      'Do not enter any personal information',
-                      'Avoid clicking further links on this site',
-                      'Close the page and verify the sender/source',
-                    ],
-            ),
+        context,
+        MaterialPageRoute(
+          builder: (context) => ResultScreen.fromEngineResult(
+            engineResult: result['scan_result'],
+            settings: _userSettings,
           ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not check URL. API or network error.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: $e'),
+          content: Text('Scan error: $e'),
           backgroundColor: AppColors.highRisk,
         ),
       );
@@ -207,212 +238,212 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         future: getUserFirstName(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           }
 
-        String userName = snapshot.data ?? 'User';
-        
-        return SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Ready To Scan $userName?',
-              style: TextStyle(
-                fontSize: isSmall ? 20 : 24,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryText,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Tap camera to scan link or paste URL below',
-              style: TextStyle(
-                fontSize: isSmall ? 13 : 15,
-                color: AppColors.secondaryText,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            const SizedBox(height: 22),
-            Row(
+          String userName = snapshot.data ?? 'User';
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStatCard(Icons.qr_code_scanner, 'Total Scans', '100'),
-                const SizedBox(width: 12),
-                _buildStatCard(Icons.shield, 'Safe Links', '80'),
-                const SizedBox(width: 12),
-                _buildStatCard(Icons.warning_amber_rounded, 'Threats', '20'),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: AppColors.cardBackground,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(25),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                Text(
+                  'Ready To Scan $userName?',
+                  style: TextStyle(
+                    fontSize: isSmall ? 20 : 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryText,
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.link_rounded,
-                        size: 20,
-                        color: AppColors.primaryPurple,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Scan a Link',
-                        style: TextStyle(
-                          fontSize: isSmall ? 18 : 20,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryText,
-                        ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Tap camera to scan link or paste URL below',
+                  style: TextStyle(
+                    fontSize: isSmall ? 13 : 15,
+                    color: AppColors.secondaryText,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    _buildStatCard(Icons.qr_code_scanner, 'Total Scans', '--'),
+                    const SizedBox(width: 12),
+                    _buildStatCard(Icons.shield, 'Safe Links', '--'),
+                    const SizedBox(width: 12),
+                    _buildStatCard(Icons.warning_amber_rounded, 'Threats', '--'),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBackground,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(25),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Paste any URL to check if it\'s safe',
-                    style: TextStyle(
-                      fontSize: isSmall ? 12 : 14,
-                      color: AppColors.secondaryText,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _urlController,
-                          decoration: InputDecoration(
-                            hintText: 'example-link.com',
-                            hintStyle: const TextStyle(
-                              color: AppColors.disabledText,
-                            ),
-                            filled: true,
-                            fillColor: AppColors.mainBackground,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16,
-                            ),
-                          ),
-                          style: const TextStyle(
-                            color: AppColors.primaryText,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      _buildScanButton(context),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-              decoration: BoxDecoration(
-                color: AppColors.cardBackground,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(25),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.history_rounded,
-                        size: 18,
-                        color: AppColors.primaryPurple,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Recents',
-                        style: TextStyle(
-                          fontSize: isSmall ? 16 : 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryText,
-                        ),
-                      ),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const HistoryScreen(),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'View History →',
-                          style: TextStyle(
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.link_rounded,
+                            size: 20,
                             color: AppColors.primaryPurple,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
                           ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Scan a Link',
+                            style: TextStyle(
+                              fontSize: isSmall ? 18 : 20,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryText,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Paste any URL to check if it\'s safe',
+                        style: TextStyle(
+                          fontSize: isSmall ? 12 : 14,
+                          color: AppColors.secondaryText,
                         ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _urlController,
+                              decoration: InputDecoration(
+                                hintText: 'example-link.com',
+                                hintStyle: const TextStyle(
+                                  color: AppColors.disabledText,
+                                ),
+                                filled: true,
+                                fillColor: AppColors.mainBackground,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide.none,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 16,
+                                ),
+                              ),
+                              style: const TextStyle(
+                                color: AppColors.primaryText,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          _buildScanButton(context),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  _buildRecentItem(
-                    domain: 'google.com',
-                    time: '4 URL scans • 2m ago',
-                    statusText: 'Threat',
-                    statusColor: AppColors.highRisk,
-                    leadingColor: Colors.redAccent,
-                    statusIcon: Icons.close_rounded,
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBackground,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(25),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  _buildRecentItem(
-                    domain: 'linkbitly.com',
-                    time: '6 URL scans • 5d ago',
-                    statusText: 'Warning',
-                    statusColor: Colors.orange,
-                    leadingColor: Colors.orange,
-                    statusIcon: Icons.warning_amber_rounded,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.history_rounded,
+                            size: 18,
+                            color: AppColors.primaryPurple,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Recents',
+                            style: TextStyle(
+                              fontSize: isSmall ? 16 : 18,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryText,
+                            ),
+                          ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const HistoryScreen(),
+                                ),
+                              );
+                            },
+                            child: const Text(
+                              'View History →',
+                              style: TextStyle(
+                                color: AppColors.primaryPurple,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _buildRecentItem(
+                        domain: 'google.com',
+                        time: '4 URL scans • 2m ago',
+                        statusText: 'Threat',
+                        statusColor: AppColors.highRisk,
+                        leadingColor: Colors.redAccent,
+                        statusIcon: Icons.close_rounded,
+                      ),
+                      const SizedBox(height: 10),
+                      _buildRecentItem(
+                        domain: 'linkbitly.com',
+                        time: '6 URL scans • 5d ago',
+                        statusText: 'Warning',
+                        statusColor: Colors.orange,
+                        leadingColor: Colors.orange,
+                        statusIcon: Icons.warning_amber_rounded,
+                      ),
+                      const SizedBox(height: 10),
+                      _buildRecentItem(
+                        domain: 'telegramlogin.com',
+                        time: '4 URL scans • 5d ago',
+                        statusText: 'Safe',
+                        statusColor: AppColors.safe,
+                        leadingColor: Colors.green,
+                        statusIcon: Icons.check_rounded,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  _buildRecentItem(
-                    domain: 'telegramlogin.com',
-                    time: '4 URL scans • 5d ago',
-                    statusText: 'Safe',
-                    statusColor: AppColors.safe,
-                    leadingColor: Colors.green,
-                    statusIcon: Icons.check_rounded,
-                  ),
-                ],
-              ),
-            ),
+                ),
               ],
             ),
           );
         },
       ),
-         bottomNavigationBar: _buildCustomBottomNav(context),
+      bottomNavigationBar: _buildCustomBottomNav(context),
     );
   }
 
