@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
 import '../services/auth_service.dart';
 import 'signup_screen.dart';
@@ -42,6 +43,10 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text.trim(),
       );
 
+      // Clear guest mode flag if it exists
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('isGuestMode');
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -80,6 +85,10 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Clear guest mode flag if it exists
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('isGuestMode');
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -112,7 +121,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final bool isSmall = screenWidth < 360;
 
     return GestureDetector(
-      // Dismiss keyboard when tapping outside the form
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         backgroundColor: AppColors.mainBackground,
@@ -124,7 +132,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 30),
-                  // Logo
                   Center(
                     child: Image.asset(
                       'assets/images/LinkSentryLogoTop.png',
@@ -133,7 +140,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 50),
-                  // Welcome Back and Login
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -156,22 +162,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  // Subtle divider above the form
                   Divider(
                     color: AppColors.divider.withAlpha(77),
                     thickness: 0.5,
                     height: 1,
                   ),
                   const SizedBox(height: 30),
-
-                  // Form (blocked while loading)
                   AbsorbPointer(
                     absorbing: _isLoading,
                     child: Form(
                       key: _formKey,
                       child: Column(
                         children: [
-                          // Email field
                           TextFormField(
                             controller: _emailController,
                             style: const TextStyle(color: AppColors.primaryText),
@@ -200,7 +202,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             },
                           ),
                           const SizedBox(height: 20),
-                          // Password field with toggle
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
@@ -244,9 +245,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 16),
-                  // Remember me & Forgot password
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -292,8 +291,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   const SizedBox(height: 40),
-
-                  // Login button with hover and loading
                   MouseRegion(
                     onEnter: (_) => setState(() => _isHoveringLogin = true),
                     onExit: (_) => setState(() => _isHoveringLogin = false),
@@ -347,8 +344,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Create Account link
                   Center(
                     child: TextButton(
                       onPressed: _isLoading
@@ -372,16 +367,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-
-                  // Divider above Google button
                   Divider(
                     color: AppColors.divider.withAlpha(77),
                     thickness: 0.5,
                     height: 1,
                   ),
                   const SizedBox(height: 24),
-
-                  // Sign in with Google button with hover
                   MouseRegion(
                     onEnter: (_) => setState(() => _isHoveringGoogle = true),
                     onExit: (_) => setState(() => _isHoveringGoogle = false),

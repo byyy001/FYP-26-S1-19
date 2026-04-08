@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
 import 'unregistered_home_screen.dart';
 import 'login_screen.dart';
@@ -44,7 +45,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     },
   ];
 
-  void _showChoiceDialog() {
+  Future<void> _showChoiceDialog() async {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -61,8 +62,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
+              onPressed: () async {
+                // Guest choice
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('onboardingCompleted', true);
+                await prefs.setBool('isGuestMode', true);
+                if (!context.mounted) return;
+                Navigator.pop(context); // close dialog
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (_) => const UnregisteredHomeScreen()),
@@ -74,8 +80,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
+              onPressed: () async {
+                // Login choice
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('onboardingCompleted', true);
+                await prefs.remove('isGuestMode'); // clear any guest flag
+                if (!context.mounted) return;
+                Navigator.pop(context); // close dialog
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (_) => const LoginScreen()),

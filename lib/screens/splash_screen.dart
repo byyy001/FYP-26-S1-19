@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
-import 'onboarding_screen.dart'; // We'll navigate here after loading
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'onboarding_screen.dart';
+import 'unregistered_home_screen.dart';
+import 'registered_home_screen.dart';
+import '../constants/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,13 +17,49 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Wait 2.5 seconds, then go to onboarding
-    Future.delayed(const Duration(milliseconds: 2500), () {
+    _navigateAfterDelay();
+  }
+
+  Future<void> _navigateAfterDelay() async {
+    await Future.delayed(const Duration(milliseconds: 2500));
+
+    final prefs = await SharedPreferences.getInstance();
+    final bool onboardingCompleted = prefs.getBool('onboardingCompleted') ?? false;
+    final User? user = FirebaseAuth.instance.currentUser;
+    final bool isGuestMode = prefs.getBool('isGuestMode') ?? false;
+
+    if (!onboardingCompleted) {
+      // First launch – show onboarding
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const OnboardingScreen()),
       );
-    });
+    } else {
+      // Onboarding already completed
+      if (user != null) {
+        // Logged in
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const RegisteredHomeScreen()),
+        );
+      } else if (isGuestMode) {
+        // Guest mode active
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const UnregisteredHomeScreen()),
+        );
+      } else {
+        // No user, not guest – should not happen, but fallback to onboarding
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        );
+      }
+    }
   }
 
   @override
@@ -26,18 +67,17 @@ class _SplashScreenState extends State<SplashScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF151515), // mainBackground
+      backgroundColor: const Color(0xFF151515),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo with fade-in animation
             TweenAnimationBuilder(
               tween: Tween<double>(begin: 0.0, end: 1.0),
               duration: const Duration(seconds: 1),
               child: Image.asset(
                 'assets/images/LinkSentryLogo.png',
-                width: screenWidth * 0.6, // Responsive width
+                width: screenWidth * 0.6,
                 fit: BoxFit.contain,
               ),
               builder: (context, double opacity, child) {
@@ -45,9 +85,8 @@ class _SplashScreenState extends State<SplashScreen> {
               },
             ),
             const SizedBox(height: 30),
-            // Subtle loading indicator (optional – remove if not wanted)
             const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6)), // primaryPurple
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6)),
             ),
           ],
         ),
