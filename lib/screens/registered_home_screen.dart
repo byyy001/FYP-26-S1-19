@@ -3,7 +3,7 @@ import '../constants/app_colors.dart';
 import 'help_screen.dart';
 import 'scan_settings_screen.dart';
 import 'camera_scanner.dart';
-import 'history_screen.dart';
+import 'view_history_screen.dart';
 import 'profile_screen.dart';
 import 'result_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -393,7 +393,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const HistoryScreen(),
+                                  builder: (context) => const ViewHistoryScreen(),
                                 ),
                               );
                             },
