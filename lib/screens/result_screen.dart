@@ -43,13 +43,16 @@ class ResultScreen extends StatefulWidget {
     required ScanSettings settings,
   }) {
     final String verdict = _mapVerdict(engineResult['severity'] ?? 'SAFE');
-    final int score = (double.tryParse(engineResult['risk_score'] ?? '0') ?? 0).toInt();
-    final List<String> reasons = List<String>.from(engineResult['detected_threats'] ?? []);
-    final List<String> actions = List<String>.from(engineResult['actions'] ?? []);
+    final int score =
+        (double.tryParse(engineResult['risk_score'] ?? '0') ?? 0).toInt();
+    final List<String> reasons =
+        List<String>.from(engineResult['detected_threats'] ?? []);
+    final List<String> actions =
+        List<String>.from(engineResult['actions'] ?? []);
 
     return ResultScreen(
-      isRegistered: settings.isPremium,
-      scanMode: settings.userLevel == 'advanced' ? ScanMode.advanced : ScanMode.defaultMode,
+      isRegistered: true,
+      scanMode: ScanMode.advanced,
       verdict: verdict,
       url: engineResult['url'] ?? '',
       explanation: engineResult['explanation'] ?? '',
@@ -98,7 +101,6 @@ class _ResultScreenState extends State<ResultScreen> {
 
   double get _riskScore => widget.score.toDouble();
 
-  // Updated risk level and colour logic
   String get _riskLevelText {
     if (_riskScore >= 76) return 'High Risk';
     if (_riskScore >= 51) return 'Medium Risk';
@@ -109,11 +111,10 @@ class _ResultScreenState extends State<ResultScreen> {
   Color get _riskColor {
     if (_riskScore >= 76) return AppColors.highRisk;
     if (_riskScore >= 51) return AppColors.mediumRisk;
-    if (_riskScore >= 26) return AppColors.mediumRisk; // Low risk uses same as medium? Better use a lighter orange.
+    if (_riskScore >= 26) return AppColors.mediumRisk;
     return AppColors.safe;
   }
 
-  // Verdict text for the top banner (for unregistered users)
   String _getSimpleVerdict() {
     if (_riskScore >= 76) return 'Unsafe';
     if (_riskScore >= 51) return 'Suspicious';
@@ -135,7 +136,13 @@ class _ResultScreenState extends State<ResultScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Scan Results', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
+        title: const Text(
+          'Scan Results',
+          style: TextStyle(
+            color: AppColors.primaryText,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -163,25 +170,37 @@ class _ResultScreenState extends State<ResultScreen> {
     LinearGradient cardGradient;
     if (_riskScore >= 76) {
       cardGradient = LinearGradient(
-        colors: [AppColors.highRisk.withOpacity(0.15), AppColors.cardBackground],
+        colors: [
+          AppColors.highRisk.withOpacity(0.15),
+          AppColors.cardBackground,
+        ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
     } else if (_riskScore >= 51) {
       cardGradient = LinearGradient(
-        colors: [AppColors.mediumRisk.withOpacity(0.15), AppColors.cardBackground],
+        colors: [
+          AppColors.mediumRisk.withOpacity(0.15),
+          AppColors.cardBackground,
+        ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
     } else if (_riskScore >= 26) {
       cardGradient = LinearGradient(
-        colors: [AppColors.mediumRisk.withOpacity(0.1), AppColors.cardBackground],
+        colors: [
+          AppColors.mediumRisk.withOpacity(0.1),
+          AppColors.cardBackground,
+        ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
     } else {
       cardGradient = LinearGradient(
-        colors: [AppColors.safe.withOpacity(0.1), AppColors.cardBackground],
+        colors: [
+          AppColors.safe.withOpacity(0.1),
+          AppColors.cardBackground,
+        ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
@@ -194,7 +213,13 @@ class _ResultScreenState extends State<ResultScreen> {
         gradient: cardGradient,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _riskColor.withOpacity(0.3), width: 1),
-        boxShadow: [BoxShadow(color: _riskColor.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 6))],
+        boxShadow: [
+          BoxShadow(
+            color: _riskColor.withOpacity(0.2),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,11 +252,17 @@ class _ResultScreenState extends State<ResultScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: _riskColor,
                   borderRadius: BorderRadius.circular(30),
-                  boxShadow: [BoxShadow(color: _riskColor.withOpacity(0.4), blurRadius: 8)],
+                  boxShadow: [
+                    BoxShadow(
+                      color: _riskColor.withOpacity(0.4),
+                      blurRadius: 8,
+                    ),
+                  ],
                 ),
                 child: Text(
                   '${widget.score}%',
@@ -251,8 +282,20 @@ class _ResultScreenState extends State<ResultScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Risk Score', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-                  Text('${widget.score}%', style: TextStyle(color: _riskColor, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Risk Score',
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    '${widget.score}%',
+                    style: TextStyle(
+                      color: _riskColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 6),
@@ -269,21 +312,49 @@ class _ResultScreenState extends State<ResultScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: const [
-                  Text('Safe', style: TextStyle(color: AppColors.safe, fontSize: 11)),
-                  Text('Low', style: TextStyle(color: AppColors.mediumRisk, fontSize: 11)),
-                  Text('Medium', style: TextStyle(color: AppColors.mediumRisk, fontSize: 11)),
-                  Text('High', style: TextStyle(color: AppColors.highRisk, fontSize: 11)),
+                  Text(
+                    'Safe',
+                    style: TextStyle(color: AppColors.safe, fontSize: 11),
+                  ),
+                  Text(
+                    'Low',
+                    style: TextStyle(
+                      color: AppColors.mediumRisk,
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    'Medium',
+                    style: TextStyle(
+                      color: AppColors.mediumRisk,
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    'High',
+                    style: TextStyle(
+                      color: AppColors.highRisk,
+                      fontSize: 11,
+                    ),
+                  ),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 16),
-          Text(widget.explanation, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14)),
+          Text(
+            widget.explanation,
+            style: const TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 14,
+            ),
+          ),
           const SizedBox(height: 16),
           Center(
             child: Container(
               width: 220,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: AppColors.mainBackground,
                 borderRadius: BorderRadius.circular(999),
@@ -291,7 +362,10 @@ class _ResultScreenState extends State<ResultScreen> {
               ),
               child: Text(
                 widget.url,
-                style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  color: AppColors.primaryText,
+                  fontWeight: FontWeight.w500,
+                ),
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -300,7 +374,13 @@ class _ResultScreenState extends State<ResultScreen> {
           const SizedBox(height: 12),
           const Align(
             alignment: Alignment.centerRight,
-            child: Text('Scanned just now', style: TextStyle(color: AppColors.disabledText, fontSize: 11)),
+            child: Text(
+              'Scanned just now',
+              style: TextStyle(
+                color: AppColors.disabledText,
+                fontSize: 11,
+              ),
+            ),
           ),
         ],
       ),
@@ -319,21 +399,28 @@ class _ResultScreenState extends State<ResultScreen> {
       externalMsg = '✓ Flagged by $sources';
     }
 
-    // Determine message based on risk level
     String whatThisMeans;
     String whatToDo;
     if (_riskScore >= 76) {
-      whatThisMeans = 'This link is highly likely to be malicious. Do not proceed.';
-      whatToDo = 'Close the page immediately. Do not enter any information. Report the link if possible.';
+      whatThisMeans =
+          'This link is highly likely to be malicious. Do not proceed.';
+      whatToDo =
+          'Close the page immediately. Do not enter any information. Report the link if possible.';
     } else if (_riskScore >= 51) {
-      whatThisMeans = 'This link shows clear signs of suspicious activity. Proceed with extreme caution.';
-      whatToDo = 'Avoid entering personal details. Consider verifying the link with another scanner.';
+      whatThisMeans =
+          'This link shows clear signs of suspicious activity. Proceed with extreme caution.';
+      whatToDo =
+          'Avoid entering personal details. Consider verifying the link with another scanner.';
     } else if (_riskScore >= 26) {
-      whatThisMeans = 'This link has a low but non‑zero risk. It may be safe, but some indicators are unusual.';
-      whatToDo = 'You can proceed, but avoid entering sensitive information. Double‑check the URL.';
+      whatThisMeans =
+          'This link has a low but non-zero risk. It may be safe, but some indicators are unusual.';
+      whatToDo =
+          'You can proceed, but avoid entering sensitive information. Double-check the URL.';
     } else {
-      whatThisMeans = 'No security issues were detected. This link appears safe.';
-      whatToDo = 'You may proceed, but always stay cautious. Keep your browser and antivirus updated.';
+      whatThisMeans =
+          'No security issues were detected. This link appears safe.';
+      whatToDo =
+          'You may proceed, but always stay cautious. Keep your browser and antivirus updated.';
     }
 
     return Column(
@@ -342,7 +429,8 @@ class _ResultScreenState extends State<ResultScreen> {
         if (externalMsg.isNotEmpty) ...[
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: AppColors.cardBackground,
               borderRadius: BorderRadius.circular(12),
@@ -355,7 +443,10 @@ class _ResultScreenState extends State<ResultScreen> {
                 Expanded(
                   child: Text(
                     externalMsg,
-                    style: const TextStyle(color: AppColors.primaryText, fontSize: 13),
+                    style: const TextStyle(
+                      color: AppColors.primaryText,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ],
@@ -365,14 +456,22 @@ class _ResultScreenState extends State<ResultScreen> {
         ],
         Text(
           'What this means',
-          style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText),
+          style: TextStyle(
+            fontSize: isSmall ? 17 : 19,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primaryText,
+          ),
         ),
         const SizedBox(height: 10),
         _buildInfoCard(whatThisMeans),
         const SizedBox(height: 16),
         Text(
           'What you should do',
-          style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText),
+          style: TextStyle(
+            fontSize: isSmall ? 17 : 19,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primaryText,
+          ),
         ),
         const SizedBox(height: 10),
         _buildInfoCard(whatToDo),
@@ -385,16 +484,24 @@ class _ResultScreenState extends State<ResultScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryPurple,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            child: const Text('Go Back', style: TextStyle(fontWeight: FontWeight.w600)),
+            child: const Text(
+              'Go Back',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ),
         const SizedBox(height: 12),
         Center(
           child: Text(
             'Sign up for more detailed scan results',
-            style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+            style: TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 13,
+            ),
           ),
         ),
       ],
@@ -405,25 +512,61 @@ class _ResultScreenState extends State<ResultScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('What we found', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
+        Text(
+          'What we found',
+          style: TextStyle(
+            fontSize: isSmall ? 17 : 19,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primaryText,
+          ),
+        ),
         const SizedBox(height: 10),
         ...widget.reasons.take(3).map((reason) => _buildListCard(reason)),
         const SizedBox(height: 14),
-        Text('Recommended Actions', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
+        Text(
+          'Recommended Actions',
+          style: TextStyle(
+            fontSize: isSmall ? 17 : 19,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primaryText,
+          ),
+        ),
         const SizedBox(height: 10),
-        ...widget.recommendedActions.take(3).map((action) => _buildListCard(action)),
+        ...widget.recommendedActions
+            .take(3)
+            .map((action) => _buildListCard(action)),
         const SizedBox(height: 14),
-        Text('Safety Tips', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
+        Text(
+          'Safety Tips',
+          style: TextStyle(
+            fontSize: isSmall ? 17 : 19,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primaryText,
+          ),
+        ),
         const SizedBox(height: 10),
-        _buildInfoCard(widget.verdict.toLowerCase() == 'safe' ? 'No major issues found. Continue checking links carefully.' : 'Check the sender, avoid shortened links, and confirm the website before entering any information.'),
+        _buildInfoCard(
+          widget.verdict.toLowerCase() == 'safe'
+              ? 'No major issues found. Continue checking links carefully.'
+              : 'Check the sender, avoid shortened links, and confirm the website before entering any information.',
+        ),
         const SizedBox(height: 20),
         SizedBox(
           width: 160,
           height: 46,
           child: ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            child: const Text('Back', style: TextStyle(fontWeight: FontWeight.w600)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryPurple,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Back',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ),
       ],
@@ -434,89 +577,334 @@ class _ResultScreenState extends State<ResultScreen> {
     final engine = widget.engineResult;
     final isEngineResult = engine != null;
 
-    final externalSources = isEngineResult ? List<String>.from(engine['external_sources'] ?? []) : <String>[];
-    final externalScore = isEngineResult ? (engine['external_score'] as num?)?.toDouble() ?? 0.0 : 0.0;
+    final externalSources = isEngineResult
+    ? List<String>.from(engine['external_sources'] ?? [])
+    : <String>[];
+
+    final dynamic externalScoreRaw =
+        isEngineResult ? engine['external_score'] : null;
+
+    final double externalScore = externalScoreRaw is num
+        ? externalScoreRaw.toDouble()
+        : double.tryParse(externalScoreRaw?.toString() ?? '0') ?? 0.0;
+
+    final String mlConfidence =
+        isEngineResult ? (engine['ml_confidence']?.toString() ?? 'N/A') : 'N/A';
+    final String threatType =
+        isEngineResult ? (engine['threat_type']?.toString() ?? 'Unknown') : 'Unknown';
+
+    final bool showThreatSummaryOpen = _riskScore >= 51;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Threat Summary', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-        const SizedBox(height: 10),
-        _buildInfoCard(
-          isEngineResult
-              ? 'Risk Score: ${widget.score}%\nThreat Type: ${engine['threat_type']}\nML Confidence: ${engine['ml_confidence']}\nExternal Score: ${externalScore.toStringAsFixed(2)}\nExternal Sources: ${externalSources.isNotEmpty ? externalSources.join(', ') : 'None'}'
-              : 'Confidence score: ${widget.score}%\nThis result includes deeper scan analysis for advanced users.',
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _riskColor.withOpacity(0.22)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Advanced Analysis',
+                style: TextStyle(
+                  fontSize: isSmall ? 17 : 19,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryText,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Detailed technical breakdown for analyst-level review.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.secondaryText,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _buildSummaryChip(
+                    icon: Icons.warning_amber_rounded,
+                    label: 'Threat Type',
+                    value: threatType,
+                  ),
+                  _buildSummaryChip(
+                    icon: Icons.psychology_alt_outlined,
+                    label: 'ML Confidence',
+                    value: mlConfidence,
+                  ),
+                  _buildSummaryChip(
+                    icon: Icons.public_outlined,
+                    label: 'External Sources',
+                    value: externalSources.isNotEmpty
+                        ? externalSources.join(', ')
+                        : 'None',
+                  ),
+                  _buildSummaryChip(
+                    icon: Icons.analytics_outlined,
+                    label: 'External Score',
+                    value: externalScore.toStringAsFixed(2),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 14),
-        Text('Reasons', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-        const SizedBox(height: 10),
-        ...widget.reasons.map((reason) => _buildListCard(reason)),
-        const SizedBox(height: 14),
-        Text('Recommended Actions', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-        const SizedBox(height: 10),
-        ...widget.recommendedActions.map((action) => _buildListCard(action)),
-        const SizedBox(height: 14),
+        const SizedBox(height: 18),
+
+        Text(
+            'Analyst Summary',
+            style: TextStyle(
+              fontSize: isSmall ? 17 : 19,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryText,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDetailRow('Verdict', widget.verdict),
+                _buildDetailRow('Risk Score', '${widget.score}%'),
+                _buildDetailRow('Threat Type', threatType),
+                _buildDetailRow('ML Confidence', mlConfidence),
+                _buildDetailRow('External Score', externalScore.toStringAsFixed(2)),
+                _buildDetailRow(
+                  'Sources',
+                  externalSources.isNotEmpty ? externalSources.join(', ') : 'None',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+        if (widget.reasons.isNotEmpty) ...[
+          Text(
+            'Reasons',
+            style: TextStyle(
+              fontSize: isSmall ? 17 : 19,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryText,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...widget.reasons.map((reason) => _buildListCard(reason)),
+          const SizedBox(height: 14),
+        ],
+
+        if (widget.recommendedActions.isNotEmpty) ...[
+          Text(
+            'Recommended Actions',
+            style: TextStyle(
+              fontSize: isSmall ? 17 : 19,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryText,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...widget.recommendedActions.map((action) => _buildListCard(action)),
+          const SizedBox(height: 14),
+        ],
+
         if (_safetyTips.isNotEmpty) ...[
-          Text('Safety Tips', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
+          Text(
+            'Safety Tips',
+            style: TextStyle(
+              fontSize: isSmall ? 17 : 19,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryText,
+            ),
+          ),
           const SizedBox(height: 10),
           ..._safetyTips.map((tip) => _buildListCard(tip)),
           const SizedBox(height: 14),
         ],
 
+        const Divider(height: 28, color: AppColors.divider),
+
+        Text(
+          'Technical Breakdown',
+          style: TextStyle(
+            fontSize: isSmall ? 17 : 19,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primaryText,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        
+        _buildExpandableSection(
+          title: 'Threat Summary',
+          subtitle: 'Overall scan decision and core technical indicators',
+          icon: Icons.summarize_outlined,
+          isExpanded: showThreatSummaryOpen,
+          allowToggle: false,
+          onTap: () {},
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetailRow('Verdict', widget.verdict),
+              _buildDetailRow('Risk Level', _riskLevelText),
+              _buildDetailRow('Risk Score', '${widget.score}%'),
+              _buildDetailRow('Threat Type', threatType),
+              _buildDetailRow('ML Confidence', mlConfidence),
+              _buildDetailRow(
+                'External Sources',
+                externalSources.isNotEmpty ? externalSources.join(', ') : 'None',
+              ),
+              _buildDetailRow(
+                'External Score',
+                externalScore.toStringAsFixed(2),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
         if (isEngineResult) ...[
           _buildExpandableSection(
             title: 'Static Rules Fired',
+            subtitle: 'Triggered rule-based checks and detections',
+            icon: Icons.rule_folder_outlined,
             isExpanded: _showStaticRules,
             onTap: () => setState(() => _showStaticRules = !_showStaticRules),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: (engine['detailed_detected_threats'] as List? ?? [])
-                  .map<Widget>((threat) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text('• [${threat['severity']?.toString().toUpperCase()}] ${threat['description']}', style: const TextStyle(color: AppColors.primaryText)),
-                      ))
-                  .toList(),
+                      .isNotEmpty
+                  ? (engine['detailed_detected_threats'] as List)
+                      .map<Widget>(
+                        (threat) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Text(
+                            '• [${threat['severity']?.toString().toUpperCase()}] ${threat['description']}',
+                            style: const TextStyle(
+                              color: AppColors.primaryText,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList()
+                  : [
+                      const Text(
+                        'No static rule details were returned for this scan.',
+                        style: TextStyle(
+                          color: AppColors.secondaryText,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
             ),
           ),
           const SizedBox(height: 12),
+
           _buildExpandableSection(
             title: 'Machine Learning Probabilities',
+            subtitle: 'Model-level probabilities and ensemble output',
+            icon: Icons.psychology_alt_outlined,
             isExpanded: _showMLDetails,
             onTap: () => setState(() => _showMLDetails = !_showMLDetails),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (engine['individual_model_probabilities'] != null)
-                  ...(engine['individual_model_probabilities'] as Map).entries.map((entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Text('• ${entry.key}: ${_formatProbList(entry.value)}', style: const TextStyle(color: AppColors.primaryText)),
-                      )),
+                  ...(engine['individual_model_probabilities'] as Map)
+                      .entries
+                      .map(
+                        (entry) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            '• ${entry.key}: ${_formatProbList(entry.value)}',
+                            style: const TextStyle(
+                              color: AppColors.primaryText,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
                 if (engine['ensemble_probabilities'] != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text('Ensemble: ${_formatProbList(engine['ensemble_probabilities'])}', style: const TextStyle(color: AppColors.primaryText)),
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Ensemble: ${_formatProbList(engine['ensemble_probabilities'])}',
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                if (engine['individual_model_probabilities'] == null &&
+                    engine['ensemble_probabilities'] == null)
+                  const Text(
+                    'No model probability breakdown was returned for this scan.',
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      height: 1.4,
+                    ),
                   ),
               ],
             ),
           ),
           const SizedBox(height: 12),
+
           _buildExpandableSection(
             title: 'External Threat Intelligence',
+            subtitle: 'Signals from external sources and intelligence providers',
+            icon: Icons.public_outlined,
             isExpanded: _showExternalDetails,
-            onTap: () => setState(() => _showExternalDetails = !_showExternalDetails),
+            onTap: () =>
+                setState(() => _showExternalDetails = !_showExternalDetails),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (externalSources.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text('Sources: ${externalSources.join(', ')}', style: const TextStyle(color: AppColors.primaryText)),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    'Sources: ${externalSources.isNotEmpty ? externalSources.join(', ') : 'None'}',
+                    style: const TextStyle(
+                      color: AppColors.primaryText,
+                      height: 1.4,
+                    ),
                   ),
+                ),
                 if (engine['external_details'] != null)
-                  ...(engine['external_details'] as Map).entries.map((entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text('• ${entry.key}: ${entry.value}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-                      )),
+                  ...(engine['external_details'] as Map).entries.map(
+                    (entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        '• ${entry.key}: ${entry.value}',
+                        style: const TextStyle(
+                          color: AppColors.secondaryText,
+                          fontSize: 12,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (engine['external_details'] == null)
+                  const Text(
+                    'No extra external detail was returned for this scan.',
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      height: 1.4,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -525,64 +913,139 @@ class _ResultScreenState extends State<ResultScreen> {
 
         _buildExpandableSection(
           title: 'ML Breakdown',
+          subtitle: 'Simplified view of how model signals contributed',
+          icon: Icons.insights_outlined,
           isExpanded: _showThreatBreakdown,
-          onTap: () => setState(() => _showThreatBreakdown = !_showThreatBreakdown),
+          onTap: () =>
+              setState(() => _showThreatBreakdown = !_showThreatBreakdown),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
-              Text('• Logistic Regression: suspicious', style: TextStyle(color: AppColors.primaryText)),
+              Text(
+                '• Logistic Regression: suspicious',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  height: 1.4,
+                ),
+              ),
               SizedBox(height: 8),
-              Text('• Decision Tree: suspicious', style: TextStyle(color: AppColors.primaryText)),
+              Text(
+                '• Decision Tree: suspicious',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  height: 1.4,
+                ),
+              ),
               SizedBox(height: 8),
-              Text('• Ensemble score contributed to final result', style: TextStyle(color: AppColors.primaryText)),
+              Text(
+                '• Ensemble score contributed to final result',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  height: 1.4,
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
+
         _buildExpandableSection(
           title: 'Blacklist Checks',
+          subtitle: 'List-based reputation and blacklist screening results',
+          icon: Icons.gpp_maybe_outlined,
           isExpanded: _showBlacklistChecks,
-          onTap: () => setState(() => _showBlacklistChecks = !_showBlacklistChecks),
+          onTap: () =>
+              setState(() => _showBlacklistChecks = !_showBlacklistChecks),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
-              Text('• Google Safe Browsing: no direct hit', style: TextStyle(color: AppColors.primaryText)),
+              Text(
+                '• Google Safe Browsing: no direct hit',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  height: 1.4,
+                ),
+              ),
               SizedBox(height: 8),
-              Text('• CSA / SPF lists: no direct hit', style: TextStyle(color: AppColors.primaryText)),
+              Text(
+                '• CSA / SPF lists: no direct hit',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  height: 1.4,
+                ),
+              ),
               SizedBox(height: 8),
-              Text('• Reputation signals still triggered warning', style: TextStyle(color: AppColors.primaryText)),
+              Text(
+                '• Reputation signals still triggered warning',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  height: 1.4,
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
+
         _buildExpandableSection(
           title: 'Script Behaviour',
+          subtitle: 'Client-side behaviour and redirect-related concerns',
+          icon: Icons.code_outlined,
           isExpanded: _showScriptAnalysis,
-          onTap: () => setState(() => _showScriptAnalysis = !_showScriptAnalysis),
+          onTap: () =>
+              setState(() => _showScriptAnalysis = !_showScriptAnalysis),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
-              Text('• Script behaviour appears unusual', style: TextStyle(color: AppColors.primaryText)),
+              Text(
+                '• Script behaviour appears unusual',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  height: 1.4,
+                ),
+              ),
               SizedBox(height: 8),
-              Text('• Redirect pattern may require closer review', style: TextStyle(color: AppColors.primaryText)),
+              Text(
+                '• Redirect pattern may require closer review',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  height: 1.4,
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
+
         _buildExpandableSection(
           title: 'Ad / Tracker Analysis',
+          subtitle: 'Advertising and tracking-related indicators',
+          icon: Icons.ads_click_outlined,
           isExpanded: _showAdAnalysis,
           onTap: () => setState(() => _showAdAnalysis = !_showAdAnalysis),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
-              Text('• Ad intensity: medium', style: TextStyle(color: AppColors.primaryText)),
+              Text(
+                '• Ad intensity: medium',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  height: 1.4,
+                ),
+              ),
               SizedBox(height: 8),
-              Text('• Tracking behaviour detected', style: TextStyle(color: AppColors.primaryText)),
+              Text(
+                '• Tracking behaviour detected',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  height: 1.4,
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 20),
+
         Row(
           children: [
             Expanded(
@@ -590,8 +1053,17 @@ class _ResultScreenState extends State<ResultScreen> {
                 height: 46,
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  child: const Text('Back', style: TextStyle(fontWeight: FontWeight.w600)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryPurple,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Back',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ),
@@ -600,10 +1072,33 @@ class _ResultScreenState extends State<ResultScreen> {
               child: SizedBox(
                 height: 46,
                 child: OutlinedButton.icon(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(side: BorderSide(color: AppColors.primaryPurple.withAlpha(180)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  icon: const Icon(Icons.download_outlined, color: AppColors.primaryText),
-                  label: const Text('Export', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Export coming soon'),
+                        backgroundColor: AppColors.primaryPurple,
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(
+                      color: AppColors.primaryPurple.withAlpha(180),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(
+                    Icons.download_outlined,
+                    color: AppColors.primaryText,
+                  ),
+                  label: const Text(
+                    'Export',
+                    style: TextStyle(
+                      color: AppColors.primaryText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -613,8 +1108,88 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
+  Widget _buildSummaryChip({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.mainBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.primaryPurple),
+          const SizedBox(width: 8),
+          Flexible(
+            child: RichText(
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: '$label: ',
+                    style: const TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextSpan(
+                    text: value,
+                    style: const TextStyle(
+                      color: AppColors.primaryText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 118,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: AppColors.primaryText,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _formatProbList(dynamic probs) {
-    if (probs is List) return probs.map((p) => (p as double).toStringAsFixed(3)).join(', ');
+    if (probs is List) {
+      return probs.map((p) => (p as double).toStringAsFixed(3)).join(', ');
+    }
     return probs.toString();
   }
 
@@ -622,8 +1197,18 @@ class _ResultScreenState extends State<ResultScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(color: AppColors.cardBackground, borderRadius: BorderRadius.circular(12)),
-      child: Text(text, style: const TextStyle(color: AppColors.primaryText, fontSize: 14, height: 1.45)),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.primaryText,
+          fontSize: 14,
+          height: 1.45,
+        ),
+      ),
     );
   }
 
@@ -632,35 +1217,99 @@ class _ResultScreenState extends State<ResultScreen> {
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(color: AppColors.cardBackground, borderRadius: BorderRadius.circular(12)),
-      child: Text(text, style: const TextStyle(color: AppColors.primaryText, fontSize: 14)),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.primaryText,
+          fontSize: 14,
+        ),
+      ),
     );
   }
 
   Widget _buildExpandableSection({
     required String title,
+    String? subtitle,
+    IconData? icon,
     required bool isExpanded,
     required VoidCallback onTap,
     required Widget child,
+    bool allowToggle = true,
   }) {
     return Container(
-      decoration: BoxDecoration(color: AppColors.cardBackground, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.05),
+        ),
+      ),
       child: Column(
         children: [
           InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            onTap: allowToggle ? onTap : null,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: Text(title, style: const TextStyle(color: AppColors.primaryText, fontSize: 14, fontWeight: FontWeight.w600))),
-                  Icon(isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: AppColors.primaryText),
+                  if (icon != null) ...[
+                    Icon(
+                      icon,
+                      size: 18,
+                      color: AppColors.primaryPurple,
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            subtitle,
+                            style: const TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 12,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    allowToggle
+                        ? (isExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down)
+                        : Icons.drag_handle_rounded,
+                    color: AppColors.primaryText,
+                  ),
                 ],
               ),
             ),
           ),
-          if (isExpanded) Padding(padding: const EdgeInsets.fromLTRB(14, 0, 14, 14), child: child),
+          if (isExpanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: child,
+            ),
         ],
       ),
     );
