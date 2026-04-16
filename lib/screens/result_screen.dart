@@ -77,6 +77,9 @@ class _ResultScreenState extends State<ResultScreen> {
   bool _showStaticRules = false;
   bool _showMLDetails = false;
   bool _showExternalDetails = false;
+  bool _showBehaviorAnalysis = false;
+  bool _showModelMetrics = false;
+  bool _showFusionDetails = false;
 
   List<String> get _safetyTips {
     if (widget.engineResult != null) {
@@ -543,6 +546,14 @@ Explanation: ${widget.explanation}
     final mlConfidence = isEngineResult ? (engine['ml_confidence'] ?? 'none') : 'none';
     final externalScore = isEngineResult ? (engine['external_score'] as num?)?.toDouble() ?? 0.0 : 0.0;
 
+    // Extra metrics
+    final behaviorPatterns = isEngineResult ? (engine['behavior_matched_patterns'] as List?) ?? [] : [];
+    final behaviorCategories = isEngineResult ? (engine['behavior_categories'] as Map?) : null;
+    final modelCount = isEngineResult ? (engine['model_count'] as int?) : null;
+    final staticScore = isEngineResult ? (engine['static_score'] as num?)?.toDouble() : null;
+    final mlRawScore = isEngineResult ? (engine['ml_score_raw'] as num?)?.toDouble() : null;
+    final fusionWeights = isEngineResult ? (engine['fusion_weights'] as Map?) : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -576,6 +587,8 @@ Explanation: ${widget.explanation}
           const Divider(height: 28, color: AppColors.divider),
           Text('Technical Breakdown', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
           const SizedBox(height: 10),
+
+          // Static Rules Fired
           _buildExpandableSection(
             title: 'Static Rules Fired',
             isExpanded: _showStaticRules,
@@ -591,6 +604,8 @@ Explanation: ${widget.explanation}
             ),
           ),
           const SizedBox(height: 12),
+
+          // Machine Learning Probabilities
           _buildExpandableSection(
             title: 'Machine Learning Probabilities',
             isExpanded: _showMLDetails,
@@ -612,6 +627,8 @@ Explanation: ${widget.explanation}
             ),
           ),
           const SizedBox(height: 12),
+
+          // External Threat Intelligence
           _buildExpandableSection(
             title: 'External Threat Intelligence',
             isExpanded: _showExternalDetails,
@@ -632,6 +649,69 @@ Explanation: ${widget.explanation}
               ],
             ),
           ),
+          const SizedBox(height: 12),
+
+          // Behavior Analysis
+          if (behaviorPatterns.isNotEmpty || behaviorCategories != null)
+            _buildExpandableSection(
+              title: 'Behavior Analysis',
+              isExpanded: _showBehaviorAnalysis,
+              onTap: () => setState(() => _showBehaviorAnalysis = !_showBehaviorAnalysis),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (behaviorPatterns.isNotEmpty) ...[
+                    const Text('Matched Patterns:', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    ...behaviorPatterns.map((pattern) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text('• $pattern', style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
+                        )),
+                    const SizedBox(height: 8),
+                  ],
+                  if (behaviorCategories != null) ...[
+                    const Text('Categories:', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    ...(behaviorCategories['categories'] as Map? ?? {}).entries.map((entry) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text('• ${entry.key}: ${(entry.value as List).join(', ')}', style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
+                        )),
+                    const SizedBox(height: 4),
+                    if (behaviorCategories['summary'] != null)
+                      Text('Summary: total=${behaviorCategories['summary']['total_patterns']}, categories=${behaviorCategories['summary']['categories_count']}, severity=${behaviorCategories['summary']['severity']}',
+                          style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                  ],
+                ],
+              ),
+            ),
+
+          // Model Metrics
+          if (modelCount != null || staticScore != null || mlRawScore != null)
+            _buildExpandableSection(
+              title: 'Model Metrics',
+              isExpanded: _showModelMetrics,
+              onTap: () => setState(() => _showModelMetrics = !_showModelMetrics),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (modelCount != null) _buildDetailRow('Model Count', modelCount.toString()),
+                  if (staticScore != null) _buildDetailRow('Static Score', staticScore.toStringAsFixed(2)),
+                  if (mlRawScore != null) _buildDetailRow('ML Raw Score', mlRawScore.toStringAsFixed(6)),
+                ],
+              ),
+            ),
+
+          // Fusion Details
+          if (fusionWeights != null && fusionWeights.isNotEmpty)
+            _buildExpandableSection(
+              title: 'Fusion Details',
+              isExpanded: _showFusionDetails,
+              onTap: () => setState(() => _showFusionDetails = !_showFusionDetails),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: fusionWeights.entries.map((entry) => _buildDetailRow(entry.key, (entry.value as num).toStringAsFixed(3))).toList(),
+              ),
+            ),
         ],
 
         const SizedBox(height: 20),
@@ -668,6 +748,19 @@ Explanation: ${widget.explanation}
   String _formatProbList(dynamic probs) {
     if (probs is List) return probs.map((p) => (p as double).toStringAsFixed(3)).join(', ');
     return probs.toString();
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 110, child: Text(label, style: const TextStyle(color: AppColors.secondaryText, fontSize: 13))),
+          Expanded(child: Text(value, style: const TextStyle(color: AppColors.primaryText, fontSize: 13))),
+        ],
+      ),
+    );
   }
 
   Widget _buildInfoCard(String text) {
