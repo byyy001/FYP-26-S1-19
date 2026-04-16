@@ -21,18 +21,52 @@ class RegisteredHomeScreen extends StatefulWidget {
 class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   final TextEditingController _urlController = TextEditingController();
   bool _isScanning = false;
+  bool _engineReady = false;
+  bool _settingsLoaded = false;
+  String? _initError;
   late final ThreatEngine _engine;
   ScanSettings _userSettings = ScanSettings.forBeginner(); // default
 
   @override
   void initState() {
     super.initState();
-    _initEngine();
-    _loadUserSettings();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    // Load settings first (doesn't require engine)
+    await _loadUserSettings();
+    setState(() => _settingsLoaded = true);
+
+    // Then initialize engine
+    await _initEngine();
   }
 
   Future<void> _initEngine() async {
-    _engine = await ThreatEngine.getInstance();
+    try {
+      _engine = await ThreatEngine.getInstance();
+      if (mounted) {
+        setState(() {
+          _engineReady = true;
+          _initError = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _engineReady = false;
+          _initError = e.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _retryInit() async {
+    setState(() {
+      _engineReady = false;
+      _initError = null;
+    });
+    await _initEngine();
   }
 
   Future<void> _loadUserSettings() async {
@@ -84,7 +118,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           );
         });
       } else {
-        // Default beginner settings
         setState(() {
           _userSettings = ScanSettings.forBeginner();
         });
@@ -141,6 +174,16 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   }
 
   Future<void> _scanURL(String url) async {
+    if (!_engineReady) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Scanner is still loading, please wait...'),
+          backgroundColor: AppColors.primaryPurple,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isScanning = true);
 
     try {
@@ -148,10 +191,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
       if (!mounted) return;
 
-      // Save to history
       await _saveScanToFirestore(url: url, scanResult: result['scan_result']);
 
-      // Navigate to result screen
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -242,6 +283,35 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           }
 
           String userName = snapshot.data ?? 'User';
+
+          // Show loading indicator while engine/settings are initializing
+          if (!_settingsLoaded || !_engineReady) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _initError != null ? 'Failed to load scanner' : 'Loading security engine...',
+                    style: const TextStyle(color: AppColors.secondaryText),
+                  ),
+                  if (_initError != null) ...[
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _retryInit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryPurple,
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }
 
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
@@ -490,6 +560,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   }
 
   Widget _buildScanButton(BuildContext context) {
+    final bool isDisabled = !_engineReady || _isScanning || _initError != null;
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -500,7 +571,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: ElevatedButton.icon(
-        onPressed: _isScanning
+        onPressed: isDisabled
             ? null
             : () {
                 final url = _urlController.text.trim();
