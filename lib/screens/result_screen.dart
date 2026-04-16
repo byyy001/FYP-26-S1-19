@@ -1,4 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import '../constants/app_colors.dart';
 import '../threat_engine/scan_settings.dart';
 
@@ -109,6 +115,95 @@ class _ResultScreenState extends State<ResultScreen> {
     return 'Safe';
   }
 
+  // ======================== EXPORT METHODS ========================
+  String _buildShareText() {
+    final threatType = widget.engineResult?['threat_type'] ?? 'Unknown';
+    return '''
+LinkSentry Scan Report
+URL: ${widget.url}
+Risk Score: ${widget.score}%
+Verdict: ${widget.verdict}
+Threat Type: $threatType
+Detected Issues: ${widget.reasons.isNotEmpty ? widget.reasons.join(', ') : 'None'}
+External Sources: ${_externalSources.isNotEmpty ? _externalSources.join(', ') : 'None'}
+Explanation: ${widget.explanation}
+''';
+  }
+
+  Future<void> _shareResults() async {
+    final text = _buildShareText();
+    await Share.share(text, subject: 'LinkSentry Scan Result');
+  }
+
+  Future<void> _copyToClipboard() async {
+    final text = _buildShareText();
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Copied to clipboard'), backgroundColor: AppColors.safe),
+      );
+    }
+  }
+
+  Future<void> _downloadPDF() async {
+    try {
+      final pdf = pw.Document();
+      final threatType = widget.engineResult?['threat_type'] ?? 'Unknown';
+      final mlConfidence = widget.engineResult?['ml_confidence'] ?? 'none';
+      final externalScore = (widget.engineResult?['external_score'] as num?)?.toDouble() ?? 0.0;
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          build: (context) => [
+            pw.Center(
+              child: pw.Text(
+                'LinkSentry Scan Report',
+                style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+              ),
+            ),
+            pw.SizedBox(height: 20),
+            pw.Text('URL: ${widget.url}'),
+            pw.Text('Scan Date: ${DateTime.now().toLocal().toString()}'),
+            pw.SizedBox(height: 10),
+            pw.Text('Risk Score: ${widget.score}%', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.Text('Verdict: ${widget.verdict}'),
+            pw.Text('Threat Type: $threatType'),
+            pw.Text('ML Confidence: $mlConfidence'),
+            pw.Text('External Score: ${externalScore.toStringAsFixed(2)}'),
+            pw.Text('External Sources: ${_externalSources.isNotEmpty ? _externalSources.join(', ') : 'None'}'),
+            pw.SizedBox(height: 10),
+            pw.Text('Detected Issues:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            ...widget.reasons.map((reason) => pw.Text('• $reason')),
+            pw.SizedBox(height: 10),
+            pw.Text('Recommended Actions:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            ...widget.recommendedActions.map((action) => pw.Text('• $action')),
+            if (_safetyTips.isNotEmpty) ...[
+              pw.SizedBox(height: 10),
+              pw.Text('Safety Tips:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              ..._safetyTips.map((tip) => pw.Text('• $tip')),
+            ],
+            pw.SizedBox(height: 20),
+            pw.Text('Explanation: ${widget.explanation}'),
+          ],
+        ),
+      );
+
+      final output = await getTemporaryDirectory();
+      final file = File('${output.path}/linksentry_report_${DateTime.now().millisecondsSinceEpoch}.pdf');
+      await file.writeAsBytes(await pdf.save());
+
+      await Share.shareXFiles([XFile(file.path)], subject: 'LinkSentry Scan Report');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('PDF generation failed: $e'), backgroundColor: AppColors.highRisk),
+        );
+      }
+    }
+  }
+
+  // ======================== UI ========================
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -124,6 +219,23 @@ class _ResultScreenState extends State<ResultScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text('Scan Results', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
+        actions: widget.isRegistered
+            ? [
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: AppColors.primaryText),
+                  onSelected: (value) async {
+                    if (value == 'share') await _shareResults();
+                    else if (value == 'copy') await _copyToClipboard();
+                    else if (value == 'pdf') await _downloadPDF();
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share), SizedBox(width: 12), Text('Share')])),
+                    const PopupMenuItem(value: 'copy', child: Row(children: [Icon(Icons.copy), SizedBox(width: 12), Text('Copy to clipboard')])),
+                    const PopupMenuItem(value: 'pdf', child: Row(children: [Icon(Icons.picture_as_pdf), SizedBox(width: 12), Text('Download PDF')])),
+                  ],
+                ),
+              ]
+            : null,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -147,6 +259,7 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
+  // ======================== TOP CARD ========================
   Widget _buildTopCard(bool isSmall) {
     LinearGradient cardGradient;
     if (_riskScore >= 76) {
@@ -373,7 +486,7 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
-  // ---------- BEGINNER REGISTERED SECTION (matches standalone output) ----------
+  // ---------- BEGINNER REGISTERED SECTION ----------
   Widget _buildRegisteredDefaultSection(bool isSmall) {
     final engine = widget.engineResult;
     final threatType = engine?['threat_type'] ?? 'benign';
