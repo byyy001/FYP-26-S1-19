@@ -513,37 +513,44 @@ Explanation: ${widget.explanation}
     final mlConfidence = engine?['ml_confidence'] ?? 'none';
     final externalScore = _toDouble(engine?['external_score']);
 
+    final summaryItems = [
+      {'icon': Icons.shield, 'label': 'Risk Score', 'value': '${widget.score}%'},
+      {'icon': Icons.warning_amber, 'label': 'Threat Type', 'value': threatType},
+      {'icon': Icons.psychology_alt, 'label': 'ML Confidence', 'value': mlConfidence},
+      {'icon': Icons.analytics, 'label': 'ML Score', 'value': _toDouble(engine?['ml_score']).toStringAsFixed(4)},
+      {'icon': Icons.psychology_alt, 'label': 'AI Score', 'value': _toDouble(engine?['ai_score']).toStringAsFixed(2)},
+      {'icon': Icons.track_changes, 'label': 'Behavior Score', 'value': _toDouble(engine?['behavior_score']).toStringAsFixed(2)},
+      {'icon': Icons.cloud, 'label': 'External Score', 'value': externalScore.toStringAsFixed(2)},
+      {'icon': Icons.list_alt, 'label': 'External Sources', 'value': _externalSources.isNotEmpty ? _externalSources.join(', ') : 'None'},
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Threat Summary', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-        const SizedBox(height: 10),
-        _buildInfoCard(
-          'Risk Score: ${widget.score}%\n'
-          'Threat Type: $threatType\n'
-          'ML Confidence: $mlConfidence\n'
-          'ML Score: ${_toDouble(engine?['ml_score']).toStringAsFixed(4)}\n'
-          'AI Score: ${_toDouble(engine?['ai_score']).toStringAsFixed(2)}\n'
-          'Behavior Score: ${_toDouble(engine?['behavior_score']).toStringAsFixed(2)}\n'
-          'External Score: ${externalScore.toStringAsFixed(2)}\n'
-          'External Sources: ${_externalSources.isNotEmpty ? _externalSources.join(', ') : 'None'}',
+        _buildMainHeader('THREAT SUMMARY', Icons.summarize),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          decoration: _cardDecoration(),
+          child: Column(
+            children: summaryItems.map((item) => _buildSummaryRow(item['icon'] as IconData, item['label'] as String, item['value'] as String)).toList(),
+          ),
         ),
-        const SizedBox(height: 14),
-        Text('Detected Issues', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-        const SizedBox(height: 10),
-        ...widget.reasons.map((reason) => _buildListCard(reason)),
-        const SizedBox(height: 14),
-        Text('Recommended Actions', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-        const SizedBox(height: 10),
-        ...widget.recommendedActions.map((action) => _buildListCard(action)),
-        const SizedBox(height: 14),
+        const SizedBox(height: 24),
+        _buildMainHeader('DETECTED ISSUES', Icons.bug_report),
+        const SizedBox(height: 8),
+        ...widget.reasons.map((reason) => _buildListItem(reason, Icons.warning, AppColors.mediumRisk)),
+        const SizedBox(height: 24),
+        _buildMainHeader('RECOMMENDED ACTIONS', Icons.gavel),
+        const SizedBox(height: 8),
+        ...widget.recommendedActions.map((action) => _buildListItem(action, Icons.check_circle, AppColors.safe)),
+        const SizedBox(height: 24),
         if (_safetyTips.isNotEmpty) ...[
-          Text('Safety Tips', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-          const SizedBox(height: 10),
-          ..._safetyTips.map((tip) => _buildListCard(tip)),
-          const SizedBox(height: 14),
+          _buildMainHeader('SAFETY TIPS', Icons.lightbulb),
+          const SizedBox(height: 8),
+          ..._safetyTips.map((tip) => _buildListItem(tip, Icons.info, AppColors.primaryPurple)),
+          const SizedBox(height: 24),
         ],
-        const SizedBox(height: 20),
         SizedBox(
           width: 160,
           height: 46,
@@ -566,7 +573,6 @@ Explanation: ${widget.explanation}
     final mlConfidence = isEngineResult ? (engine['ml_confidence'] ?? 'none') : 'none';
     final externalScore = _toDouble(engine?['external_score']);
 
-    // Extra metrics
     final behaviorPatterns = isEngineResult ? (engine['behavior_matched_patterns'] as List?) ?? [] : [];
     final behaviorCategories = isEngineResult ? (engine['behavior_categories'] as Map?) : null;
     final modelCount = isEngineResult ? _toInt(engine['model_count']) : null;
@@ -574,7 +580,6 @@ Explanation: ${widget.explanation}
     final mlRawScore = isEngineResult ? _toDouble(engine['ml_score_raw']) : null;
     final fusionWeights = isEngineResult ? (engine['fusion_weights'] as Map?) : null;
 
-    // External API details
     final externalDetails = isEngineResult ? (engine['external_details'] as Map?) : null;
     String virusTotalMsg = '';
     if (externalDetails != null && externalDetails.containsKey('virustotal')) {
@@ -623,71 +628,64 @@ Explanation: ${widget.explanation}
         ? 'GoogleSafeBrowsing: Threat found!'
         : 'GoogleSafeBrowsing: No threat found.';
 
+    final summaryItems = [
+      {'icon': Icons.shield, 'label': 'Risk Score', 'value': '${widget.score}%'},
+      {'icon': Icons.warning_amber, 'label': 'Threat Type', 'value': threatType},
+      {'icon': Icons.psychology_alt, 'label': 'ML Confidence', 'value': mlConfidence},
+      {'icon': Icons.analytics, 'label': 'ML Score', 'value': _toDouble(engine?['ml_score']).toStringAsFixed(4)},
+      {'icon': Icons.psychology_alt, 'label': 'AI Score', 'value': _toDouble(engine?['ai_score']).toStringAsFixed(2)},
+      {'icon': Icons.track_changes, 'label': 'Behavior Score', 'value': _toDouble(engine?['behavior_score']).toStringAsFixed(2)},
+      {'icon': Icons.cloud, 'label': 'External Score', 'value': externalScore.toStringAsFixed(2)},
+      {'icon': Icons.list_alt, 'label': 'External Sources', 'value': _externalSources.isNotEmpty ? _externalSources.join(', ') : 'None'},
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Threat Summary', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-        const SizedBox(height: 10),
-        _buildInfoCard(
-          'Risk Score: ${widget.score}%\n'
-          'Threat Type: $threatType\n'
-          'ML Confidence: $mlConfidence\n'
-          'ML Score: ${_toDouble(engine?['ml_score']).toStringAsFixed(4)}\n'
-          'AI Score: ${_toDouble(engine?['ai_score']).toStringAsFixed(2)}\n'
-          'Behavior Score: ${_toDouble(engine?['behavior_score']).toStringAsFixed(2)}\n'
-          'External Score: ${externalScore.toStringAsFixed(2)}\n'
-          'External Sources: ${_externalSources.isNotEmpty ? _externalSources.join(', ') : 'None'}',
+        _buildMainHeader('THREAT SUMMARY', Icons.summarize),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          decoration: _cardDecoration(),
+          child: Column(
+            children: summaryItems.map((item) => _buildSummaryRow(item['icon'] as IconData, item['label'] as String, item['value'] as String)).toList(),
+          ),
         ),
-        const SizedBox(height: 14),
-        Text('Detected Issues', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-        const SizedBox(height: 10),
-        ...widget.reasons.map((reason) => _buildListCard(reason)),
-        const SizedBox(height: 14),
-        Text('Recommended Actions', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-        const SizedBox(height: 10),
-        ...widget.recommendedActions.map((action) => _buildListCard(action)),
-        const SizedBox(height: 14),
+        const SizedBox(height: 24),
+        _buildMainHeader('DETECTED ISSUES', Icons.bug_report),
+        const SizedBox(height: 8),
+        ...widget.reasons.map((reason) => _buildListItem(reason, Icons.warning, AppColors.mediumRisk)),
+        const SizedBox(height: 24),
+        _buildMainHeader('RECOMMENDED ACTIONS', Icons.gavel),
+        const SizedBox(height: 8),
+        ...widget.recommendedActions.map((action) => _buildListItem(action, Icons.check_circle, AppColors.safe)),
+        const SizedBox(height: 24),
         if (_safetyTips.isNotEmpty) ...[
-          Text('Safety Tips', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-          const SizedBox(height: 10),
-          ..._safetyTips.map((tip) => _buildListCard(tip)),
-          const SizedBox(height: 14),
+          _buildMainHeader('SAFETY TIPS', Icons.lightbulb),
+          const SizedBox(height: 8),
+          ..._safetyTips.map((tip) => _buildListItem(tip, Icons.info, AppColors.primaryPurple)),
+          const SizedBox(height: 24),
         ],
 
         if (isEngineResult) ...[
-          const Divider(height: 28, color: AppColors.divider),
-          Text('Technical Breakdown', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
-          const SizedBox(height: 10),
+          const Divider(height: 32, thickness: 1, color: AppColors.divider),
+          _buildMainHeader('TECHNICAL BREAKDOWN', Icons.code),
+          const SizedBox(height: 16),
 
           // External API Results
           _buildExpandableSection(
             title: 'External API Results',
+            icon: Icons.api,
             isExpanded: _showExternalApiResults,
             onTap: () => setState(() => _showExternalApiResults = !_showExternalApiResults),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(googleSafebrowsingMsg, style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(virusTotalMsg, style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(openPhishMsg, style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(whoisMsg, style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
-                ),
-                if (ipqsMsg.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(ipqsMsg, style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
-                  ),
+                _buildInfoLine(googleSafebrowsingMsg, Icons.security),
+                _buildInfoLine(virusTotalMsg, Icons.bug_report),
+                _buildInfoLine(openPhishMsg, Icons.link),
+                _buildInfoLine(whoisMsg, Icons.date_range),
+                if (ipqsMsg.isNotEmpty) _buildInfoLine(ipqsMsg, Icons.verified),
               ],
             ),
           ),
@@ -696,14 +694,16 @@ Explanation: ${widget.explanation}
           // Static Rules Fired
           _buildExpandableSection(
             title: 'Static Rules Fired',
+            icon: Icons.rule,
             isExpanded: _showStaticRules,
             onTap: () => setState(() => _showStaticRules = !_showStaticRules),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: (engine['detailed_detected_threats'] as List? ?? [])
-                  .map<Widget>((threat) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text('• [${threat['severity']?.toString().toUpperCase()}] ${threat['description']}', style: const TextStyle(color: AppColors.primaryText)),
+                  .map<Widget>((threat) => _buildInfoLine(
+                        '[${threat['severity']?.toString().toUpperCase()}] ${threat['description']}',
+                        Icons.circle,
+                        iconColor: AppColors.secondaryText,
                       ))
                   .toList(),
             ),
@@ -713,21 +713,19 @@ Explanation: ${widget.explanation}
           // Machine Learning Probabilities
           _buildExpandableSection(
             title: 'Machine Learning Probabilities',
+            icon: Icons.show_chart,
             isExpanded: _showMLDetails,
             onTap: () => setState(() => _showMLDetails = !_showMLDetails),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (engine['individual_model_probabilities'] != null)
-                  ...(engine['individual_model_probabilities'] as Map).entries.map((entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Text('• ${entry.key}: ${_formatProbList(entry.value)}', style: const TextStyle(color: AppColors.primaryText)),
+                  ...(engine['individual_model_probabilities'] as Map).entries.map((entry) => _buildInfoLine(
+                        '${entry.key}: ${_formatProbList(entry.value)}',
+                        Icons.trending_up,
                       )),
                 if (engine['ensemble_probabilities'] != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text('Ensemble: ${_formatProbList(engine['ensemble_probabilities'])}', style: const TextStyle(color: AppColors.primaryText)),
-                  ),
+                  _buildInfoLine('Ensemble: ${_formatProbList(engine['ensemble_probabilities'])}', Icons.merge_type),
               ],
             ),
           ),
@@ -736,21 +734,19 @@ Explanation: ${widget.explanation}
           // External Threat Intelligence (Raw)
           _buildExpandableSection(
             title: 'External Threat Intelligence (Raw)',
+            icon: Icons.cloud_queue,
             isExpanded: _showExternalDetails,
             onTap: () => setState(() => _showExternalDetails = !_showExternalDetails),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_externalSources.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text('Sources: ${_externalSources.join(', ')}', style: const TextStyle(color: AppColors.primaryText)),
-                  ),
+                  _buildInfoLine('Sources: ${_externalSources.join(', ')}', Icons.source),
                 if (externalDetails != null)
-                  ...externalDetails.entries.map((entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text('• ${entry.key}: ${entry.value}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-                      )),
+                  ...externalDetails.entries.map<Widget>((entry) {
+                    final valueStr = entry.value.toString();
+                    return _buildInfoLine('${entry.key}: $valueStr', Icons.data_usage, iconColor: AppColors.secondaryText);
+                  }).toList(),
               ],
             ),
           ),
@@ -760,6 +756,7 @@ Explanation: ${widget.explanation}
           if (behaviorPatterns.isNotEmpty || behaviorCategories != null)
             _buildExpandableSection(
               title: 'Behavior Analysis',
+              icon: Icons.insights,
               isExpanded: _showBehaviorAnalysis,
               onTap: () => setState(() => _showBehaviorAnalysis = !_showBehaviorAnalysis),
               child: Column(
@@ -768,48 +765,39 @@ Explanation: ${widget.explanation}
                   if (behaviorPatterns.isNotEmpty) ...[
                     const Text('Matched Patterns:', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 4),
-                    ...behaviorPatterns.map((pattern) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Text('• $pattern', style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
-                        )),
+                    ...behaviorPatterns.map((pattern) => _buildInfoLine(pattern, Icons.pattern)),
                     const SizedBox(height: 8),
                   ],
                   if (behaviorCategories != null) ...[
                     const Text('Categories:', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 4),
-                    ...(behaviorCategories['categories'] as Map? ?? {}).entries.map((entry) => Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Text('• ${entry.key}: ${(entry.value as List).join(', ')}', style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
-                        )),
+                    ...(behaviorCategories['categories'] as Map? ?? {}).entries.map((entry) => _buildInfoLine('${entry.key}: ${(entry.value as List).join(', ')}', Icons.category)),
                     const SizedBox(height: 4),
                     if (behaviorCategories['summary'] != null)
-                      Text('Summary: total=${behaviorCategories['summary']['total_patterns']}, categories=${behaviorCategories['summary']['categories_count']}, severity=${behaviorCategories['summary']['severity']}',
-                          style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                      Text(
+                        'Summary: total=${behaviorCategories['summary']['total_patterns']}, categories=${behaviorCategories['summary']['categories_count']}, severity=${behaviorCategories['summary']['severity']}',
+                        style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                      ),
                   ],
                 ],
               ),
             ),
 
-          // Model Metrics
+          // Model Metrics (presented as a table)
           if (modelCount != null || staticScore != null || mlRawScore != null)
             _buildExpandableSection(
               title: 'Model Metrics',
+              icon: Icons.memory,
               isExpanded: _showModelMetrics,
               onTap: () => setState(() => _showModelMetrics = !_showModelMetrics),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (modelCount != null) _buildDetailRow('Model Count', modelCount.toString()),
-                  if (staticScore != null) _buildDetailRow('Static Score', staticScore.toStringAsFixed(2)),
-                  if (mlRawScore != null) _buildDetailRow('ML Raw Score', mlRawScore.toStringAsFixed(6)),
-                ],
-              ),
+              child: _buildMetricsTable(modelCount, staticScore, mlRawScore),
             ),
 
           // Fusion Details
           if (fusionWeights != null && fusionWeights.isNotEmpty)
             _buildExpandableSection(
               title: 'Fusion Details',
+              icon: Icons.merge_type,
               isExpanded: _showFusionDetails,
               onTap: () => setState(() => _showFusionDetails = !_showFusionDetails),
               child: Column(
@@ -850,9 +838,131 @@ Explanation: ${widget.explanation}
     );
   }
 
-  String _formatProbList(dynamic probs) {
-    if (probs is List) return probs.map((p) => _toDouble(p).toStringAsFixed(3)).join(', ');
-    return probs.toString();
+  // ======================== UI HELPERS ========================
+  Widget _buildMainHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: AppColors.primaryPurple, size: 22),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: AppColors.primaryText,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricsTable(int? modelCount, double? staticScore, double? mlRawScore) {
+    final List<Map<String, String>> rows = [];
+    if (modelCount != null) rows.add({'Metric': 'Model Count', 'Value': modelCount.toString()});
+    if (staticScore != null) rows.add({'Metric': 'Static Score', 'Value': staticScore.toStringAsFixed(2)});
+    if (mlRawScore != null) rows.add({'Metric': 'ML Raw Score', 'Value': mlRawScore.toStringAsFixed(6)});
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.mainBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Table(
+        columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(2)},
+        children: rows.map((row) {
+          return TableRow(
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.divider.withOpacity(0.5))),
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(row['Metric']!, style: const TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w500)),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(row['Value']!, style: const TextStyle(color: AppColors.primaryText)),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  BoxDecoration _cardDecoration() {
+    return BoxDecoration(
+      color: AppColors.cardBackground,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+    );
+  }
+
+  Widget _buildSummaryRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.primaryPurple),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: const TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w500),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(color: AppColors.primaryText),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListItem(String text, IconData icon, Color iconColor) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: _cardDecoration(),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: iconColor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(color: AppColors.primaryText),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoLine(String text, IconData icon, {Color iconColor = AppColors.primaryPurple}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: iconColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(color: AppColors.primaryText, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDetailRow(String label, String value) {
@@ -868,51 +978,61 @@ Explanation: ${widget.explanation}
     );
   }
 
+  Widget _buildExpandableSection({
+    required String title,
+    required IconData icon,
+    required bool isExpanded,
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    return Container(
+      decoration: _cardDecoration(),
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Icon(icon, size: 20, color: AppColors.primaryPurple),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(color: AppColors.primaryText, fontSize: 16, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                  Icon(
+                    isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    color: AppColors.primaryText,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: child,
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _formatProbList(dynamic probs) {
+    if (probs is List) return probs.map((p) => _toDouble(p).toStringAsFixed(3)).join(', ');
+    return probs.toString();
+  }
+
   Widget _buildInfoCard(String text) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(color: AppColors.cardBackground, borderRadius: BorderRadius.circular(12)),
       child: Text(text, style: const TextStyle(color: AppColors.primaryText, fontSize: 14, height: 1.45)),
-    );
-  }
-
-  Widget _buildListCard(String text) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(color: AppColors.cardBackground, borderRadius: BorderRadius.circular(12)),
-      child: Text(text, style: const TextStyle(color: AppColors.primaryText, fontSize: 14)),
-    );
-  }
-
-  Widget _buildExpandableSection({
-    required String title,
-    required bool isExpanded,
-    required VoidCallback onTap,
-    required Widget child,
-  }) {
-    return Container(
-      decoration: BoxDecoration(color: AppColors.cardBackground, borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              child: Row(
-                children: [
-                  Expanded(child: Text(title, style: const TextStyle(color: AppColors.primaryText, fontSize: 14, fontWeight: FontWeight.w600))),
-                  Icon(isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: AppColors.primaryText),
-                ],
-              ),
-            ),
-          ),
-          if (isExpanded) Padding(padding: const EdgeInsets.fromLTRB(14, 0, 14, 14), child: child),
-        ],
-      ),
     );
   }
 }
