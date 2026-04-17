@@ -34,7 +34,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   }
 
   Future<void> _initialize() async {
-    await _loadUserSettings(); // always sets _settingsLoaded
+    await _loadUserSettings();
     await _initEngine();
   }
 
@@ -127,7 +127,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       }
     } catch (e) {
       print('Error loading scan settings: $e');
-      // keep default settings
     } finally {
       if (mounted) setState(() => _settingsLoaded = true);
     }
@@ -179,7 +178,16 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     });
   }
 
-  Future<void> _scanURL(String url) async {
+  /// Normalize URL: remove spaces, add https:// if missing
+  String _normalizeUrl(String input) {
+    String url = input.trim().replaceAll(RegExp(r'\s+'), '');
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://$url';
+    }
+    return url;
+  }
+
+  Future<void> _scanURL(String rawUrl) async {
     if (!_engineReady) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -189,6 +197,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       );
       return;
     }
+
+    final url = _normalizeUrl(rawUrl);
 
     setState(() => _isScanning = true);
 
@@ -751,13 +761,15 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   _buildNavItem(
                     icon: Icons.settings_outlined,
                     label: 'Settings',
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const ScanSettingsScreen(),
                         ),
                       );
+                      // Reload settings after returning
+                      await _loadUserSettings();
                     },
                   ),
                 ],

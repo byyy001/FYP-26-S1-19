@@ -564,7 +564,7 @@ Explanation: ${widget.explanation}
     );
   }
 
-  // ---------- ADVANCED REGISTERED SECTION ----------
+  // ---------- ADVANCED REGISTERED SECTION (with improved tables and spacing) ----------
   Widget _buildRegisteredAdvancedSection(bool isSmall) {
     final engine = widget.engineResult;
     final isEngineResult = engine != null;
@@ -578,7 +578,7 @@ Explanation: ${widget.explanation}
     final modelCount = isEngineResult ? _toInt(engine['model_count']) : null;
     final staticScore = isEngineResult ? _toDouble(engine['static_score']) : null;
     final mlRawScore = isEngineResult ? _toDouble(engine['ml_score_raw']) : null;
-    final fusionWeights = isEngineResult ? (engine['fusion_weights'] as Map?) : null;
+    final fusionWeights = isEngineResult ? (engine['fusion_weights'] as Map<String, dynamic>?) : null;
 
     final externalDetails = isEngineResult ? (engine['external_details'] as Map?) : null;
     String virusTotalMsg = '';
@@ -710,24 +710,13 @@ Explanation: ${widget.explanation}
           ),
           const SizedBox(height: 12),
 
-          // Machine Learning Probabilities
+          // Machine Learning Probabilities (displayed as a table) – FIXED TYPE ERROR
           _buildExpandableSection(
             title: 'Machine Learning Probabilities',
             icon: Icons.show_chart,
             isExpanded: _showMLDetails,
             onTap: () => setState(() => _showMLDetails = !_showMLDetails),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (engine['individual_model_probabilities'] != null)
-                  ...(engine['individual_model_probabilities'] as Map).entries.map((entry) => _buildInfoLine(
-                        '${entry.key}: ${_formatProbList(entry.value)}',
-                        Icons.trending_up,
-                      )),
-                if (engine['ensemble_probabilities'] != null)
-                  _buildInfoLine('Ensemble: ${_formatProbList(engine['ensemble_probabilities'])}', Icons.merge_type),
-              ],
-            ),
+            child: _buildMLProbabilitiesTable(engine),
           ),
           const SizedBox(height: 12),
 
@@ -783,7 +772,7 @@ Explanation: ${widget.explanation}
               ),
             ),
 
-          // Model Metrics (presented as a table)
+          // Model Metrics (table)
           if (modelCount != null || staticScore != null || mlRawScore != null)
             _buildExpandableSection(
               title: 'Model Metrics',
@@ -792,19 +781,18 @@ Explanation: ${widget.explanation}
               onTap: () => setState(() => _showModelMetrics = !_showModelMetrics),
               child: _buildMetricsTable(modelCount, staticScore, mlRawScore),
             ),
+          const SizedBox(height: 12),
 
-          // Fusion Details
+          // Fusion Details (table)
           if (fusionWeights != null && fusionWeights.isNotEmpty)
             _buildExpandableSection(
               title: 'Fusion Details',
               icon: Icons.merge_type,
               isExpanded: _showFusionDetails,
               onTap: () => setState(() => _showFusionDetails = !_showFusionDetails),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: fusionWeights.entries.map((entry) => _buildDetailRow(entry.key, _toDouble(entry.value).toStringAsFixed(3))).toList(),
-              ),
+              child: _buildFusionDetailsTable(fusionWeights),
             ),
+          const SizedBox(height: 12),
         ],
 
         const SizedBox(height: 20),
@@ -838,22 +826,136 @@ Explanation: ${widget.explanation}
     );
   }
 
-  // ======================== UI HELPERS ========================
-  Widget _buildMainHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.primaryPurple, size: 22),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: AppColors.primaryText,
-            letterSpacing: 0.5,
-          ),
+  // ======================== NEW HELPER TABLES ========================
+  Widget _buildMLProbabilitiesTable(Map<String, dynamic>? engine) {
+    final rows = <TableRow>[];
+    // Header row
+    rows.add(
+      TableRow(
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.divider.withOpacity(0.5))),
         ),
-      ],
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text('Model', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text('Probabilities [benign, defacement, phishing, malware]', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+
+    if (engine?['individual_model_probabilities'] != null) {
+      final probs = engine!['individual_model_probabilities'] as Map<dynamic, dynamic>;
+      probs.forEach((modelName, values) {
+        final formatted = _formatProbList(values);
+        rows.add(
+          TableRow(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(modelName.toString(), style: const TextStyle(color: AppColors.primaryText)),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(formatted, style: const TextStyle(color: AppColors.primaryText)),
+              ),
+            ],
+          ),
+        );
+      });
+    }
+
+    if (engine?['ensemble_probabilities'] != null) {
+      final ensembleFormatted = _formatProbList(engine!['ensemble_probabilities']);
+      rows.add(
+        TableRow(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text('Ensemble', style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w500)),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(ensembleFormatted, style: const TextStyle(color: AppColors.primaryText)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (rows.length == 1) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        child: const Text('No probability data available.', style: TextStyle(color: AppColors.secondaryText)),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.mainBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Table(
+        columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(2)},
+        children: rows,
+      ),
+    );
+  }
+
+  Widget _buildFusionDetailsTable(Map<String, dynamic> fusionWeights) {
+    final rows = <TableRow>[];
+    // Header
+    rows.add(
+      TableRow(
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.divider.withOpacity(0.5))),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text('Weight', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text('Value', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+
+    fusionWeights.forEach((key, value) {
+      final val = _toDouble(value).toStringAsFixed(3);
+      rows.add(
+        TableRow(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(key, style: const TextStyle(color: AppColors.primaryText)),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(val, style: const TextStyle(color: AppColors.primaryText)),
+            ),
+          ],
+        ),
+      );
+    });
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.mainBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Table(
+        columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(1)},
+        children: rows,
+      ),
     );
   }
 
@@ -889,6 +991,25 @@ Explanation: ${widget.explanation}
           );
         }).toList(),
       ),
+    );
+  }
+
+  // ======================== EXISTING UI HELPERS ========================
+  Widget _buildMainHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: AppColors.primaryPurple, size: 22),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: AppColors.primaryText,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ],
     );
   }
 
@@ -957,8 +1078,7 @@ Explanation: ${widget.explanation}
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: AppColors.primaryText, fontSize: 13),
-            ),
+              style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
           ),
         ],
       ),
