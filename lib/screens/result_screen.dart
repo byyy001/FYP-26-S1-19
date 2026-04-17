@@ -44,7 +44,7 @@ class ResultScreen extends StatefulWidget {
     required ScanSettings settings,
   }) {
     final String verdict = _mapVerdict(engineResult['severity'] ?? 'SAFE');
-    final int score = (double.tryParse(engineResult['risk_score'] ?? '0') ?? 0).toInt();
+    final int score = (double.tryParse(engineResult['risk_score']?.toString() ?? '0') ?? 0).toInt();
     final List<String> reasons = List<String>.from(engineResult['detected_threats'] ?? []);
     final List<String> actions = List<String>.from(engineResult['actions'] ?? []);
 
@@ -80,6 +80,7 @@ class _ResultScreenState extends State<ResultScreen> {
   bool _showBehaviorAnalysis = false;
   bool _showModelMetrics = false;
   bool _showFusionDetails = false;
+  bool _showExternalApiResults = false;
 
   List<String> get _safetyTips {
     if (widget.engineResult != null) {
@@ -118,6 +119,22 @@ class _ResultScreenState extends State<ResultScreen> {
     return 'Safe';
   }
 
+  double _toDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
+  int _toInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
   // ======================== EXPORT METHODS ========================
   String _buildShareText() {
     final threatType = widget.engineResult?['threat_type'] ?? 'Unknown';
@@ -153,7 +170,7 @@ Explanation: ${widget.explanation}
       final pdf = pw.Document();
       final threatType = widget.engineResult?['threat_type'] ?? 'Unknown';
       final mlConfidence = widget.engineResult?['ml_confidence'] ?? 'none';
-      final externalScore = (widget.engineResult?['external_score'] as num?)?.toDouble() ?? 0.0;
+      final externalScore = _toDouble(widget.engineResult?['external_score']);
 
       pdf.addPage(
         pw.MultiPage(
@@ -494,7 +511,7 @@ Explanation: ${widget.explanation}
     final engine = widget.engineResult;
     final threatType = engine?['threat_type'] ?? 'benign';
     final mlConfidence = engine?['ml_confidence'] ?? 'none';
-    final externalScore = (engine?['external_score'] as num?)?.toDouble() ?? 0.0;
+    final externalScore = _toDouble(engine?['external_score']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,6 +522,9 @@ Explanation: ${widget.explanation}
           'Risk Score: ${widget.score}%\n'
           'Threat Type: $threatType\n'
           'ML Confidence: $mlConfidence\n'
+          'ML Score: ${_toDouble(engine?['ml_score']).toStringAsFixed(4)}\n'
+          'AI Score: ${_toDouble(engine?['ai_score']).toStringAsFixed(2)}\n'
+          'Behavior Score: ${_toDouble(engine?['behavior_score']).toStringAsFixed(2)}\n'
           'External Score: ${externalScore.toStringAsFixed(2)}\n'
           'External Sources: ${_externalSources.isNotEmpty ? _externalSources.join(', ') : 'None'}',
         ),
@@ -537,22 +557,71 @@ Explanation: ${widget.explanation}
     );
   }
 
-  // ---------- ADVANCED REGISTERED SECTION (with expandable technical details) ----------
+  // ---------- ADVANCED REGISTERED SECTION ----------
   Widget _buildRegisteredAdvancedSection(bool isSmall) {
     final engine = widget.engineResult;
     final isEngineResult = engine != null;
 
     final threatType = isEngineResult ? (engine['threat_type'] ?? 'benign') : 'benign';
     final mlConfidence = isEngineResult ? (engine['ml_confidence'] ?? 'none') : 'none';
-    final externalScore = isEngineResult ? (engine['external_score'] as num?)?.toDouble() ?? 0.0 : 0.0;
+    final externalScore = _toDouble(engine?['external_score']);
 
     // Extra metrics
     final behaviorPatterns = isEngineResult ? (engine['behavior_matched_patterns'] as List?) ?? [] : [];
     final behaviorCategories = isEngineResult ? (engine['behavior_categories'] as Map?) : null;
-    final modelCount = isEngineResult ? (engine['model_count'] as int?) : null;
-    final staticScore = isEngineResult ? (engine['static_score'] as num?)?.toDouble() : null;
-    final mlRawScore = isEngineResult ? (engine['ml_score_raw'] as num?)?.toDouble() : null;
+    final modelCount = isEngineResult ? _toInt(engine['model_count']) : null;
+    final staticScore = isEngineResult ? _toDouble(engine['static_score']) : null;
+    final mlRawScore = isEngineResult ? _toDouble(engine['ml_score_raw']) : null;
     final fusionWeights = isEngineResult ? (engine['fusion_weights'] as Map?) : null;
+
+    // External API details
+    final externalDetails = isEngineResult ? (engine['external_details'] as Map?) : null;
+    String virusTotalMsg = '';
+    if (externalDetails != null && externalDetails.containsKey('virustotal')) {
+      final vt = externalDetails['virustotal'];
+      if (vt is Map) {
+        final malicious = vt['malicious'] ?? 0;
+        final suspicious = vt['suspicious'] ?? 0;
+        final total = vt['total'] ?? 0;
+        virusTotalMsg = 'VirusTotal: Threat found! $malicious engines detected malicious, $suspicious suspicious (out of $total)';
+      } else if (vt is num) {
+        virusTotalMsg = 'VirusTotal: score ${vt.toStringAsFixed(2)}';
+      }
+    } else {
+      virusTotalMsg = _externalSources.contains('VirusTotal')
+          ? 'VirusTotal: Threat found! (details not available)'
+          : 'VirusTotal: No threat found.';
+    }
+
+    String openPhishMsg = 'OpenPhish: URL not found';
+    if (externalDetails != null && externalDetails.containsKey('openphish')) {
+      final op = externalDetails['openphish'];
+      if (op is Map && op['source'] != null) openPhishMsg = 'OpenPhish: URL found in feed';
+    }
+
+    String whoisMsg = 'WhoisAPI: No createdDate for domain';
+    if (externalDetails != null && externalDetails.containsKey('whois')) {
+      final whois = externalDetails['whois'];
+      if (whois is Map && whois['age_days'] != null) {
+        final age = whois['age_days'];
+        whoisMsg = 'WhoisAPI: Domain age $age days (${age < 30 ? 'new' : 'established'})';
+        if (whois['warning'] != null) whoisMsg += ' - ${whois['warning']}';
+      }
+    }
+
+    String ipqsMsg = '';
+    if (externalDetails != null && externalDetails.containsKey('ipqualityscore')) {
+      final ipqs = externalDetails['ipqualityscore'];
+      if (ipqs is Map) {
+        ipqsMsg = 'IPQualityScore: risk_score ${ipqs['risk_score'] ?? 'N/A'}';
+      } else if (ipqs is num) {
+        ipqsMsg = 'IPQualityScore: score ${ipqs.toStringAsFixed(2)}';
+      }
+    }
+
+    String googleSafebrowsingMsg = _externalSources.contains('Google Safe Browsing')
+        ? 'GoogleSafeBrowsing: Threat found!'
+        : 'GoogleSafeBrowsing: No threat found.';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -563,6 +632,9 @@ Explanation: ${widget.explanation}
           'Risk Score: ${widget.score}%\n'
           'Threat Type: $threatType\n'
           'ML Confidence: $mlConfidence\n'
+          'ML Score: ${_toDouble(engine?['ml_score']).toStringAsFixed(4)}\n'
+          'AI Score: ${_toDouble(engine?['ai_score']).toStringAsFixed(2)}\n'
+          'Behavior Score: ${_toDouble(engine?['behavior_score']).toStringAsFixed(2)}\n'
           'External Score: ${externalScore.toStringAsFixed(2)}\n'
           'External Sources: ${_externalSources.isNotEmpty ? _externalSources.join(', ') : 'None'}',
         ),
@@ -582,11 +654,44 @@ Explanation: ${widget.explanation}
           const SizedBox(height: 14),
         ],
 
-        // Expandable technical details (only for advanced)
         if (isEngineResult) ...[
           const Divider(height: 28, color: AppColors.divider),
           Text('Technical Breakdown', style: TextStyle(fontSize: isSmall ? 17 : 19, fontWeight: FontWeight.w600, color: AppColors.primaryText)),
           const SizedBox(height: 10),
+
+          // External API Results
+          _buildExpandableSection(
+            title: 'External API Results',
+            isExpanded: _showExternalApiResults,
+            onTap: () => setState(() => _showExternalApiResults = !_showExternalApiResults),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(googleSafebrowsingMsg, style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(virusTotalMsg, style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(openPhishMsg, style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(whoisMsg, style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
+                ),
+                if (ipqsMsg.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(ipqsMsg, style: const TextStyle(color: AppColors.primaryText, fontSize: 13)),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
 
           // Static Rules Fired
           _buildExpandableSection(
@@ -628,9 +733,9 @@ Explanation: ${widget.explanation}
           ),
           const SizedBox(height: 12),
 
-          // External Threat Intelligence
+          // External Threat Intelligence (Raw)
           _buildExpandableSection(
-            title: 'External Threat Intelligence',
+            title: 'External Threat Intelligence (Raw)',
             isExpanded: _showExternalDetails,
             onTap: () => setState(() => _showExternalDetails = !_showExternalDetails),
             child: Column(
@@ -641,8 +746,8 @@ Explanation: ${widget.explanation}
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text('Sources: ${_externalSources.join(', ')}', style: const TextStyle(color: AppColors.primaryText)),
                   ),
-                if (engine['external_details'] != null)
-                  ...(engine['external_details'] as Map).entries.map((entry) => Padding(
+                if (externalDetails != null)
+                  ...externalDetails.entries.map((entry) => Padding(
                         padding: const EdgeInsets.only(bottom: 4),
                         child: Text('• ${entry.key}: ${entry.value}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
                       )),
@@ -709,7 +814,7 @@ Explanation: ${widget.explanation}
               onTap: () => setState(() => _showFusionDetails = !_showFusionDetails),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: fusionWeights.entries.map((entry) => _buildDetailRow(entry.key, (entry.value as num).toStringAsFixed(3))).toList(),
+                children: fusionWeights.entries.map((entry) => _buildDetailRow(entry.key, _toDouble(entry.value).toStringAsFixed(3))).toList(),
               ),
             ),
         ],
@@ -746,7 +851,7 @@ Explanation: ${widget.explanation}
   }
 
   String _formatProbList(dynamic probs) {
-    if (probs is List) return probs.map((p) => (p as double).toStringAsFixed(3)).join(', ');
+    if (probs is List) return probs.map((p) => _toDouble(p).toStringAsFixed(3)).join(', ');
     return probs.toString();
   }
 

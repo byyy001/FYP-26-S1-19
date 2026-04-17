@@ -25,7 +25,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   bool _settingsLoaded = false;
   String? _initError;
   late final ThreatEngine _engine;
-  ScanSettings _userSettings = ScanSettings.forBeginner(); // default
+  ScanSettings _userSettings = ScanSettings.forBeginner();
 
   @override
   void initState() {
@@ -34,11 +34,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   }
 
   Future<void> _initialize() async {
-    // Load settings first (doesn't require engine)
-    await _loadUserSettings();
-    setState(() => _settingsLoaded = true);
-
-    // Then initialize engine
+    await _loadUserSettings(); // always sets _settingsLoaded
     await _initEngine();
   }
 
@@ -71,7 +67,10 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
   Future<void> _loadUserSettings() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      if (mounted) setState(() => _settingsLoaded = true);
+      return;
+    }
 
     try {
       final doc = await FirebaseFirestore.instance
@@ -95,35 +94,42 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         final useXGBoost = data['useXGBoost'] ?? true;
         final useLightGBM = data['useLightGBM'] ?? true;
 
-        setState(() {
-          _userSettings = ScanSettings(
-            phishingSensitivity: phishingSensitivity,
-            httpSitesWarning: false,
-            scriptAnalysis: scriptAnalysis,
-            adReductionAnalysis: false,
-            adDensityLevel: 1,
-            autoRecheckScans: false,
-            sharingConfiguration: false,
-            useExternalApis: useExternalApis,
-            isPremium: isPremium,
-            userLevel: userLevel,
-            enableMachineLearning: true,
-            useEnsemble: useEnsemble,
-            useLogisticRegression: useLogisticRegression,
-            useDecisionTree: useDecisionTree,
-            useXGBoost: useXGBoost,
-            useLightGBM: useLightGBM,
-            deepScan: deepScan,
-            adFilter: false,
-          );
-        });
+        if (mounted) {
+          setState(() {
+            _userSettings = ScanSettings(
+              phishingSensitivity: phishingSensitivity,
+              httpSitesWarning: false,
+              scriptAnalysis: scriptAnalysis,
+              adReductionAnalysis: false,
+              adDensityLevel: 1,
+              autoRecheckScans: false,
+              sharingConfiguration: false,
+              useExternalApis: useExternalApis,
+              isPremium: isPremium,
+              userLevel: userLevel,
+              enableMachineLearning: true,
+              useEnsemble: useEnsemble,
+              useLogisticRegression: useLogisticRegression,
+              useDecisionTree: useDecisionTree,
+              useXGBoost: useXGBoost,
+              useLightGBM: useLightGBM,
+              deepScan: deepScan,
+              adFilter: false,
+            );
+          });
+        }
       } else {
-        setState(() {
-          _userSettings = ScanSettings.forBeginner();
-        });
+        if (mounted) {
+          setState(() {
+            _userSettings = ScanSettings.forBeginner();
+          });
+        }
       }
     } catch (e) {
-      // Keep default
+      print('Error loading scan settings: $e');
+      // keep default settings
+    } finally {
+      if (mounted) setState(() => _settingsLoaded = true);
     }
   }
 
@@ -284,7 +290,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
           String userName = snapshot.data ?? 'User';
 
-          // Show loading indicator while engine/settings are initializing
           if (!_settingsLoaded || !_engineReady) {
             return Center(
               child: Column(
