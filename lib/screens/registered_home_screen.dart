@@ -457,7 +457,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
-  // ======================== ENHANCED STAT CARD WITH GLOW ========================
+  // ======================== STAT CARD WITH GLOW ========================
   Widget _buildStatCard(
     IconData icon,
     String label,
@@ -512,24 +512,19 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
-  // ======================== ENHANCED SCAN CARD WITH GLOW ========================
+  // ======================== SCAN CARD (ORIGINAL STYLE – NO GLOW) ========================
   Widget _buildScanCard(bool isSmall) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.primaryPurple.withOpacity(0.08), AppColors.cardBackground],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.4), width: 1),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.2),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+            color: Colors.black.withAlpha(25),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -598,7 +593,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
-  // ======================== ENHANCED RECENTS CARD ========================
+  // ======================== RECENTS CARD ========================
   Widget _buildRecentsCard(bool isSmall) {
     return Container(
       width: double.infinity,
