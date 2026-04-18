@@ -458,7 +458,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
-  // ======================== STAT CARD WITH GLOW ========================
+  // ======================== IMPROVED STAT CARD (solid background + coloured border/shadow) ========================
   Widget _buildStatCard(
     IconData icon,
     String label,
@@ -471,16 +471,12 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [themeColor.withOpacity(0.1), AppColors.cardBackground],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: AppColors.cardBackground,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: themeColor.withOpacity(0.3), width: 1),
+          border: Border.all(color: themeColor.withOpacity(0.4), width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: themeColor.withOpacity(0.2),
+              color: themeColor.withOpacity(0.25),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),

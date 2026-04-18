@@ -7,21 +7,6 @@ import '../constants/app_colors.dart';
 import '../services/ai_threat_analyzer.dart';
 
 // ============================================================================
-// Color Palette (matches app_colors.dart)
-// ============================================================================
-class _Colors {
-  static const Color mainBackground = AppColors.mainBackground;
-  static const Color cardBackground = AppColors.cardBackground;
-  static const Color primaryText = AppColors.primaryText;
-  static const Color secondaryText = AppColors.secondaryText;
-  static const Color primaryPurple = AppColors.primaryPurple;
-  static const Color primaryBlue = AppColors.primaryBlue;
-  static const Color highRisk = AppColors.highRisk;
-  static const Color mediumRisk = AppColors.mediumRisk;
-  static const Color safe = AppColors.safe;
-}
-
-// ============================================================================
 // Security Insights Screen (Stateful)
 // ============================================================================
 class SecurityInsightsScreen extends StatefulWidget {
@@ -163,16 +148,16 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _Colors.mainBackground,
+      backgroundColor: AppColors.mainBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
           'Security Insights',
-          style: TextStyle(color: _Colors.primaryText),
+          style: TextStyle(color: AppColors.primaryText),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: _Colors.primaryText),
+          icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -185,11 +170,11 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, color: _Colors.highRisk, size: 48),
+                        Icon(Icons.error_outline, color: AppColors.highRisk, size: 48),
                         const SizedBox(height: 16),
                         Text(
                           _error!,
-                          style: const TextStyle(color: _Colors.secondaryText),
+                          style: const TextStyle(color: AppColors.secondaryText),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 16),
@@ -214,7 +199,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
     final oldestSafeLinks = _oldestSafeLinksNotRescanned(_scans);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -224,7 +209,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: _Colors.primaryText,
+              color: AppColors.primaryText,
             ),
           ),
           const SizedBox(height: 8),
@@ -232,7 +217,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
             'Hi ${insights.userName}! Based on your last ${insights.periodDays} days',
             style: const TextStyle(
               fontSize: 16,
-              color: _Colors.secondaryText,
+              color: AppColors.secondaryText,
             ),
           ),
           const SizedBox(height: 24),
@@ -255,7 +240,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: _Colors.secondaryText,
+              color: AppColors.secondaryText,
               letterSpacing: 0.5,
             ),
           ),
@@ -270,7 +255,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: _Colors.secondaryText,
+                color: AppColors.secondaryText,
                 letterSpacing: 0.5,
               ),
             ),
@@ -285,7 +270,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: _Colors.secondaryText,
+              color: AppColors.secondaryText,
               letterSpacing: 0.5,
             ),
           ),
@@ -353,21 +338,21 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
   Color _threatColor(String threatType) {
     switch (threatType) {
       case 'safe':
-        return _Colors.safe;
+        return AppColors.safe;
       case 'suspicious':
-        return _Colors.mediumRisk;
+        return AppColors.mediumRisk;
       case 'malicious':
-        return _Colors.highRisk;
+        return AppColors.highRisk;
       case 'phishing':
-        return _Colors.highRisk;
+        return AppColors.highRisk;
       case 'malware':
-        return _Colors.mediumRisk;
+        return AppColors.mediumRisk;
       case 'ad_tracker':
-        return _Colors.primaryBlue;
+        return AppColors.primaryBlue;
       case 'benign':
-        return _Colors.safe;
+        return AppColors.safe;
       default:
-        return _Colors.primaryPurple;
+        return AppColors.primaryPurple;
     }
   }
 
@@ -389,13 +374,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
   }
 
   Widget _buildThreatPieChart(List<ThreatCount> threatPercentages) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _Colors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-      ),
+    return _buildCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -404,7 +383,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: _Colors.secondaryText,
+              color: AppColors.secondaryText,
               letterSpacing: 0.5,
             ),
           ),
@@ -452,7 +431,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
                     child: Text(
                       _formatThreatLabel(threat.threatType),
                       style: const TextStyle(
-                        color: _Colors.primaryText,
+                        color: AppColors.primaryText,
                         fontSize: 14,
                       ),
                     ),
@@ -460,7 +439,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
                   Text(
                     '${threat.count} scans • ${threat.percentage.toStringAsFixed(1)}%',
                     style: const TextStyle(
-                      color: _Colors.secondaryText,
+                      color: AppColors.secondaryText,
                       fontSize: 13,
                     ),
                   ),
@@ -480,13 +459,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
             .toDouble() +
         1;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _Colors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-      ),
+    return _buildCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -495,7 +468,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: _Colors.secondaryText,
+              color: AppColors.secondaryText,
               letterSpacing: 0.5,
             ),
           ),
@@ -503,7 +476,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
           const Text(
             'Based on safe links with only one recorded scan.',
             style: TextStyle(
-              color: _Colors.secondaryText,
+              color: AppColors.secondaryText,
               fontSize: 12,
             ),
           ),
@@ -514,14 +487,14 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
                 maxY: maxDays,
-                gridData: FlGridData(show: false),
+                gridData: const FlGridData(show: false),
                 borderData: FlBorderData(show: false),
                 barTouchData: BarTouchData(enabled: false),
                 titlesData: FlTitlesData(
-                  topTitles: AxisTitles(
+                  topTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
-                  rightTitles: AxisTitles(
+                  rightTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
                   leftTitles: AxisTitles(
@@ -531,7 +504,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
                       getTitlesWidget: (value, meta) => Text(
                         value.toInt().toString(),
                         style: const TextStyle(
-                          color: _Colors.secondaryText,
+                          color: AppColors.secondaryText,
                           fontSize: 11,
                         ),
                       ),
@@ -554,7 +527,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
                               textAlign: TextAlign.center,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                color: _Colors.secondaryText,
+                                color: AppColors.secondaryText,
                                 fontSize: 11,
                               ),
                             ),
@@ -575,7 +548,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
                         width: 24,
                         borderRadius: BorderRadius.circular(6),
                         gradient: const LinearGradient(
-                          colors: [_Colors.safe, _Colors.primaryBlue],
+                          colors: [AppColors.safe, AppColors.primaryBlue],
                           begin: Alignment.bottomCenter,
                           end: Alignment.topCenter,
                         ),
@@ -593,7 +566,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
               child: Text(
                 '${_shortUrlLabel(scan.url)} • ${DateTime.now().difference(scan.timestamp).inDays} days since last safe scan',
                 style: const TextStyle(
-                  color: _Colors.secondaryText,
+                  color: AppColors.secondaryText,
                   fontSize: 13,
                 ),
               ),
@@ -616,21 +589,13 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
   Widget _buildRiskProfileCard(UserInsights insights) {
     final profile = insights.riskProfile;
     final Color accentColor = switch (profile.level) {
-      'high' => _Colors.highRisk,
-      'moderate' => _Colors.mediumRisk,
-      _ => _Colors.safe,
+      'high' => AppColors.highRisk,
+      'moderate' => AppColors.mediumRisk,
+      _ => AppColors.safe,
     };
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _Colors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: accentColor.withAlpha(90),
-        ),
-      ),
+    return _buildCard(
+      borderColor: accentColor.withOpacity(0.5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -661,7 +626,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
           Text(
             'Level: ${profile.level.toUpperCase()}',
             style: const TextStyle(
-              color: _Colors.primaryText,
+              color: AppColors.primaryText,
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
@@ -670,7 +635,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
           Text(
             profile.description,
             style: const TextStyle(
-              color: _Colors.secondaryText,
+              color: AppColors.secondaryText,
               fontSize: 14,
               height: 1.4,
             ),
@@ -679,7 +644,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
           Text(
             'Scans analyzed: ${insights.totalScans}',
             style: const TextStyle(
-              color: _Colors.secondaryText,
+              color: AppColors.secondaryText,
               fontSize: 13,
             ),
           ),
@@ -688,55 +653,38 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
     );
   }
 
-  // --------------------------------------------------------------------------
-  // Top Threats List
-  // --------------------------------------------------------------------------
   Widget _buildThreatList(List<ThreatCount> topThreats) {
     if (topThreats.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _Colors.cardBackground,
-          borderRadius: BorderRadius.circular(16),
-        ),
+      return _buildCard(
         child: const Text(
           'No threat patterns detected in this period. Most recent scans look safe.',
-          style: TextStyle(color: _Colors.secondaryText),
+          style: TextStyle(color: AppColors.secondaryText),
         ),
       );
     }
 
-    // Map threat types to colors
     final threatColors = {
-      'phishing': _Colors.highRisk,
-      'malware': _Colors.mediumRisk,
-      'ad_tracker': _Colors.primaryBlue,
-      'benign': _Colors.safe,
-      'defacement': _Colors.primaryPurple,
+      'phishing': AppColors.highRisk,
+      'malware': AppColors.mediumRisk,
+      'ad_tracker': AppColors.primaryBlue,
+      'benign': AppColors.safe,
+      'defacement': AppColors.primaryPurple,
     };
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _Colors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-      ),
+    return _buildCard(
       child: Column(
         children: [
           ...topThreats.map((threat) => _buildThreatItem(
             _formatThreatLabel(threat.threatType),
             threat.count,
-            threatColors[threat.threatType] ?? _Colors.primaryPurple,
+            threatColors[threat.threatType] ?? AppColors.primaryPurple,
           )),
           if (topThreats.isNotEmpty) ...[
             const SizedBox(height: 16),
-            // Generate a summary sentence based on top threat
             Text(
               _getTopThreatSummary(topThreats.first),
               style: const TextStyle(
-                color: _Colors.secondaryText,
+                color: AppColors.secondaryText,
                 fontSize: 14,
                 height: 1.5,
               ),
@@ -799,7 +747,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
             child: Text(
               label,
               style: const TextStyle(
-                color: _Colors.primaryText,
+                color: AppColors.primaryText,
                 fontSize: 16,
               ),
             ),
@@ -807,7 +755,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
           Text(
             '· $count times',
             style: const TextStyle(
-              color: _Colors.secondaryText,
+              color: AppColors.secondaryText,
               fontSize: 16,
             ),
           ),
@@ -816,25 +764,16 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
     );
   }
 
-  // --------------------------------------------------------------------------
-  // Sentry Insights (Trends)
-  // --------------------------------------------------------------------------
   Widget _buildSentryInsights(List<ThreatTrend> trends) {
     if (trends.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _Colors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-      ),
+    return _buildCard(
       child: Column(
         children: trends.map((trend) {
           final icon = trend.direction == 'up' ? Icons.arrow_upward : Icons.arrow_downward;
-          final color = trend.direction == 'up' ? _Colors.highRisk : _Colors.safe;
+          final color = trend.direction == 'up' ? AppColors.highRisk : AppColors.safe;
           final change = trend.changePercent.toStringAsFixed(0);
           final text = trend.direction == 'up'
               ? '${trend.threatType} is up $change% compared to last period'
@@ -862,7 +801,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
           child: Text(
             text,
             style: const TextStyle(
-              color: _Colors.primaryText,
+              color: AppColors.primaryText,
               fontSize: 14,
               height: 1.4,
             ),
@@ -872,32 +811,17 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
     );
   }
 
-  // --------------------------------------------------------------------------
-  // Smart Tips
-  // --------------------------------------------------------------------------
   Widget _buildSmartTips(List<SmartTip> tips) {
     if (tips.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _Colors.cardBackground,
-          borderRadius: BorderRadius.circular(16),
-        ),
+      return _buildCard(
         child: const Text(
           'No tips available.',
-          style: TextStyle(color: _Colors.secondaryText),
+          style: TextStyle(color: AppColors.secondaryText),
         ),
       );
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _Colors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-      ),
+    return _buildCard(
       child: Column(
         children: tips.map((tip) => Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -911,19 +835,46 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.lightbulb_outline, color: _Colors.primaryPurple, size: 20),
+        Icon(Icons.lightbulb_outline, color: AppColors.primaryPurple, size: 20),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             text,
             style: const TextStyle(
-              color: _Colors.primaryText,
+              color: AppColors.primaryText,
               fontSize: 14,
               height: 1.4,
             ),
           ),
         ),
       ],
+    );
+  }
+
+  // Helper to build consistent cards with border and shadow
+  Widget _buildCard({
+    required Widget child,
+    Color? borderColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: borderColor ?? AppColors.divider.withOpacity(0.3),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryPurple.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }
