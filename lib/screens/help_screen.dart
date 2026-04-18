@@ -62,7 +62,8 @@ class HelpScreen extends StatelessWidget {
               description:
                   'Each scan shows a risk score (0–100%), threat type, and detailed reasons. Expand technical sections for full transparency.',
             ),
-
+            const SizedBox(height: 24),
+            const Divider(color: AppColors.divider, thickness: 0.5, height: 1),
             const SizedBox(height: 28),
 
             // ================= FAQ =================
@@ -110,7 +111,8 @@ class HelpScreen extends StatelessWidget {
               answer:
                   'Yes – tap the refresh icon in the result screen’s app bar to run a fresh analysis, which may pick up newly reported threats.',
             ),
-
+            const SizedBox(height: 24),
+            const Divider(color: AppColors.divider, thickness: 0.5, height: 1),
             const SizedBox(height: 28),
 
             // ================= CONTACT SUPPORT =================
@@ -139,6 +141,7 @@ class HelpScreen extends StatelessWidget {
                     style: TextStyle(
                       color: AppColors.secondaryText,
                       fontSize: 14,
+                      height: 1.4,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -165,7 +168,7 @@ class HelpScreen extends StatelessWidget {
                       style: TextStyle(
                         color: AppColors.primaryPurple,
                         fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                         decoration: TextDecoration.underline,
                       ),
                     ),
@@ -176,13 +179,14 @@ class HelpScreen extends StatelessWidget {
                     style: TextStyle(
                       color: AppColors.secondaryText,
                       fontSize: 13,
-                      height: 1.4,
+                      height: 1.5,
                     ),
                   ),
                 ],
               ),
             ),
-
+            const SizedBox(height: 24),
+            const Divider(color: AppColors.divider, thickness: 0.5, height: 1),
             const SizedBox(height: 28),
 
             // ================= LEGAL LINKS =================
@@ -223,7 +227,6 @@ class HelpScreen extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 20),
           ],
         ),
@@ -234,12 +237,12 @@ class HelpScreen extends StatelessWidget {
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.primaryPurple, size: 22),
+        Icon(icon, color: AppColors.primaryPurple, size: 24),
         const SizedBox(width: 10),
         Text(
           title,
           style: const TextStyle(
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.w700,
             color: AppColors.primaryText,
             letterSpacing: 0.5,
@@ -255,7 +258,7 @@ class HelpScreen extends StatelessWidget {
     required String description,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -266,7 +269,7 @@ class HelpScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.divider.withOpacity(0.3)),
             ),
-            child: Icon(icon, color: AppColors.primaryPurple, size: 22),
+            child: Icon(icon, color: AppColors.primaryPurple, size: 24),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -276,18 +279,18 @@ class HelpScreen extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.primaryText,
-                    fontSize: 16,
+                    fontSize: 17,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   description,
                   style: const TextStyle(
                     color: AppColors.secondaryText,
                     fontSize: 14,
-                    height: 1.4,
+                    height: 1.45,
                   ),
                 ),
               ],
@@ -304,7 +307,7 @@ class HelpScreen extends StatelessWidget {
     required String answer,
   }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(14),
@@ -321,11 +324,19 @@ class HelpScreen extends StatelessWidget {
             question,
             style: const TextStyle(
               color: AppColors.primaryText,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               fontSize: 15,
             ),
           ),
           children: [
+            const Divider(
+              color: AppColors.divider,
+              thickness: 0.5,
+              height: 1,
+              indent: 16,
+              endIndent: 16,
+            ),
+            const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Text(
@@ -333,7 +344,7 @@ class HelpScreen extends StatelessWidget {
                 style: const TextStyle(
                   color: AppColors.secondaryText,
                   fontSize: 14,
-                  height: 1.4,
+                  height: 1.5,
                 ),
               ),
             ),

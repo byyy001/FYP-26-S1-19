@@ -418,6 +418,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                           Icons.qr_code_scanner,
                           'Total Scans',
                           '${stats['totalScans'] ?? 0}',
+                          themeColor: AppColors.primaryPurple,
                           iconColor: AppColors.primaryPurple,
                           valueColor: AppColors.primaryText,
                         ),
@@ -426,6 +427,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                           Icons.shield,
                           'Safe Links',
                           '${stats['safeLinks'] ?? 0}',
+                          themeColor: AppColors.safe,
                           iconColor: AppColors.safe,
                           valueColor: AppColors.safe,
                         ),
@@ -434,6 +436,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                           Icons.warning_amber_rounded,
                           'Threats',
                           '${stats['threats'] ?? 0}',
+                          themeColor: AppColors.highRisk,
                           iconColor: AppColors.highRisk,
                           valueColor: AppColors.highRisk,
                         ),
@@ -442,199 +445,264 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   },
                 ),
                 const SizedBox(height: 18),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.link_rounded,
-                            size: 20,
-                            color: AppColors.primaryPurple,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Scan a Link',
-                            style: TextStyle(
-                              fontSize: isSmall ? 18 : 20,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primaryText,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Paste any URL to check if it\'s safe',
-                        style: TextStyle(
-                          fontSize: isSmall ? 12 : 14,
-                          color: AppColors.secondaryText,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _urlController,
-                              decoration: InputDecoration(
-                                hintText: 'example-link.com',
-                                hintStyle: const TextStyle(
-                                  color: AppColors.disabledText,
-                                ),
-                                filled: true,
-                                fillColor: AppColors.mainBackground,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
-                              ),
-                              style: const TextStyle(
-                                color: AppColors.primaryText,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          _buildScanButton(context),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                _buildScanCard(isSmall),
                 const SizedBox(height: 18),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.history_rounded,
-                            size: 18,
-                            color: AppColors.primaryPurple,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Recents',
-                            style: TextStyle(
-                              fontSize: isSmall ? 16 : 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primaryText,
-                            ),
-                          ),
-                          const Spacer(),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ViewHistoryScreen(),
-                                ),
-                              );
-                            },
-                            child: const Text(
-                              'View History →',
-                              style: TextStyle(
-                                color: AppColors.primaryPurple,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      StreamBuilder<QuerySnapshot>(
-                        stream: _scanHistoryService.getHistoryStream(),
-                        builder: (context, historySnapshot) {
-                          if (historySnapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 20),
-                              child: Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            );
-                          }
-
-                          final docs = historySnapshot.data?.docs ?? [];
-                          if (docs.isEmpty) {
-                            return _buildEmptyState();
-                          }
-
-                          return ListView.separated(
-                            padding: EdgeInsets.zero,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: docs.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final data =
-                                  docs[index].data() as Map<String, dynamic>;
-                              final statusText = (data['result'] ??
-                                      data['verdict'] ??
-                                      'Unknown')
-                                  .toString();
-                              final timestamp = data['scannedAt'];
-                              final formattedTime = timestamp is Timestamp
-                                  ? formatFirestoreTimestamp(timestamp)
-                                  : 'Just now';
-
-                              return _buildRecentItem(
-                                domain:
-                                    data['url']?.toString() ?? 'Unknown URL',
-                                time:
-                                    '${data['source']?.toString() ?? 'URL scan'} • $formattedTime',
-                                statusText: statusText,
-                                statusColor: _statusColor(statusText),
-                                leadingColor: _statusColor(statusText),
-                                statusIcon: _statusIcon(statusText),
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+                _buildRecentsCard(isSmall),
               ],
             ),
           );
         },
       ),
       bottomNavigationBar: _buildCustomBottomNav(context),
+    );
+  }
+
+  // ======================== ENHANCED STAT CARD WITH GLOW ========================
+  Widget _buildStatCard(
+    IconData icon,
+    String label,
+    String value, {
+    required Color themeColor,
+    required Color iconColor,
+    required Color valueColor,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [themeColor.withOpacity(0.1), AppColors.cardBackground],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: themeColor.withOpacity(0.3), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: themeColor.withOpacity(0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: iconColor, size: 26),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: valueColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.secondaryText,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ======================== ENHANCED SCAN CARD WITH GLOW ========================
+  Widget _buildScanCard(bool isSmall) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primaryPurple.withOpacity(0.08), AppColors.cardBackground],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.4), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryPurple.withOpacity(0.2),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.link_rounded,
+                size: 20,
+                color: AppColors.primaryPurple,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Scan a Link',
+                style: TextStyle(
+                  fontSize: isSmall ? 18 : 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryText,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Paste any URL to check if it\'s safe',
+            style: TextStyle(
+              fontSize: isSmall ? 12 : 14,
+              color: AppColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _urlController,
+                  decoration: InputDecoration(
+                    hintText: 'example-link.com',
+                    hintStyle: const TextStyle(
+                      color: AppColors.disabledText,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.mainBackground,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                  ),
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _buildScanButton(context),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ======================== ENHANCED RECENTS CARD ========================
+  Widget _buildRecentsCard(bool isSmall) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.history_rounded,
+                size: 18,
+                color: AppColors.primaryPurple,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Recents',
+                style: TextStyle(
+                  fontSize: isSmall ? 16 : 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryText,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ViewHistoryScreen(),
+                    ),
+                  );
+                },
+                child: const Text(
+                  'View History →',
+                  style: TextStyle(
+                    color: AppColors.primaryPurple,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          StreamBuilder<QuerySnapshot>(
+            stream: _scanHistoryService.getHistoryStream(),
+            builder: (context, historySnapshot) {
+              if (historySnapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              final docs = historySnapshot.data?.docs ?? [];
+              if (docs.isEmpty) {
+                return _buildEmptyState();
+              }
+
+              return ListView.separated(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final data = docs[index].data() as Map<String, dynamic>;
+                  final statusText = (data['result'] ?? data['verdict'] ?? 'Unknown')
+                      .toString();
+                  final timestamp = data['scannedAt'];
+                  final formattedTime = timestamp is Timestamp
+                      ? formatFirestoreTimestamp(timestamp)
+                      : 'Just now';
+
+                  return _buildRecentItem(
+                    domain: data['url']?.toString() ?? 'Unknown URL',
+                    time:
+                        '${data['source']?.toString() ?? 'URL scan'} • $formattedTime',
+                    statusText: statusText,
+                    statusColor: _statusColor(statusText),
+                    leadingColor: _statusColor(statusText),
+                    statusIcon: _statusIcon(statusText),
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -697,55 +765,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       default:
         return Icons.info_outline_rounded;
     }
-  }
-
-  /// Updated stat card with separate icon and value colours
-  Widget _buildStatCard(
-    IconData icon,
-    String label,
-    String value, {
-    required Color iconColor,
-    required Color valueColor,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(20),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: iconColor, size: 26),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: valueColor,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.secondaryText,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildScanButton(BuildContext context) {
@@ -820,6 +839,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       decoration: BoxDecoration(
         color: AppColors.mainBackground,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider.withOpacity(0.2), width: 0.5),
       ),
       child: Row(
         children: [
