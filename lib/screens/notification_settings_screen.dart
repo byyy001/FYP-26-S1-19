@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import 'registered_home_screen.dart';
+import 'view_history_screen.dart';
+import 'profile_screen.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
@@ -28,9 +31,7 @@ class _NotificationSettingsScreenState
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Notification Settings',
@@ -47,10 +48,11 @@ class _NotificationSettingsScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // master toggle
               Container(
                 width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding:const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: AppColors.cardBackground,
                   borderRadius: BorderRadius.circular(16),
@@ -59,19 +61,15 @@ class _NotificationSettingsScreenState
                     width: 1,
                   ),
                 ),
-                child: Column(
-                  children: [
-                    _buildToggleRow(
-                      title: 'Allow Notifications',
-                      value: allowNotifications,
-                      onChanged: (value) {
-                        setState(() {
-                          allowNotifications = value;
-                        });
-                      },
-                      showDivider: false,
-                    ),
-                  ],
+
+                child: _buildToggleRow(
+                  title: 'Allow Notifications',
+                  value: allowNotifications,
+                  onChanged: (value) =>
+                      setState(() => allowNotifications = value),
+                  showDivider: false,
+                  // Master toggle is always enabled
+                  forceEnabled: true,
                 ),
               ),
               const SizedBox(height: 22),
@@ -85,81 +83,72 @@ class _NotificationSettingsScreenState
                 ),
               ),
               const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.primaryPurple.withAlpha(60),
-                    width: 1,
+
+              // sub toggles (greyed out when notifications off)
+              AnimatedOpacity(
+                opacity: allowNotifications ? 1.0 : 0.4,
+                duration: const Duration(milliseconds: 250),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBackground,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.primaryPurple.withAlpha(60),
+                      width: 1,
+                    ),
                   ),
-                ),
+
                 child: Column(
                   children: [
                     _buildToggleRow(
                       title: 'Scan Results Alert',
                       value: scanResultsAlert,
-                      onChanged: (value) {
-                        setState(() {
-                          scanResultsAlert = value;
-                        });
-                      },
-                    ),
+                      onChanged: (v) =>
+                            setState(() => scanResultsAlert = v),
+                      ),
                     _buildToggleRow(
                       title: 'AI Risk Level',
                       value: aiRiskLevel,
-                      onChanged: (value) {
-                        setState(() {
-                          aiRiskLevel = value;
-                        });
-                      },
-                    ),
+                      onChanged: (v) =>
+                            setState(() => aiRiskLevel = v),
+                      ),
                     _buildToggleRow(
                       title: 'High Risk Only',
                       value: highRiskOnly,
-                      onChanged: (value) {
-                        setState(() {
-                          highRiskOnly = value;
-                        });
-                      },
-                    ),
+                      onChanged: (v) =>
+                            setState(() => highRiskOnly = v),
+                      ),
                     _buildToggleRow(
                       title: 'Weekly Report',
                       value: weeklyReport,
-                      onChanged: (value) {
-                        setState(() {
-                          weeklyReport = value;
-                        });
-                      },
-                    ),
+                      onChanged: (v) =>
+                            setState(() => weeklyReport = v),
+                      ),
                     _buildToggleRow(
                       title: 'Phishing Trend Alerts',
                       value: phishingTrendAlerts,
-                      onChanged: (value) {
-                        setState(() {
-                          phishingTrendAlerts = value;
-                        });
-                      },
-                    ),
+                      onChanged: (v) =>
+                            setState(() => phishingTrendAlerts = v),
+                      ),
                     _buildToggleRow(
                       title: 'Sound',
                       value: sound,
-                      onChanged: (value) {
-                        setState(() {
-                          sound = value;
-                        });
-                      },
-                      showDivider: false,
-                    ),
-                  ],
+                      onChanged: (v) => setState(() => sound = v),
+                        showDivider: false,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
+
+      // bottom nav
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: AppColors.cardBackground,
         type: BottomNavigationBarType.fixed,
@@ -167,11 +156,39 @@ class _NotificationSettingsScreenState
         unselectedItemColor: AppColors.secondaryText,
         currentIndex: 0,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.history), label: 'History'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline), label: 'Profile'),
         ],
-        onTap: (index) {},
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const RegisteredHomeScreen()),
+                (route) => false,
+              );
+              break;
+            case 1:
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ViewHistoryScreen()),
+              );
+              break;
+            case 2:
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ProfileScreen()),
+              );
+              break;
+          }
+        },
       ),
     );
   }
@@ -181,7 +198,11 @@ class _NotificationSettingsScreenState
     required bool value,
     required ValueChanged<bool> onChanged,
     bool showDivider = true,
+    bool forceEnabled = false,
   }) {
+    // sub toggles are disabled when master toggle is off
+    final bool isEnabled = forceEnabled || allowNotifications;
+
     return Column(
       children: [
         Row(
@@ -198,7 +219,8 @@ class _NotificationSettingsScreenState
             ),
             Switch(
               value: value,
-              onChanged: onChanged,
+              // passing null to onChanged disables switch
+              onChanged: isEnabled ? onChanged : null,
               activeThumbColor: Colors.white,
               activeTrackColor: AppColors.primaryPurple,
               inactiveThumbColor: Colors.white,

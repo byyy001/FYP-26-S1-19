@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:linksentry/screens/notification_settings_screen.dart';
 import '../constants/app_colors.dart';
 import 'help_screen.dart';
 import 'scan_settings_screen.dart';
@@ -260,8 +261,11 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
               size: 25,
             ),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notifications coming soon')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotificationSettingsScreen(),
+                ),
               );
             },
           ),

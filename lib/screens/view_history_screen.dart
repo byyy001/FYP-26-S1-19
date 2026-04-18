@@ -25,12 +25,50 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
 
   String _normalizeStatus(String value) {
     final status = value.toLowerCase().trim();
-
     if (status == 'unsafe' || status == 'malicious') return 'Malicious';
     if (status == 'suspicious' || status == 'warning') return 'Suspicious';
     if (status == 'safe') return 'Safe';
-
     return 'Safe';
+  }
+
+  // convert raw timestamp into today/yesterday/date mmm dd
+  String _formatDate(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final date = DateTime(dt.year, dt.month, dt.day);
+
+    if (date == today) return 'Today';
+    if (date == yesterday) return 'Yesterday';
+
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[dt.month - 1]} ${dt.day}';
+  }
+
+  // format the time
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final period = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
+  }
+
+  // group filtered docs into date buckets for section headers
+  Map<String, List<QueryDocumentSnapshot>> _groupByDate(
+      List<QueryDocumentSnapshot> docs) {
+    final Map<String, List<QueryDocumentSnapshot>> grouped = {};
+
+    for (final doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final Timestamp? ts = data['scannedAt'] as Timestamp?;
+      final label =
+          ts != null ? _formatDate(ts.toDate()) : 'Unknown Date';
+      grouped.putIfAbsent(label, () => []).add(doc);
+    }
+    return grouped;
   }
 
   @override
@@ -52,13 +90,13 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                   ),
                 ),
               )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 6),
-                    Row(
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 30, 20, 0),
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         IconButton(
@@ -71,353 +109,422 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                           constraints: const BoxConstraints(),
                         ),
                         const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            'View\nHistory',
-                            style: TextStyle(
-                              fontSize: isSmall ? 26 : 32,
-                              fontWeight: FontWeight.bold,
-                              fontStyle: FontStyle.italic,
-                              height: 1.05,
-                              color: AppColors.primaryText,
-                            ),
+                        Text(
+                          'View\nHistory',
+                          style: TextStyle(
+                            fontSize: isSmall ? 26 : 32,
+                            fontWeight: FontWeight.bold,
+                            fontStyle: FontStyle.italic,
+                            height: 1.05,
+                            color: AppColors.primaryText,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardBackground,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: AppColors.primaryPurple.withAlpha(70),
-                          width: 1,
+                  ),
+
+                  const SizedBox(height: 20),
+                  // search bar
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (value) =>
+                          setState(() => _searchQuery = value.trim().toLowerCase()),
+                      decoration: InputDecoration(
+                        hintText: 'Search by URL...',
+                        hintStyle: const TextStyle(
+                          color: AppColors.disabledText,
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.cardBackground,
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          color: AppColors.secondaryText,
+                          size: 20,
+                        ),
+                        // show X button to clear search
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  color: AppColors.secondaryText,
+                                  size: 18,
+                                ),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 13,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.only(left: 10),
+                      style: const TextStyle(color: AppColors.primaryText),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // category filter chips
+                  SizedBox(
+                    height: 36,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: _filters.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final filter = _filters[index];
+                        final isSelected = _selectedFilter == filter;
+                        return GestureDetector(
+                          onTap: () =>
+                              setState(() => _selectedFilter = filter),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.primaryPurple
+                                  : AppColors.cardBackground,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.primaryPurple
+                                    : AppColors.divider,
+                                width: 1,
+                              ),
+                            ),
                             child: Text(
-                              'Scans',
+                              filter,
                               style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                                fontStyle: FontStyle.italic,
-                                color: AppColors.primaryText,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _searchController,
-                            onChanged: (value) {
-                              setState(() {
-                                _searchQuery = value.trim().toLowerCase();
-                              });
-                            },
-                            decoration: InputDecoration(
-                              hintText: 'Search scans...',
-                              hintStyle: const TextStyle(
-                                color: AppColors.disabledText,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.secondaryText,
                                 fontSize: 13,
-                                fontStyle: FontStyle.italic,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
                               ),
-                              filled: true,
-                              fillColor: AppColors.mainBackground,
-                              prefixIcon: const Icon(
-                                Icons.search,
-                                color: AppColors.secondaryText,
-                                size: 20,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
-                            style: const TextStyle(
-                              color: AppColors.primaryText,
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          Center(
-                            child: Wrap(
-                              alignment: WrapAlignment.center,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              spacing: 24,
-                              runSpacing: 8,
-                              children: _filters.map((filter) {
-                                return GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedFilter = filter;
-                                    });
-                                  },
-                                  child: _HistoryFilter(
-                                    label: filter,
-                                    selected: _selectedFilter == filter,
-                                  ),
-                                );
-                              }).toList(),
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+                  // scan results list
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(user.uid)
+                          .collection('scans')
+                          .orderBy('scannedAt', descending: true)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.primaryPurple,
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(user.uid)
-                                .collection('scans')
-                                .orderBy('scannedAt', descending: true)
-                                .snapshots(),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 30),
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      color: AppColors.primaryPurple,
-                                    ),
+                          );
+                        }
+
+                        if (!snapshot.hasData ||
+                            snapshot.data!.docs.isEmpty) {
+                          return _buildEmptyState('No scans yet.\nStart scanning a link!');
+                        }
+
+                        // apply search + filter
+                        final filteredDocs =
+                            snapshot.data!.docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final url = (data['url'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          final status = _normalizeStatus(
+                            (data['verdict'] ?? data['result'] ?? 'safe')
+                                .toString(),
+                          );
+                          final matchesFilter = _selectedFilter == 'All' ||
+                              status == _selectedFilter;
+                          final matchesSearch = _searchQuery.isEmpty ||
+                              url.contains(_searchQuery);
+                          return matchesFilter && matchesSearch;
+                        }).toList();
+
+                        if (filteredDocs.isEmpty) {
+                          return _buildEmptyState(
+                              'No results for\n"$_searchQuery"');
+                        }
+
+                        // group by date label
+                        final grouped = _groupByDate(filteredDocs);
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                          itemCount: grouped.length,
+                          itemBuilder: (context, groupIndex) {
+                            final dateLabel =
+                                grouped.keys.elementAt(groupIndex);
+                            final docsInGroup = grouped[dateLabel]!;
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // date section header
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                      top: 16, bottom: 10),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        dateLabel,
+                                        style: const TextStyle(
+                                          color: AppColors.secondaryText,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      // count badge
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 7, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primaryPurple
+                                              .withAlpha(40),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          '${docsInGroup.length}',
+                                          style: const TextStyle(
+                                            color: AppColors.primaryPurple,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                );
-                              }
+                                ),
 
-                              if (!snapshot.hasData ||
-                                  snapshot.data!.docs.isEmpty) {
-                                return Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 24,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.mainBackground,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: AppColors.divider,
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'No scans found yet.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: AppColors.secondaryText,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                );
-                              }
-
-                              final allDocs = snapshot.data!.docs;
-
-                              final filteredDocs = allDocs.where((doc) {
-                                final data = doc.data() as Map<String, dynamic>;
-
-                                final url = (data['url'] ?? '')
-                                    .toString()
-                                    .toLowerCase();
-
-                                final normalizedStatus = _normalizeStatus(
-                                  (data['verdict'] ?? data['result'] ?? 'safe')
-                                      .toString(),
-                                );
-
-                                final matchesFilter = _selectedFilter == 'All'
-                                    ? true
-                                    : normalizedStatus == _selectedFilter;
-
-                                final matchesSearch = _searchQuery.isEmpty
-                                    ? true
-                                    : url.contains(_searchQuery);
-
-                                return matchesFilter && matchesSearch;
-                              }).toList();
-
-                              if (filteredDocs.isEmpty) {
-                                return Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 24,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.mainBackground,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: AppColors.divider,
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'No matching scans found.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: AppColors.secondaryText,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                );
-                              }
-
-                              return Column(
-                                children: filteredDocs.map((doc) {
+                                // scan items in this date group
+                                ...docsInGroup.map((doc) {
                                   final data =
                                       doc.data() as Map<String, dynamic>;
-
                                   final String url =
-                                      data['url']?.toString() ?? 'No URL found';
-
+                                      data['url']?.toString() ??
+                                          'No URL found';
                                   final String status = _normalizeStatus(
                                     (data['verdict'] ??
                                             data['result'] ??
                                             'safe')
                                         .toString(),
                                   );
-
-                                  final Timestamp? scannedAt =
+                                  final double riskScore =
+                                      (data['riskScore'] as num?)
+                                              ?.toDouble() ??
+                                          0.0;
+                                  final Timestamp? ts =
                                       data['scannedAt'] as Timestamp?;
+                                  final String timeStr = ts != null
+                                      ? _formatTime(ts.toDate())
+                                      : '';
 
-                                  final String scannedTime = scannedAt != null
-                                      ? scannedAt
-                                          .toDate()
-                                          .toString()
-                                          .substring(0, 19)
-                                      : 'Recently';
-
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 10),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.mainBackground,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: AppColors.divider,
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          url,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: AppColors.primaryText,
-                                            fontSize: 14,
-                                            fontStyle: FontStyle.italic,
-                                            height: 1.3,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                scannedTime,
-                                                style: const TextStyle(
-                                                  color:
-                                                      AppColors.secondaryText,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ),
-                                            _HistoryStatusBadge(status: status),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
+                                  return _ScanHistoryCard(
+                                    url: url,
+                                    status: status,
+                                    riskScore: riskScore,
+                                    time: timeStr,
                                   );
-                                }).toList(),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
+                                }),
+                              ],
+                            );
+                          },
+                        );
+                      },
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
       ),
     );
   }
-}
 
-class _HistoryFilter extends StatelessWidget {
-  final String label;
-  final bool selected;
-
-  const _HistoryFilter({
-    required this.label,
-    required this.selected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: TextStyle(
-        color: selected ? AppColors.primaryText : AppColors.secondaryText,
-        fontSize: 13,
-        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-        fontStyle: FontStyle.italic,
-        decoration: selected ? TextDecoration.underline : TextDecoration.none,
-        decorationColor: AppColors.primaryText,
-        decorationThickness: 2,
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.history_rounded,
+            size: 48,
+            color: AppColors.disabledText.withAlpha(120),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 14,
+              height: 1.5,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _HistoryStatusBadge extends StatelessWidget {
-  final String status;
+// Individual scan card
 
-  const _HistoryStatusBadge({
+class _ScanHistoryCard extends StatelessWidget {
+  final String url;
+  final String status;
+  final double riskScore;
+  final String time;
+
+  const _ScanHistoryCard({
+    required this.url,
     required this.status,
+    required this.riskScore,
+    required this.time,
   });
+
+  Color get _statusColor {
+    switch (status) {
+      case 'Safe':
+        return Colors.green;
+      case 'Suspicious':
+        return Colors.orange;
+      case 'Malicious':
+        return Colors.redAccent;
+      default:
+        return AppColors.primaryPurple;
+    }
+  }
+
+  IconData get _statusIcon {
+    switch (status) {
+      case 'Safe':
+        return Icons.check_circle_rounded;
+      case 'Suspicious':
+        return Icons.warning_amber_rounded;
+      case 'Malicious':
+        return Icons.cancel_rounded;
+      default:
+        return Icons.help_outline_rounded;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    Color backgroundColor;
-
-    switch (status) {
-      case 'Safe':
-        backgroundColor = Colors.green;
-        break;
-      case 'Suspicious':
-        backgroundColor = Colors.orange;
-        break;
-      case 'Malicious':
-        backgroundColor = Colors.redAccent;
-        break;
-      default:
-        backgroundColor = AppColors.primaryPurple;
-    }
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
-        color: backgroundColor.withAlpha(220),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        status,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          fontStyle: FontStyle.italic,
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: _statusColor.withAlpha(50),
+          width: 1,
         ),
+      ),
+      child: Row(
+        children: [
+          // Status icon
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: _statusColor.withAlpha(30),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              _statusIcon,
+              color: _statusColor,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // URL + time
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  url,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  time,
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 10),
+
+          // risk score + status badge
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _statusColor.withAlpha(220),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  status,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Risk: ${riskScore.toStringAsFixed(0)}%',
+                style: TextStyle(
+                  color: _statusColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
