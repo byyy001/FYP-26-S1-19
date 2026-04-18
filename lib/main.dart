@@ -16,11 +16,12 @@ import 'screens/admin/user_management_screen.dart';
 import 'screens/admin/security_management_screen.dart';
 import 'screens/admin/scan_statistics_screen.dart';
 import 'screens/flagged_reviews_screen.dart';
-import 'screens/admin_system_settings_screen.dart';
+import 'screens/admin/admin_system_settings_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/unregistered_home_screen.dart';
 import 'screens/registered_home_screen.dart';
 import 'screens/result_screen.dart';
+import 'screens/about_screen.dart';
 
 
 void main() async {
