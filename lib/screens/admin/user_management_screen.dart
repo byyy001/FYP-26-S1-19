@@ -1,89 +1,292 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants/app_colors.dart';
 
-class UserManagementScreen extends StatelessWidget {
+class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    const users = [
-      _UserData(
-        name: 'John Doe',
-        email: 'john@email.com',
-        role: 'User',
-        status: 'Active',
-      ),
-      _UserData(
-        name: 'Jane Doe',
-        email: 'jane@email.com',
-        role: 'User',
-        status: 'Suspended',
-      ),
-      _UserData(
-        name: 'Michael Tan',
-        email: 'michael@linksentry.com',
-        role: 'Admin',
-        status: 'Active',
-      ),
-      _UserData(
-        name: 'Sarah Lim',
-        email: 'sarah@email.com',
-        role: 'User',
-        status: 'Active',
-      ),
-      _UserData(
-        name: 'Daniel Ng',
-        email: 'daniel@linksentry.com',
-        role: 'Engineer',
-        status: 'Active',
-      ),
-      _UserData(
-        name: 'Rachel Lee',
-        email: 'rachel@email.com',
-        role: 'User',
-        status: 'Suspended',
-      ),
-    ];
+  State<UserManagementScreen> createState() => _UserManagementScreenState();
+}
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'User Management',
-                style: TextStyle(
-                  color: AppColors.primaryText,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Manage user accounts, roles, and account statuses.',
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 24),
-              _buildSearchAndFiltersPanel(),
-              const SizedBox(height: 24),
-              ...users.map(
-                (user) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _UserCard(user: user),
-                ),
-              ),
-              const SizedBox(height: 24),
-              _buildPaginationSection(),
-            ],
+class _UserManagementScreenState extends State<UserManagementScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String _selectedRoleFilter = 'All';
+  String _selectedStatusFilter = 'All';
+  bool _isLoading = false;
+  bool _hasMore = true;
+  DocumentSnapshot? _lastDocument;
+  final List<Map<String, dynamic>> _users = [];
+  final int _pageSize = 10;
+
+  final List<String> _roleFilters = ['All', 'User', 'Admin', 'Engineer'];
+  final List<String> _statusFilters = ['All', 'Active', 'Suspended'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text.trim().toLowerCase();
+    });
+    _refreshUsers();
+  }
+
+  void _refreshUsers() {
+    setState(() {
+      _users.clear();
+      _lastDocument = null;
+      _hasMore = true;
+    });
+    _loadUsers();
+  }
+
+  Future<void> _loadUsers() async {
+    if (_isLoading || !_hasMore) return;
+    setState(() => _isLoading = true);
+
+    try {
+      Query query = FirebaseFirestore.instance
+          .collection('users')
+          .orderBy('createdAt', descending: true)
+          .limit(_pageSize);
+
+      if (_lastDocument != null) {
+        query = query.startAfterDocument(_lastDocument!);
+      }
+
+      final snapshot = await query.get();
+
+      if (snapshot.docs.isEmpty) {
+        setState(() => _hasMore = false);
+      } else {
+        final newUsers = snapshot.docs.map((doc) {
+          // Explicitly cast to Map<String, dynamic>
+          final data = doc.data() as Map<String, dynamic>;
+          return {
+            'id': doc.id,
+            'firstName': data['firstName']?.toString() ?? '',
+            'lastName': data['lastName']?.toString() ?? '',
+            'email': data['email']?.toString() ?? '',
+            'role': data['role']?.toString() ?? 'User',
+            'isActive': data['isActive'] ?? true,
+            'isPremium': data['isPremium'] ?? false,
+            'createdAt': data['createdAt'],
+          };
+        }).toList();
+
+        setState(() {
+          _users.addAll(newUsers);
+          _lastDocument = snapshot.docs.last;
+          _hasMore = snapshot.docs.length == _pageSize;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading users: $e'), backgroundColor: AppColors.highRisk),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  List<Map<String, dynamic>> get _filteredUsers {
+    return _users.where((user) {
+      // Search filter
+      final fullName = '${user['firstName']} ${user['lastName']}'.toLowerCase();
+      final email = (user['email'] as String?)?.toLowerCase() ?? '';
+      final matchesSearch = _searchQuery.isEmpty ||
+          fullName.contains(_searchQuery) ||
+          email.contains(_searchQuery);
+
+      // Role filter
+      final matchesRole = _selectedRoleFilter == 'All' ||
+          user['role'] == _selectedRoleFilter;
+
+      // Status filter
+      final isActive = user['isActive'] == true;
+      final matchesStatus = _selectedStatusFilter == 'All' ||
+          (_selectedStatusFilter == 'Active' && isActive) ||
+          (_selectedStatusFilter == 'Suspended' && !isActive);
+
+      return matchesSearch && matchesRole && matchesStatus;
+    }).toList();
+  }
+
+  Future<void> _updateUserField(String userId, String field, dynamic value) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({field: value});
+      setState(() {
+        final index = _users.indexWhere((u) => u['id'] == userId);
+        if (index != -1) _users[index][field] = value;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('User updated successfully'), backgroundColor: AppColors.safe),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating user: $e'), backgroundColor: AppColors.highRisk),
+      );
+    }
+  }
+
+  Future<void> _deleteUser(String userId, String userName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: const Text('Delete User', style: TextStyle(color: AppColors.primaryText)),
+        content: Text('Are you sure you want to delete $userName? This action cannot be undone.',
+            style: const TextStyle(color: AppColors.secondaryText)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
           ),
-        ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: AppColors.highRisk)),
+          ),
+        ],
       ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(userId).delete();
+      setState(() {
+        _users.removeWhere((u) => u['id'] == userId);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('User deleted successfully'), backgroundColor: AppColors.safe),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting user: $e'), backgroundColor: AppColors.highRisk),
+      );
+    }
+  }
+
+  void _showEditDialog(Map<String, dynamic> user) {
+    String selectedRole = user['role'] ?? 'User';
+    bool isActive = user['isActive'] ?? true;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: Text('Edit ${user['firstName']} ${user['lastName']}',
+            style: const TextStyle(color: AppColors.primaryText)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              value: selectedRole,
+              dropdownColor: AppColors.cardBackground,
+              style: const TextStyle(color: AppColors.primaryText),
+              decoration: const InputDecoration(
+                labelText: 'Role',
+                labelStyle: TextStyle(color: AppColors.secondaryText),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.divider),
+                ),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'User', child: Text('User')),
+                DropdownMenuItem(value: 'Admin', child: Text('Admin')),
+                DropdownMenuItem(value: 'Engineer', child: Text('Engineer')),
+              ],
+              onChanged: (value) => selectedRole = value!,
+            ),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              title: const Text('Active', style: TextStyle(color: AppColors.primaryText)),
+              value: isActive,
+              onChanged: (value) => isActive = value,
+              activeColor: AppColors.safe,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _updateUserField(user['id'], 'role', selectedRole);
+              await _updateUserField(user['id'], 'isActive', isActive);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredUsers = _filteredUsers;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Search and filters (without duplicate title)
+        _buildSearchAndFiltersPanel(),
+        const SizedBox(height: 24),
+
+        // User list
+        if (_isLoading && _users.isEmpty)
+          const Center(child: CircularProgressIndicator())
+        else if (filteredUsers.isEmpty)
+          _buildEmptyState()
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filteredUsers.length,
+            itemBuilder: (context, index) {
+              final user = filteredUsers[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _UserCard(
+                  user: user,
+                  onEdit: () => _showEditDialog(user),
+                  onDelete: () => _deleteUser(user['id'], '${user['firstName']} ${user['lastName']}'),
+                ),
+              );
+            },
+          ),
+
+        // Load more button
+        if (_hasMore && !_isLoading && _users.isNotEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: OutlinedButton(
+                onPressed: _loadUsers,
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppColors.primaryPurple.withOpacity(0.5)),
+                ),
+                child: const Text('Load More'),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -92,49 +295,55 @@ class UserManagementScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Text(
-                'Filters',
-                style: TextStyle(
-                  color: AppColors.primaryText,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 18),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: const [
-                  _FilterChip(label: 'All', selected: true),
-                  _FilterChip(label: 'User'),
-                  _FilterChip(label: 'Admin'),
-                  _FilterChip(label: 'Engineer'),
-                ],
-              ),
-            ],
+          // Role filters
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: _roleFilters.map((filter) {
+              return _FilterChip(
+                label: filter,
+                selected: _selectedRoleFilter == filter,
+                onSelected: () {
+                  setState(() {
+                    _selectedRoleFilter = filter;
+                  });
+                },
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
+          // Status filters
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: _statusFilters.map((filter) {
+              return _FilterChip(
+                label: filter,
+                selected: _selectedStatusFilter == filter,
+                onSelected: () {
+                  setState(() {
+                    _selectedStatusFilter = filter;
+                  });
+                },
+              );
+            }).toList(),
           ),
           const SizedBox(height: 16),
-          Container(
-            width: 320,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.mainBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.primaryPurple.withOpacity(0.35),
+          // Search field
+          TextField(
+            controller: _searchController,
+            style: const TextStyle(color: AppColors.primaryText),
+            decoration: InputDecoration(
+              hintText: 'Search by name or email...',
+              hintStyle: const TextStyle(color: AppColors.disabledText),
+              prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText),
+              filled: true,
+              fillColor: AppColors.mainBackground,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
               ),
-            ),
-            child: const TextField(
-              style: TextStyle(color: AppColors.primaryText),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Search users...',
-                hintStyle: TextStyle(color: AppColors.disabledText),
-                prefixIcon: Icon(Icons.search, color: AppColors.secondaryText),
-                contentPadding: EdgeInsets.symmetric(vertical: 10),
-              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
         ],
@@ -142,88 +351,56 @@ class UserManagementScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPaginationSection() {
-    return Column(
-      children: [
-        const Center(
+  Widget _buildEmptyState() {
+    return _Panel(
+      child: const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 40),
           child: Text(
-            'Showing 1–6 of 35 Users',
-            style: TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 13,
-            ),
+            'No users found.',
+            style: TextStyle(color: AppColors.secondaryText),
           ),
         ),
-        const SizedBox(height: 14),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            _PageArrow(icon: Icons.chevron_left),
-            SizedBox(width: 8),
-            _PageNumber(label: '1', selected: true),
-            SizedBox(width: 8),
-            _PageNumber(label: '2'),
-            SizedBox(width: 8),
-            _PageNumber(label: '3'),
-            SizedBox(width: 8),
-            _PageNumber(label: '4'),
-            SizedBox(width: 8),
-            _PageNumber(label: '5'),
-            SizedBox(width: 8),
-            _PageNumber(label: '6'),
-            SizedBox(width: 8),
-            _PageArrow(icon: Icons.chevron_right),
-          ],
-        ),
-      ],
+      ),
     );
   }
-}
-
-class _UserData {
-  final String name;
-  final String email;
-  final String role;
-  final String status;
-
-  const _UserData({
-    required this.name,
-    required this.email,
-    required this.role,
-    required this.status,
-  });
 }
 
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
+  final VoidCallback onSelected;
 
   const _FilterChip({
     required this.label,
-    this.selected = false,
+    required this.selected,
+    required this.onSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: selected
-            ? AppColors.primaryPurple.withOpacity(0.2)
-            : AppColors.mainBackground,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(
+    return GestureDetector(
+      onTap: onSelected,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
           color: selected
-              ? AppColors.primaryPurple.withOpacity(0.6)
-              : AppColors.divider.withOpacity(0.3),
+              ? AppColors.primaryPurple.withOpacity(0.2)
+              : AppColors.mainBackground,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: selected
+                ? AppColors.primaryPurple.withOpacity(0.6)
+                : AppColors.divider.withOpacity(0.3),
+          ),
         ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: selected ? AppColors.primaryText : AppColors.secondaryText,
-          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          fontSize: 13,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.primaryText : AppColors.secondaryText,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            fontSize: 13,
+          ),
         ),
       ),
     );
@@ -231,15 +408,21 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _UserCard extends StatelessWidget {
-  final _UserData user;
+  final Map<String, dynamic> user;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   const _UserCard({
     required this.user,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bool isActive = user.status == 'Active';
+    final bool isActive = user['isActive'] == true;
+    final String fullName = '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
+    final String displayName = fullName.isNotEmpty ? fullName : 'No name';
 
     return _Panel(
       padding: const EdgeInsets.all(16),
@@ -257,7 +440,7 @@ class _UserCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user.name,
+                  displayName,
                   style: const TextStyle(
                     color: AppColors.primaryText,
                     fontSize: 16,
@@ -266,7 +449,7 @@ class _UserCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  user.email,
+                  user['email'] ?? '',
                   style: const TextStyle(
                     color: AppColors.secondaryText,
                     fontSize: 13,
@@ -294,7 +477,7 @@ class _UserCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    user.role,
+                    user['role'] ?? 'User',
                     style: const TextStyle(
                       color: AppColors.primaryText,
                       fontSize: 12,
@@ -325,7 +508,7 @@ class _UserCard extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    user.status,
+                    isActive ? 'Active' : 'Suspended',
                     style: TextStyle(
                       color: isActive ? AppColors.safe : AppColors.highRisk,
                       fontSize: 12,
@@ -336,81 +519,42 @@ class _UserCard extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(
-            width: 90,
-            height: 40,
-            child: OutlinedButton(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primaryText,
-                side: BorderSide(color: AppColors.primaryPurple.withOpacity(0.5)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          Row(
+            children: [
+              SizedBox(
+                width: 70,
+                height: 38,
+                child: OutlinedButton(
+                  onPressed: onEdit,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryText,
+                    side: BorderSide(color: AppColors.primaryPurple.withOpacity(0.5)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ),
-              child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 70,
+                height: 38,
+                child: OutlinedButton(
+                  onPressed: onDelete,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.highRisk,
+                    side: const BorderSide(color: AppColors.highRisk),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _PageNumber extends StatelessWidget {
-  final String label;
-  final bool selected;
-
-  const _PageNumber({
-    required this.label,
-    this.selected = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: selected ? AppColors.primaryPurple : AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: selected ? AppColors.primaryPurple : AppColors.divider.withOpacity(0.3),
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.primaryText,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _PageArrow extends StatelessWidget {
-  final IconData icon;
-
-  const _PageArrow({
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.divider.withOpacity(0.3)),
-      ),
-      child: Icon(
-        icon,
-        color: AppColors.secondaryText,
-        size: 20,
       ),
     );
   }
