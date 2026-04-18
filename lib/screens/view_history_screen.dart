@@ -79,15 +79,29 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
-      body: SafeArea(
-        child: user == null
-            ? const Center(
-                child: Text(
-                  'Please sign in to view scan history.',
-                  style: TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 14,
-                  ),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'View History',
+          style: TextStyle(
+            color: AppColors.primaryText,
+            fontSize: isSmall ? 20 : 22,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: user == null
+          ? const Center(
+              child: Text(
+                'Please sign in to view scan history.',
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 14,
                 ),
               )
             : Column(
@@ -354,6 +368,121 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                                   );
                                 }),
                               ],
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 40),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: AppColors.primaryPurple,
+                              ),
+                            ),
+                          );
+                        }
+
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return _buildEmptyState('No scans found yet.');
+                        }
+
+                        final allDocs = snapshot.data!.docs;
+
+                        final filteredDocs = allDocs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+
+                          final url = (data['url'] ?? '')
+                              .toString()
+                              .toLowerCase();
+
+                          final normalizedStatus = _normalizeStatus(
+                            (data['verdict'] ?? data['result'] ?? 'safe')
+                                .toString(),
+                          );
+
+                          final matchesFilter = _selectedFilter == 'All'
+                              ? true
+                              : normalizedStatus == _selectedFilter;
+
+                          final matchesSearch = _searchQuery.isEmpty
+                              ? true
+                              : url.contains(_searchQuery);
+
+                          return matchesFilter && matchesSearch;
+                        }).toList();
+
+                        if (filteredDocs.isEmpty) {
+                          return _buildEmptyState('No matching scans found.');
+                        }
+
+                        return ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filteredDocs.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final doc = filteredDocs[index];
+                            final data = doc.data() as Map<String, dynamic>;
+
+                            final String url =
+                                data['url']?.toString() ?? 'No URL found';
+
+                            final String status = _normalizeStatus(
+                              (data['verdict'] ?? data['result'] ?? 'safe')
+                                  .toString(),
+                            );
+
+                            final Timestamp? scannedAt =
+                                data['scannedAt'] as Timestamp?;
+
+                            final String scannedTime = scannedAt != null
+                                ? _formatDate(scannedAt.toDate())
+                                : 'Recently';
+
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.cardBackground,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: AppColors.divider.withOpacity(0.3),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.03),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    url,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.primaryText,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          scannedTime,
+                                          style: const TextStyle(
+                                            color: AppColors.secondaryText,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                      _HistoryStatusBadge(status: status),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             );
                           },
                         );
@@ -362,7 +491,7 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                   ),
                 ],
               ),
-      ),
+            ),
     );
   }
 
@@ -375,6 +504,26 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
             Icons.history_rounded,
             size: 48,
             color: AppColors.disabledText.withAlpha(120),
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} '
+        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:${date.second.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildEmptyState(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.history_toggle_off,
+            color: AppColors.secondaryText,
+            size: 48,
           ),
           const SizedBox(height: 12),
           Text(
@@ -384,6 +533,7 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
               color: AppColors.secondaryText,
               fontSize: 14,
               height: 1.5,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -444,6 +594,36 @@ class _ScanHistoryCard extends StatelessWidget {
         border: Border.all(
           color: _statusColor.withAlpha(50),
           width: 1,
+    Color bgColor;
+    Color textColor = Colors.white;
+
+    switch (status) {
+      case 'Safe':
+        bgColor = AppColors.safe;
+        break;
+      case 'Suspicious':
+        bgColor = AppColors.mediumRisk;
+        textColor = Colors.white;
+        break;
+      case 'Malicious':
+        bgColor = AppColors.highRisk;
+        break;
+      default:
+        bgColor = AppColors.primaryPurple;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
       ),
       child: Row(

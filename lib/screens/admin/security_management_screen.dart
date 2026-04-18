@@ -1,42 +1,11 @@
 import 'package:flutter/material.dart';
-import '../constants/app_colors.dart';
+import '../../constants/app_colors.dart';
 
-class FlaggedReviewsScreen extends StatelessWidget {
-  const FlaggedReviewsScreen({super.key});
+class SecurityManagementScreen extends StatelessWidget {
+  const SecurityManagementScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const reviews = [
-      _FlaggedReviewData(
-        scanId: '2045',
-        url: 'suspicious-site.com',
-        reportedBy: 'User123',
-        reason: 'Phishing',
-        date: 'Feb 10, 2026',
-      ),
-      _FlaggedReviewData(
-        scanId: '2046',
-        url: 'verify-login-alert.net',
-        reportedBy: 'User128',
-        reason: 'Malware',
-        date: 'Feb 10, 2026',
-      ),
-      _FlaggedReviewData(
-        scanId: '2047',
-        url: 'bank-security-check.co',
-        reportedBy: 'User135',
-        reason: 'False Positive',
-        date: 'Feb 11, 2026',
-      ),
-      _FlaggedReviewData(
-        scanId: '2048',
-        url: 'gift-card-prize.xyz',
-        reportedBy: 'User142',
-        reason: 'Phishing',
-        date: 'Feb 11, 2026',
-      ),
-    ];
-
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
       body: SafeArea(
@@ -48,7 +17,7 @@ class FlaggedReviewsScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1000),
+                    constraints: const BoxConstraints(maxWidth: 900),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -56,14 +25,15 @@ class FlaggedReviewsScreen extends StatelessWidget {
                         const SizedBox(height: 10),
                         const _PageTitleSection(),
                         const SizedBox(height: 18),
-                        const _SummaryStrip(),
+                        const _ProtectionRulesCard(),
+                        const SizedBox(height: 16),
+                        const _SensitivityCard(),
+                        const SizedBox(height: 16),
+                        const _ThresholdCard(),
+                        const SizedBox(height: 16),
+                        const _RateLimitCard(),
                         const SizedBox(height: 18),
-                        ...reviews.map(
-                          (review) => Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: _FlaggedReviewCard(review: review),
-                          ),
-                        ),
+                        const _SaveSettingsButton(),
                       ],
                     ),
                   ),
@@ -75,22 +45,6 @@ class FlaggedReviewsScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-class _FlaggedReviewData {
-  final String scanId;
-  final String url;
-  final String reportedBy;
-  final String reason;
-  final String date;
-
-  const _FlaggedReviewData({
-    required this.scanId,
-    required this.url,
-    required this.reportedBy,
-    required this.reason,
-    required this.date,
-  });
 }
 
 class _AdminSidebar extends StatelessWidget {
@@ -154,6 +108,7 @@ class _AdminSidebar extends StatelessWidget {
             const _SidebarItem(
               icon: Icons.security_outlined,
               label: 'Security Management',
+              selected: true,
             ),
             const _SidebarItem(
               icon: Icons.analytics_outlined,
@@ -166,7 +121,6 @@ class _AdminSidebar extends StatelessWidget {
             const _SidebarItem(
               icon: Icons.flag_outlined,
               label: 'Flagged Reviews',
-              selected: true,
             ),
             const _SidebarItem(
               icon: Icons.memory_outlined,
@@ -276,7 +230,7 @@ class _TopHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Text(
-      'Flagged Reviews',
+      'Security Management',
       style: TextStyle(
         color: AppColors.primaryText,
         fontSize: 30,
@@ -292,7 +246,7 @@ class _PageTitleSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Text(
-      'Review suspicious links reported by users or automatically flagged by the scanner.',
+      'Manage scanner behaviour, thresholds, and protective system rules.',
       style: TextStyle(
         color: AppColors.secondaryText,
         fontSize: 14,
@@ -301,34 +255,44 @@ class _PageTitleSection extends StatelessWidget {
   }
 }
 
-class _SummaryStrip extends StatelessWidget {
-  const _SummaryStrip();
+class _ProtectionRulesCard extends StatelessWidget {
+  const _ProtectionRulesCard();
 
   @override
   Widget build(BuildContext context) {
     return _Panel(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      child: Row(
-        children: const [
-          Expanded(
-            child: _MiniSummary(
-              label: 'Pending Reviews',
-              value: '12',
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Protection Rules',
+            style: TextStyle(
+              color: AppColors.primaryText,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          SizedBox(width: 16),
-          Expanded(
-            child: _MiniSummary(
-              label: 'Reviewed Today',
-              value: '5',
+          SizedBox(height: 8),
+          Text(
+            'Control the core protection behaviour used by the scanner.',
+            style: TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 13,
             ),
           ),
-          SizedBox(width: 16),
-          Expanded(
-            child: _MiniSummary(
-              label: 'False Positives',
-              value: '2',
-            ),
+          SizedBox(height: 16),
+          _ToggleRow(
+            label: 'Tracker Detection',
+            subtitle: 'Detect tracking scripts and hidden trackers.',
+            valueText: 'ON',
+            isOn: true,
+          ),
+          SizedBox(height: 12),
+          _ToggleRow(
+            label: 'Auto Block High Risk Domains',
+            subtitle: 'Prevent access to known high-risk domains.',
+            valueText: 'ON',
+            isOn: true,
           ),
         ],
       ),
@@ -336,13 +300,17 @@ class _SummaryStrip extends StatelessWidget {
   }
 }
 
-class _MiniSummary extends StatelessWidget {
+class _ToggleRow extends StatelessWidget {
   final String label;
-  final String value;
+  final String subtitle;
+  final String valueText;
+  final bool isOn;
 
-  const _MiniSummary({
+  const _ToggleRow({
     required this.label,
-    required this.value,
+    required this.subtitle,
+    required this.valueText,
+    required this.isOn,
   });
 
   @override
@@ -353,23 +321,244 @@ class _MiniSummary extends StatelessWidget {
         color: AppColors.mainBackground,
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Column(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isOn ? Colors.greenAccent.withAlpha(25) : Colors.white10,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              valueText,
+              style: TextStyle(
+                color: isOn ? Colors.greenAccent : AppColors.secondaryText,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Switch(
+            value: isOn,
+            onChanged: (_) {},
+            activeColor: Colors.greenAccent,
+            inactiveThumbColor: Colors.white54,
+            inactiveTrackColor: Colors.white24,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SensitivityCard extends StatelessWidget {
+  const _SensitivityCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 12,
+            'Scan Sensitivity Level',
+            style: TextStyle(
+              color: AppColors.primaryText,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 8),
           Text(
-            value,
-            style: const TextStyle(
+            'Choose how aggressively suspicious links should be flagged.',
+            style: TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 13,
+            ),
+          ),
+          SizedBox(height: 16),
+          _OptionSelector(
+            selectedLabel: 'Medium',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThresholdCard extends StatelessWidget {
+  const _ThresholdCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Ad-Intensity Threshold',
+            style: TextStyle(
               color: AppColors.primaryText,
-              fontSize: 24,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Choose when ad-heavy pages should trigger warnings.',
+            style: TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 13,
+            ),
+          ),
+          SizedBox(height: 16),
+          _OptionSelector(
+            selectedLabel: 'Medium',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OptionSelector extends StatelessWidget {
+  final String selectedLabel;
+
+  const _OptionSelector({
+    required this.selectedLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const options = ['Low', 'Medium', 'High'];
+
+    return Row(
+      children: options.map((option) {
+        final bool selected = option == selectedLabel;
+
+        return Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected
+                  ? AppColors.primaryPurple.withAlpha(30)
+                  : AppColors.mainBackground,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: selected
+                    ? AppColors.primaryPurple.withAlpha(80)
+                    : Colors.white10,
+              ),
+            ),
+            child: Text(
+              option,
+              style: TextStyle(
+                color:
+                    selected ? AppColors.primaryText : AppColors.secondaryText,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _RateLimitCard extends StatelessWidget {
+  const _RateLimitCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Max Scan Request Per Minute',
+            style: TextStyle(
+              color: AppColors.primaryText,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Set the maximum number of scan requests allowed each minute.',
+            style: TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppColors.mainBackground,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.primaryPurple.withAlpha(30),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.menu,
+                  color: AppColors.secondaryText,
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Text(
+                    'Request Limit',
+                    style: TextStyle(
+                      color: AppColors.primaryText,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBackground,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    '60',
+                    style: TextStyle(
+                      color: AppColors.primaryText,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -378,156 +567,30 @@ class _MiniSummary extends StatelessWidget {
   }
 }
 
-class _FlaggedReviewCard extends StatelessWidget {
-  final _FlaggedReviewData review;
-
-  const _FlaggedReviewCard({
-    required this.review,
-  });
+class _SaveSettingsButton extends StatelessWidget {
+  const _SaveSettingsButton();
 
   @override
   Widget build(BuildContext context) {
-    final Color badgeColor;
-    switch (review.reason) {
-      case 'Phishing':
-        badgeColor = Colors.orangeAccent;
-        break;
-      case 'Malware':
-        badgeColor = Colors.redAccent;
-        break;
-      default:
-        badgeColor = AppColors.primaryPurple;
-    }
-
-    return _Panel(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.flag_outlined,
-                color: AppColors.primaryPurple,
-                size: 22,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Scan ID: ${review.scanId}',
-                style: const TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                review.date,
-                style: const TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: () {},
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryPurple,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
-          const SizedBox(height: 14),
-          Text(
-            review.url,
-            style: const TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-            ),
+        ),
+        child: const Text(
+          'Save Settings',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
           ),
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            height: 1,
-            color: Colors.white10,
-          ),
-          const SizedBox(height: 18),
-          Text.rich(
-            TextSpan(
-              children: [
-                const TextSpan(
-                  text: 'Reported by: ',
-                  style: TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                TextSpan(
-                  text: review.reportedBy,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Text(
-                'Reason:',
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: badgeColor.withAlpha(35),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  review.reason,
-                  style: TextStyle(
-                    color: badgeColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Transform.translate(
-                offset: const Offset(0, -15),
-                child: SizedBox(
-                  width: 108,
-                  height: 44,
-                  child: OutlinedButton(
-                    onPressed: () {},
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primaryText,
-                      side: BorderSide(
-                        color: AppColors.primaryPurple.withAlpha(80),
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: EdgeInsets.zero,
-                    ),
-                    child: const Text(
-                      'Review',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }

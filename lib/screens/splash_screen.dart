@@ -1,9 +1,12 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'onboarding_screen.dart';
 import 'unregistered_home_screen.dart';
 import 'registered_home_screen.dart';
+import 'admin/dashboard_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,51 +19,46 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateAfterDelay();
+    _checkUserStatus();
   }
 
-  Future<void> _navigateAfterDelay() async {
-    await Future.delayed(const Duration(milliseconds: 2500));
+  Future<void> _checkUserStatus() async {
+    // Simulate a loading delay
+    await Future.delayed(const Duration(seconds: 2));
 
-    final prefs = await SharedPreferences.getInstance();
-    final bool onboardingCompleted = prefs.getBool('onboardingCompleted') ?? false;
-    final User? user = FirebaseAuth.instance.currentUser;
-    final bool isGuestMode = prefs.getBool('isGuestMode') ?? false;
-
-    if (!onboardingCompleted) {
-      // First launch – show onboarding
-      if (!mounted) return;
+    if (kIsWeb) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        MaterialPageRoute(builder: (context) => AdminDashboardScreen())
       );
     } else {
-      // Onboarding already completed
-      if (user != null) {
-        // Logged in
-        if (!mounted) return;
+      User? user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        // If no user is logged in, navigate to onboarding screen
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const RegisteredHomeScreen()),
-        );
-      } else if (isGuestMode) {
-        // Guest mode active
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const UnregisteredHomeScreen()),
+          MaterialPageRoute(builder: (context) => OnboardingScreen()), 
         );
       } else {
-        // No user, not guest – should not happen, but fallback to onboarding
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-        );
+        // If user is registered, navigate to the registered home screen
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        bool? isRegistered = prefs.getBool('isRegisrered');
+
+        if (isRegistered != null && isRegistered) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => RegisteredHomeScreen()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => UnregisteredHomeScreen()),
+          );
+        }
       }
     }
-  }
-
+  } 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;

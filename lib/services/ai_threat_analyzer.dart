@@ -146,6 +146,9 @@ class AIThreatAnalyzer {
 
     // Filter scans within the period
     final recentScans = scans.where((s) => s.timestamp.isAfter(cutoff)).toList();
+    final threatScans = recentScans
+        .where((s) => s.threatType.toLowerCase() != 'benign')
+        .toList();
 
     // If no scans in period, return empty insights
     if (recentScans.isEmpty) {
@@ -168,7 +171,7 @@ class AIThreatAnalyzer {
 
     // 1. Aggregate threat types
     final threatCounts = <String, int>{};
-    for (final scan in recentScans) {
+    for (final scan in threatScans) {
       final type = scan.threatType.toLowerCase();
       threatCounts[type] = (threatCounts[type] ?? 0) + 1;
     }
@@ -181,19 +184,23 @@ class AIThreatAnalyzer {
     final topThreats = topEntries.map((e) => ThreatCount(
       threatType: e.key,
       count: e.value,
-      percentage: (e.value / recentScans.length) * 100,
+      percentage: threatScans.isEmpty ? 0 : (e.value / threatScans.length) * 100,
     )).toList();
 
     // 2. Trend analysis (compare with previous period)
     final previousCutoff = cutoff.subtract(Duration(days: periodDays));
     final previousScans = scans.where((s) =>
         s.timestamp.isAfter(previousCutoff) && s.timestamp.isBefore(cutoff)).toList();
+    final previousThreatScans = previousScans
+        .where((s) => s.threatType.toLowerCase() != 'benign')
+        .toList();
 
     final trends = <ThreatTrend>[];
     for (final entry in topEntries) {
       final type = entry.key;
       final currentCount = entry.value;
-      final previousCount = previousScans.where((s) => s.threatType.toLowerCase() == type).length;
+      final previousCount =
+          previousThreatScans.where((s) => s.threatType.toLowerCase() == type).length;
 
       if (previousCount > 0) {
         final change = ((currentCount - previousCount) / previousCount) * 100;
@@ -214,12 +221,21 @@ class AIThreatAnalyzer {
 
     // 3. Enhanced pattern mining (rule‑based tips)
     final tips = <SmartTip>[];
+    final safeScanCount = recentScans.length - threatScans.length;
+    final safeScanPercent =
+        recentScans.isEmpty ? 0 : (safeScanCount / recentScans.length) * 100;
 
     // Helper to add tip if not already present
     void addTip(String message) {
       if (!tips.any((tip) => tip.message == message)) {
         tips.add(SmartTip(message: message));
       }
+    }
+
+    if (safeScanCount > 0 && threatScans.isEmpty) {
+      addTip('Your recent scans look safe overall. Keep scanning unfamiliar links before opening them.');
+    } else if (safeScanPercent >= 70) {
+      addTip('Most of your recent scans were safe. Your browsing habits look healthy.');
     }
 
     // Tip based on most common threat
@@ -284,7 +300,7 @@ class AIThreatAnalyzer {
 
     // Fallback tip if none added
     if (tips.isEmpty) {
-      addTip('Stay safe online: never share personal info on suspicious sites.');
+      addTip('Stay safe online: keep checking unfamiliar links before you open them.');
     }
 
     // 4. Risk profile calculation
@@ -304,7 +320,9 @@ class AIThreatAnalyzer {
       riskDesc = 'You encounter some risky links. Review the tips above to stay safe.';
     } else {
       riskLevel = 'low';
-      riskDesc = 'You have a low risk profile. Keep up the good habits!';
+      riskDesc = safeScanCount > 0
+          ? 'Most of your recent scans were safe. Keep up the good habits.'
+          : 'You have a low risk profile. Keep up the good habits!';
     }
 
     final riskProfile = RiskProfile(
