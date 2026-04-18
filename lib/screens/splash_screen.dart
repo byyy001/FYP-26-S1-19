@@ -24,6 +24,9 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(milliseconds: 2500));
 
     final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    await FirebaseAuth.instance.signOut();
+
     final bool onboardingCompleted = prefs.getBool('onboardingCompleted') ?? false;
     final User? user = FirebaseAuth.instance.currentUser;
     final bool isGuestMode = prefs.getBool('isGuestMode') ?? false;

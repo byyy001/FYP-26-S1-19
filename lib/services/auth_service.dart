@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'scan_settings_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final ScanSettingsService _scanSettingsService = ScanSettingsService();
 
   User? get currentUser => _auth.currentUser;
 
@@ -36,6 +38,10 @@ class AuthService {
         'authProvider': 'email',
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      await _scanSettingsService.createDefaultSettingsForUser(
+        userId: user.uid,
+      );
     }
 
     return userCredential;
@@ -88,7 +94,11 @@ class AuthService {
         'email': user.email ?? '',
         'authProvider': 'google',
         'createdAt': FieldValue.serverTimestamp(),
-        });
+      });
+
+      await _scanSettingsService.createDefaultSettingsForUser(
+        userId: user.uid,
+      );
       }
     }
 
