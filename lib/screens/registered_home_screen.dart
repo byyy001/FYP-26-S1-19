@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
 import 'help_screen.dart';
-import 'scan_statistics_screen.dart';
 import 'scan_settings_screen.dart';
 import 'camera_scanner.dart';
 import 'history_screen.dart';
@@ -804,14 +803,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                     icon: Icons.analytics_outlined,
                     label: 'Analytics',
                     onTap: () {
-                      // ScaffoldMessenger.of(context).showSnackBar(
-                      //   const SnackBar(content: Text('Analytics coming soon')),
-                      // );
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ScanStatisticsScreen(),
-                        ),
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Analytics coming soon')),
                       );
                     },
                   ),
