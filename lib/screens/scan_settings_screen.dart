@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
-import '../threat_engine/scan_settings.dart';
+import '../services/scan_settings_service.dart';
+import '../threat_engine/scan_settings.dart'; // your engine's ScanSettings class
 
 class ScanSettingsScreen extends StatefulWidget {
   const ScanSettingsScreen({super.key});
@@ -12,7 +12,9 @@ class ScanSettingsScreen extends StatefulWidget {
 }
 
 class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
-  // Auth / access state
+  final ScanSettingsService _scanSettingsService = ScanSettingsService();
+
+  // Auth state
   bool _isLoggedIn = false;
   bool _isPremium = false;
 
@@ -76,15 +78,9 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('settings')
-          .doc('scan_preferences')
-          .get();
+      final data = await _scanSettingsService.getSettings(userId: user.uid);
 
-      if (doc.exists) {
-        final data = doc.data()!;
+      if (data != null) {
         setState(() {
           _userLevel = data['userLevel'] ?? 'beginner';
           _phishingSensitivity = data['phishingSensitivity'] ?? true;
@@ -98,6 +94,14 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
           _useLightGBM = data['useLightGBM'] ?? true;
         });
       } else {
+
+        await _scanSettingsService.createDefaultSettingsForUser(userId: user.uid);
+        final fallbackData = await _scanSettingsService.getSettings(userId: user.uid);
+
+        if (!mounted || fallbackData == null) {
+          return;
+        }
+        
         // Default for registered / paid users
         setState(() {
           _userLevel = 'beginner';
@@ -131,12 +135,9 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('settings')
-          .doc('scan_preferences')
-          .set({
+      await _scanSettingsService.updateSettings(
+        userId: user.uid,
+        settings: {
         'userLevel': _userLevel,
         'phishingSensitivity': _phishingSensitivity,
         'deepScan': _deepScan,
@@ -147,8 +148,9 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
         'useDecisionTree': _useDecisionTree,
         'useXGBoost': _useXGBoost,
         'useLightGBM': _useLightGBM,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+        'isPremium': true,
+        },
+      );
 
       if (!mounted) return;
 
