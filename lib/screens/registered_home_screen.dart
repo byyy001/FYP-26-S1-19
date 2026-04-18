@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
 import 'help_screen.dart';
-import 'scan_statistics_screen.dart';
 import 'scan_settings_screen.dart';
+import 'security_insights_screen.dart';
 import 'camera_scanner.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
@@ -810,7 +810,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const ScanStatisticsScreen(),
+                          // builder: (context) => const ScanStatisticsScreen(), //admin
+                          builder: (context) => const SecurityInsightsScreen(),
                         ),
                       );
                     },

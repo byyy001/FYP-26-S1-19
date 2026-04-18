@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../constants/app_colors.dart';
+import '../../constants/app_colors.dart';
 
-class SecurityManagementScreen extends StatelessWidget {
-  const SecurityManagementScreen({super.key});
+class ScanStatisticsScreen extends StatelessWidget {
+  const ScanStatisticsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +17,7 @@ class SecurityManagementScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 900),
+                    constraints: const BoxConstraints(maxWidth: 1000),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -25,15 +25,15 @@ class SecurityManagementScreen extends StatelessWidget {
                         const SizedBox(height: 10),
                         const _PageTitleSection(),
                         const SizedBox(height: 18),
-                        const _ProtectionRulesCard(),
+                        const _DateFilterCard(),
                         const SizedBox(height: 16),
-                        const _SensitivityCard(),
+                        const _SummaryStatsCard(),
                         const SizedBox(height: 16),
-                        const _ThresholdCard(),
+                        const _DailyScansCard(),
                         const SizedBox(height: 16),
-                        const _RateLimitCard(),
+                        const _ThreatDistributionCard(),
                         const SizedBox(height: 18),
-                        const _SaveSettingsButton(),
+                        const _ExportButton(),
                       ],
                     ),
                   ),
@@ -108,11 +108,11 @@ class _AdminSidebar extends StatelessWidget {
             const _SidebarItem(
               icon: Icons.security_outlined,
               label: 'Security Management',
-              selected: true,
             ),
             const _SidebarItem(
               icon: Icons.analytics_outlined,
               label: 'Scan Statistics',
+              selected: true,
             ),
             const _SidebarItem(
               icon: Icons.storage_outlined,
@@ -230,7 +230,7 @@ class _TopHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Text(
-      'Security Management',
+      'Scan Statistics',
       style: TextStyle(
         color: AppColors.primaryText,
         fontSize: 30,
@@ -246,7 +246,7 @@ class _PageTitleSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Text(
-      'Manage scanner behaviour, thresholds, and protective system rules.',
+      'View scan trends, risk distribution, and activity over time.',
       style: TextStyle(
         color: AppColors.secondaryText,
         fontSize: 14,
@@ -255,129 +255,64 @@ class _PageTitleSection extends StatelessWidget {
   }
 }
 
-class _ProtectionRulesCard extends StatelessWidget {
-  const _ProtectionRulesCard();
+class _DateFilterCard extends StatelessWidget {
+  const _DateFilterCard();
 
   @override
   Widget build(BuildContext context) {
     return _Panel(
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Protection Rules',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Control the core protection behaviour used by the scanner.',
-            style: TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 13,
-            ),
-          ),
-          SizedBox(height: 16),
-          _ToggleRow(
-            label: 'Tracker Detection',
-            subtitle: 'Detect tracking scripts and hidden trackers.',
-            valueText: 'ON',
-            isOn: true,
-          ),
-          SizedBox(height: 12),
-          _ToggleRow(
-            label: 'Auto Block High Risk Domains',
-            subtitle: 'Prevent access to known high-risk domains.',
-            valueText: 'ON',
-            isOn: true,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToggleRow extends StatelessWidget {
-  final String label;
-  final String subtitle;
-  final String valueText;
-  final bool isOn;
-
-  const _ToggleRow({
-    required this.label,
-    required this.subtitle,
-    required this.valueText,
-    required this.isOn,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.mainBackground,
-        borderRadius: BorderRadius.circular(14),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       child: Row(
         children: [
-          Expanded(
+          const Icon(Icons.date_range_outlined, color: AppColors.secondaryText),
+          const SizedBox(width: 12),
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  label,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
+                  'Date Range',
+                  style: TextStyle(
                     color: AppColors.secondaryText,
                     fontSize: 12,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Last 7 Days',
+                  style: TextStyle(
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: isOn ? Colors.greenAccent.withAlpha(25) : Colors.white10,
+              color: AppColors.mainBackground,
               borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: AppColors.primaryPurple.withAlpha(35)),
             ),
-            child: Text(
-              valueText,
+            child: const Text(
+              'Change',
               style: TextStyle(
-                color: isOn ? Colors.greenAccent : AppColors.secondaryText,
-                fontWeight: FontWeight.w700,
+                color: AppColors.primaryText,
+                fontWeight: FontWeight.w600,
                 fontSize: 12,
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Switch(
-            value: isOn,
-            onChanged: (_) {},
-            activeColor: Colors.greenAccent,
-            inactiveThumbColor: Colors.white54,
-            inactiveTrackColor: Colors.white24,
-          ),
         ],
       ),
     );
   }
 }
 
-class _SensitivityCard extends StatelessWidget {
-  const _SensitivityCard();
+class _SummaryStatsCard extends StatelessWidget {
+  const _SummaryStatsCard();
 
   @override
   Widget build(BuildContext context) {
@@ -386,113 +321,184 @@ class _SensitivityCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Scan Sensitivity Level',
+            'Summary',
             style: TextStyle(
               color: AppColors.primaryText,
-              fontSize: 18,
+              fontSize: 22,
               fontWeight: FontWeight.w700,
             ),
           ),
-          SizedBox(height: 8),
-          Text(
-            'Choose how aggressively suspicious links should be flagged.',
-            style: TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 13,
-            ),
-          ),
-          SizedBox(height: 16),
-          _OptionSelector(
-            selectedLabel: 'Medium',
-          ),
+          SizedBox(height: 18),
+          _SummaryLine(label: 'Total Scans', value: '12,540'),
+          SizedBox(height: 14),
+          _SummaryLine(label: 'High Risk', value: '1,245'),
+          SizedBox(height: 14),
+          _SummaryLine(label: 'Medium Risk', value: '3,210'),
+          SizedBox(height: 14),
+          _SummaryLine(label: 'Low Risk', value: '8,085'),
+          SizedBox(height: 14),
+          _SummaryLine(label: 'Average Scans Per Day', value: '1,791'),
+          SizedBox(height: 14),
+          _SummaryLine(label: 'Peak Scan Day', value: 'Friday'),
+          SizedBox(height: 14),
+          _SummaryLine(label: 'Most Common Threat Type', value: 'Phishing'),
         ],
       ),
     );
   }
 }
 
-class _ThresholdCard extends StatelessWidget {
-  const _ThresholdCard();
+class _SummaryLine extends StatelessWidget {
+  final String label;
+  final String value;
 
-  @override
-  Widget build(BuildContext context) {
-    return _Panel(
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Ad-Intensity Threshold',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Choose when ad-heavy pages should trigger warnings.',
-            style: TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 13,
-            ),
-          ),
-          SizedBox(height: 16),
-          _OptionSelector(
-            selectedLabel: 'Medium',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OptionSelector extends StatelessWidget {
-  final String selectedLabel;
-
-  const _OptionSelector({
-    required this.selectedLabel,
+  const _SummaryLine({
+    required this.label,
+    required this.value,
   });
 
   @override
   Widget build(BuildContext context) {
-    const options = ['Low', 'Medium', 'High'];
-
     return Row(
-      children: options.map((option) {
-        final bool selected = option == selectedLabel;
-
-        return Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            decoration: BoxDecoration(
-              color: selected
-                  ? AppColors.primaryPurple.withAlpha(30)
-                  : AppColors.mainBackground,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: selected
-                    ? AppColors.primaryPurple.withAlpha(80)
-                    : Colors.white10,
-              ),
-            ),
-            child: Text(
-              option,
-              style: TextStyle(
-                color:
-                    selected ? AppColors.primaryText : AppColors.secondaryText,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              ),
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 20,
+              fontWeight: FontWeight.w500,
             ),
           ),
-        );
-      }).toList(),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.primaryText,
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _RateLimitCard extends StatelessWidget {
-  const _RateLimitCard();
+class _DailyScansCard extends StatelessWidget {
+  const _DailyScansCard();
+
+  @override
+  Widget build(BuildContext context) {
+    const values = [90.0, 120.0, 110.0, 150.0, 180.0, 160.0, 130.0];
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    return _Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Daily Scans (Last 7 Days)',
+            style: TextStyle(
+              color: AppColors.primaryText,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            height: 280,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            decoration: BoxDecoration(
+              color: AppColors.mainBackground,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.primaryPurple.withAlpha(35),
+              ),
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: List.generate(
+                            5,
+                            (index) => Container(
+                              height: 1,
+                              color: Colors.white10,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: List.generate(
+                            values.length,
+                            (index) => _Bar(height: values[index]),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: days
+                      .map(
+                        (day) => SizedBox(
+                          width: 32,
+                          child: Text(
+                            day,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Bar extends StatelessWidget {
+  final double height;
+
+  const _Bar({
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 30,
+      height: height,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: AppColors.premiumGradient,
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+    );
+  }
+}
+
+class _ThreatDistributionCard extends StatelessWidget {
+  const _ThreatDistributionCard();
 
   @override
   Widget build(BuildContext context) {
@@ -501,62 +507,48 @@ class _RateLimitCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Max Scan Request Per Minute',
+            'Threat Type Distribution',
             style: TextStyle(
               color: AppColors.primaryText,
               fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            'Set the maximum number of scan requests allowed each minute.',
-            style: TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 13,
-            ),
-          ),
           const SizedBox(height: 16),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: AppColors.mainBackground,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.primaryPurple.withAlpha(30),
+                color: AppColors.primaryPurple.withAlpha(35),
               ),
             ),
-            child: Row(
+            child: const Column(
               children: [
-                const Icon(
-                  Icons.menu,
-                  color: AppColors.secondaryText,
+                _DistributionRow(
+                  label: 'Phishing',
+                  percent: '38%',
+                  widthFactor: 0.38,
                 ),
-                const SizedBox(width: 14),
-                const Expanded(
-                  child: Text(
-                    'Request Limit',
-                    style: TextStyle(
-                      color: AppColors.primaryText,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                SizedBox(height: 14),
+                _DistributionRow(
+                  label: 'Malware',
+                  percent: '27%',
+                  widthFactor: 0.27,
                 ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Text(
-                    '60',
-                    style: TextStyle(
-                      color: AppColors.primaryText,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                SizedBox(height: 14),
+                _DistributionRow(
+                  label: 'Suspicious Ads',
+                  percent: '19%',
+                  widthFactor: 0.19,
+                ),
+                SizedBox(height: 14),
+                _DistributionRow(
+                  label: 'Insecure Scripts',
+                  percent: '16%',
+                  widthFactor: 0.16,
                 ),
               ],
             ),
@@ -567,8 +559,75 @@ class _RateLimitCard extends StatelessWidget {
   }
 }
 
-class _SaveSettingsButton extends StatelessWidget {
-  const _SaveSettingsButton();
+class _DistributionRow extends StatelessWidget {
+  final String label;
+  final String percent;
+  final double widthFactor;
+
+  const _DistributionRow({
+    required this.label,
+    required this.percent,
+    required this.widthFactor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: AppColors.primaryText,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Text(
+                  percent,
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Stack(
+              children: [
+                Container(
+                  height: 10,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                Container(
+                  height: 10,
+                  width: constraints.maxWidth * widthFactor,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: AppColors.premiumGradient,
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ExportButton extends StatelessWidget {
+  const _ExportButton();
 
   @override
   Widget build(BuildContext context) {
@@ -585,7 +644,7 @@ class _SaveSettingsButton extends StatelessWidget {
           ),
         ),
         child: const Text(
-          'Save Settings',
+          'Export Report',
           style: TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 15,
