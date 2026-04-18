@@ -116,136 +116,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.primaryPurple,
-                ),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'My Profile',
+          style: TextStyle(
+            color: AppColors.primaryText,
+            fontSize: isSmall ? 20 : 22,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: AppColors.primaryPurple,
+              ),
+            )
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Back + title
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: AppColors.primaryText,
-                          ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            'My\nProfile',
-                            style: TextStyle(
-                              fontSize: isSmall ? 26 : 32,
-                              fontWeight: FontWeight.bold,
-                              fontStyle: FontStyle.italic,
-                              height: 1.0,
-                              color: AppColors.primaryText,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
                     // Profile card
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardBackground,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: AppColors.primaryPurple.withAlpha(70),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: isSmall ? 28 : 34,
-                            backgroundColor:
-                                AppColors.disabledText.withAlpha(100),
-                            child: Icon(
-                              Icons.person,
-                              size: isSmall ? 28 : 34,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _fullName,
-                                  style: const TextStyle(
-                                    color: AppColors.primaryText,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _email.isNotEmpty ? _email : 'No email found',
-                                  style: const TextStyle(
-                                    color: AppColors.secondaryText,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _isPremium
-                                        ? AppColors.primaryPurple.withAlpha(35)
-                                        : AppColors.disabledText.withAlpha(35),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: _isPremium
-                                          ? AppColors.primaryPurple
-                                          : AppColors.disabledText,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    _isPremium ? 'Premium User' : 'Free User',
-                                    style: TextStyle(
-                                      color: _isPremium
-                                          ? AppColors.primaryPurple
-                                          : AppColors.secondaryText,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 22),
+                    _buildProfileCard(),
+                    const SizedBox(height: 24),
 
                     // Account section
                     _buildSectionCard(
                       title: 'Account',
+                      icon: Icons.account_circle_outlined,
                       children: [
                         _ProfileSettingTile(
                           label: 'Delete Scan History',
@@ -265,6 +171,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Preferences section
                     _buildSectionCard(
                       title: 'Preferences',
+                      icon: Icons.tune_outlined,
                       children: [
                         _ProfileSettingTile(
                           label: 'Scan Settings',
@@ -299,6 +206,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Support section
                     _buildSectionCard(
                       title: 'Support',
+                      icon: Icons.help_outline,
                       children: [
                         _ProfileSettingTile(
                           label: 'Report Issues',
@@ -330,7 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
 
-                    const SizedBox(height: 26),
+                    const SizedBox(height: 30),
 
                     Center(
                       child: SizedBox(
@@ -339,12 +247,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: OutlinedButton(
                           onPressed: _signOut,
                           style: OutlinedButton.styleFrom(
-                            side: BorderSide(
-                              color: Colors.redAccent.withAlpha(130),
-                              width: 1,
+                            side: const BorderSide(
+                              color: AppColors.highRisk,
+                              width: 1.2,
                             ),
-                            foregroundColor: Colors.redAccent,
-                            backgroundColor: Colors.redAccent.withAlpha(18),
+                            foregroundColor: AppColors.highRisk,
+                            backgroundColor: AppColors.highRisk.withAlpha(18),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -362,12 +270,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
+            ),
+    );
+  }
+
+  Widget _buildProfileCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 32,
+            backgroundColor: AppColors.primaryPurple.withOpacity(0.2),
+            child: Icon(
+              Icons.person,
+              size: 32,
+              color: AppColors.primaryPurple,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _fullName,
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _email.isNotEmpty ? _email : 'No email found',
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _isPremium
+                        ? AppColors.primaryPurple.withOpacity(0.15)
+                        : AppColors.disabledText.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _isPremium
+                          ? AppColors.primaryPurple
+                          : AppColors.disabledText,
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    _isPremium ? 'Premium User' : 'Free User',
+                    style: TextStyle(
+                      color: _isPremium
+                          ? AppColors.primaryPurple
+                          : AppColors.secondaryText,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildSectionCard({
     required String title,
+    required IconData icon,
     required List<Widget> children,
   }) {
     return Container(
@@ -375,35 +369,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.primaryPurple.withAlpha(50),
-          width: 1,
-        ),
+        border: Border.all(color: AppColors.divider.withOpacity(0.3), width: 1),
       ),
       child: Column(
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.disabledText.withAlpha(35),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: AppColors.primaryText,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-              ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: AppColors.primaryPurple),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
             ),
           ),
+          const Divider(height: 1, thickness: 1, color: AppColors.divider),
           ...children,
         ],
       ),
@@ -427,7 +415,7 @@ class _ProfileSettingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color textColor =
-        isDestructive ? Colors.redAccent : AppColors.primaryText;
+        isDestructive ? AppColors.highRisk : AppColors.primaryText;
 
     return Column(
       children: [
@@ -438,14 +426,14 @@ class _ProfileSettingTile extends StatelessWidget {
             label,
             style: TextStyle(
               color: textColor,
-              fontSize: 14,
-              fontWeight: isDestructive ? FontWeight.w500 : FontWeight.w400,
+              fontSize: 15,
+              fontWeight: isDestructive ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
           trailing: Icon(
             Icons.chevron_right,
             color: isDestructive
-                ? Colors.redAccent.withAlpha(180)
+                ? AppColors.highRisk.withOpacity(0.7)
                 : AppColors.secondaryText,
           ),
           onTap: onTap,

@@ -41,339 +41,292 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
-      body: SafeArea(
-        child: user == null
-            ? const Center(
-                child: Text(
-                  'Please sign in to view scan history.',
-                  style: TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 14,
-                  ),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'View History',
+          style: TextStyle(
+            color: AppColors.primaryText,
+            fontSize: isSmall ? 20 : 22,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: user == null
+          ? const Center(
+              child: Text(
+                'Please sign in to view scan history.',
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 14,
                 ),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+              ),
+            )
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 6),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: AppColors.primaryText,
-                          ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+                    // Search field
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value.trim().toLowerCase();
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Search scans...',
+                        hintStyle: const TextStyle(
+                          color: AppColors.disabledText,
+                          fontSize: 14,
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            'View\nHistory',
-                            style: TextStyle(
-                              fontSize: isSmall ? 26 : 32,
-                              fontWeight: FontWeight.bold,
-                              fontStyle: FontStyle.italic,
-                              height: 1.05,
-                              color: AppColors.primaryText,
-                            ),
-                          ),
+                        filled: true,
+                        fillColor: AppColors.cardBackground,
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: AppColors.secondaryText,
+                          size: 20,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardBackground,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: AppColors.primaryPurple.withAlpha(70),
-                          width: 1,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: AppColors.primaryPurple.withOpacity(0.5),
+                            width: 1,
+                          ),
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.only(left: 10),
-                            child: Text(
-                              'Scans',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                                fontStyle: FontStyle.italic,
-                                color: AppColors.primaryText,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _searchController,
-                            onChanged: (value) {
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Filter chips
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: _filters.map((filter) {
+                        return FilterChip(
+                          label: Text(filter),
+                          selected: _selectedFilter == filter,
+                          onSelected: (selected) {
+                            if (selected) {
                               setState(() {
-                                _searchQuery = value.trim().toLowerCase();
+                                _selectedFilter = filter;
                               });
-                            },
-                            decoration: InputDecoration(
-                              hintText: 'Search scans...',
-                              hintStyle: const TextStyle(
-                                color: AppColors.disabledText,
-                                fontSize: 13,
-                                fontStyle: FontStyle.italic,
-                              ),
-                              filled: true,
-                              fillColor: AppColors.mainBackground,
-                              prefixIcon: const Icon(
-                                Icons.search,
-                                color: AppColors.secondaryText,
-                                size: 20,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
-                            style: const TextStyle(
-                              color: AppColors.primaryText,
+                            }
+                          },
+                          backgroundColor: AppColors.mainBackground,
+                          selectedColor: AppColors.primaryPurple.withOpacity(0.2),
+                          labelStyle: TextStyle(
+                            color: _selectedFilter == filter
+                                ? AppColors.primaryPurple
+                                : AppColors.secondaryText,
+                            fontWeight: _selectedFilter == filter
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            side: BorderSide(
+                              color: _selectedFilter == filter
+                                  ? AppColors.primaryPurple
+                                  : AppColors.divider,
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          Center(
-                            child: Wrap(
-                              alignment: WrapAlignment.center,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              spacing: 24,
-                              runSpacing: 8,
-                              children: _filters.map((filter) {
-                                return GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedFilter = filter;
-                                    });
-                                  },
-                                  child: _HistoryFilter(
-                                    label: filter,
-                                    selected: _selectedFilter == filter,
-                                  ),
-                                );
-                              }).toList(),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // History list
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(user.uid)
+                          .collection('scans')
+                          .orderBy('scannedAt', descending: true)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 40),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: AppColors.primaryPurple,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(user.uid)
-                                .collection('scans')
-                                .orderBy('scannedAt', descending: true)
-                                .snapshots(),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 30),
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      color: AppColors.primaryPurple,
-                                    ),
-                                  ),
-                                );
-                              }
+                          );
+                        }
 
-                              if (!snapshot.hasData ||
-                                  snapshot.data!.docs.isEmpty) {
-                                return Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 24,
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return _buildEmptyState('No scans found yet.');
+                        }
+
+                        final allDocs = snapshot.data!.docs;
+
+                        final filteredDocs = allDocs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+
+                          final url = (data['url'] ?? '')
+                              .toString()
+                              .toLowerCase();
+
+                          final normalizedStatus = _normalizeStatus(
+                            (data['verdict'] ?? data['result'] ?? 'safe')
+                                .toString(),
+                          );
+
+                          final matchesFilter = _selectedFilter == 'All'
+                              ? true
+                              : normalizedStatus == _selectedFilter;
+
+                          final matchesSearch = _searchQuery.isEmpty
+                              ? true
+                              : url.contains(_searchQuery);
+
+                          return matchesFilter && matchesSearch;
+                        }).toList();
+
+                        if (filteredDocs.isEmpty) {
+                          return _buildEmptyState('No matching scans found.');
+                        }
+
+                        return ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filteredDocs.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final doc = filteredDocs[index];
+                            final data = doc.data() as Map<String, dynamic>;
+
+                            final String url =
+                                data['url']?.toString() ?? 'No URL found';
+
+                            final String status = _normalizeStatus(
+                              (data['verdict'] ?? data['result'] ?? 'safe')
+                                  .toString(),
+                            );
+
+                            final Timestamp? scannedAt =
+                                data['scannedAt'] as Timestamp?;
+
+                            final String scannedTime = scannedAt != null
+                                ? _formatDate(scannedAt.toDate())
+                                : 'Recently';
+
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.cardBackground,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: AppColors.divider.withOpacity(0.3),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.03),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.mainBackground,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: AppColors.divider,
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'No scans found yet.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: AppColors.secondaryText,
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    url,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.primaryText,
                                       fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.3,
                                     ),
                                   ),
-                                );
-                              }
-
-                              final allDocs = snapshot.data!.docs;
-
-                              final filteredDocs = allDocs.where((doc) {
-                                final data = doc.data() as Map<String, dynamic>;
-
-                                final url = (data['url'] ?? '')
-                                    .toString()
-                                    .toLowerCase();
-
-                                final normalizedStatus = _normalizeStatus(
-                                  (data['verdict'] ?? data['result'] ?? 'safe')
-                                      .toString(),
-                                );
-
-                                final matchesFilter = _selectedFilter == 'All'
-                                    ? true
-                                    : normalizedStatus == _selectedFilter;
-
-                                final matchesSearch = _searchQuery.isEmpty
-                                    ? true
-                                    : url.contains(_searchQuery);
-
-                                return matchesFilter && matchesSearch;
-                              }).toList();
-
-                              if (filteredDocs.isEmpty) {
-                                return Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 24,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.mainBackground,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: AppColors.divider,
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'No matching scans found.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: AppColors.secondaryText,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                );
-                              }
-
-                              return Column(
-                                children: filteredDocs.map((doc) {
-                                  final data =
-                                      doc.data() as Map<String, dynamic>;
-
-                                  final String url =
-                                      data['url']?.toString() ?? 'No URL found';
-
-                                  final String status = _normalizeStatus(
-                                    (data['verdict'] ??
-                                            data['result'] ??
-                                            'safe')
-                                        .toString(),
-                                  );
-
-                                  final Timestamp? scannedAt =
-                                      data['scannedAt'] as Timestamp?;
-
-                                  final String scannedTime = scannedAt != null
-                                      ? scannedAt
-                                          .toDate()
-                                          .toString()
-                                          .substring(0, 19)
-                                      : 'Recently';
-
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 10),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.mainBackground,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: AppColors.divider,
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          url,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          scannedTime,
                                           style: const TextStyle(
-                                            color: AppColors.primaryText,
-                                            fontSize: 14,
-                                            fontStyle: FontStyle.italic,
-                                            height: 1.3,
+                                            color: AppColors.secondaryText,
+                                            fontSize: 12,
                                           ),
                                         ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                scannedTime,
-                                                style: const TextStyle(
-                                                  color:
-                                                      AppColors.secondaryText,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ),
-                                            _HistoryStatusBadge(status: status),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
+                                      ),
+                                      _HistoryStatusBadge(status: status),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
-      ),
+            ),
     );
   }
-}
 
-class _HistoryFilter extends StatelessWidget {
-  final String label;
-  final bool selected;
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} '
+        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:${date.second.toString().padLeft(2, '0')}';
+  }
 
-  const _HistoryFilter({
-    required this.label,
-    required this.selected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: TextStyle(
-        color: selected ? AppColors.primaryText : AppColors.secondaryText,
-        fontSize: 13,
-        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-        fontStyle: FontStyle.italic,
-        decoration: selected ? TextDecoration.underline : TextDecoration.none,
-        decorationColor: AppColors.primaryText,
-        decorationThickness: 2,
+  Widget _buildEmptyState(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.history_toggle_off,
+            color: AppColors.secondaryText,
+            size: 48,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -388,35 +341,36 @@ class _HistoryStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color backgroundColor;
+    Color bgColor;
+    Color textColor = Colors.white;
 
     switch (status) {
       case 'Safe':
-        backgroundColor = Colors.green;
+        bgColor = AppColors.safe;
         break;
       case 'Suspicious':
-        backgroundColor = Colors.orange;
+        bgColor = AppColors.mediumRisk;
+        textColor = Colors.white;
         break;
       case 'Malicious':
-        backgroundColor = Colors.redAccent;
+        bgColor = AppColors.highRisk;
         break;
       default:
-        backgroundColor = AppColors.primaryPurple;
+        bgColor = AppColors.primaryPurple;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-        color: backgroundColor.withAlpha(220),
-        borderRadius: BorderRadius.circular(10),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         status,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: textColor,
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          fontStyle: FontStyle.italic,
         ),
       ),
     );

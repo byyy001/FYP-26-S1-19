@@ -418,12 +418,15 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                           Icons.qr_code_scanner,
                           'Total Scans',
                           '${stats['totalScans'] ?? 0}',
+                          iconColor: AppColors.primaryPurple,
+                          valueColor: AppColors.primaryText,
                         ),
                         const SizedBox(width: 12),
                         _buildStatCard(
                           Icons.shield,
                           'Safe Links',
                           '${stats['safeLinks'] ?? 0}',
+                          iconColor: AppColors.safe,
                           valueColor: AppColors.safe,
                         ),
                         const SizedBox(width: 12),
@@ -431,6 +434,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                           Icons.warning_amber_rounded,
                           'Threats',
                           '${stats['threats'] ?? 0}',
+                          iconColor: AppColors.highRisk,
                           valueColor: AppColors.highRisk,
                         ),
                       ],
@@ -695,11 +699,13 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     }
   }
 
+  /// Updated stat card with separate icon and value colours
   Widget _buildStatCard(
     IconData icon,
     String label,
     String value, {
-    Color valueColor = AppColors.primaryText,
+    required Color iconColor,
+    required Color valueColor,
   }) {
     return Expanded(
       child: Container(
@@ -717,7 +723,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         ),
         child: Column(
           children: [
-            Icon(icon, color: AppColors.primaryPurple, size: 26),
+            Icon(icon, color: iconColor, size: 26),
             const SizedBox(height: 10),
             Text(
               value,
@@ -936,7 +942,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                           builder: (context) => const ScanSettingsScreen(),
                         ),
                       );
-                      // Reload settings after returning
                       await _loadUserSettings();
                     },
                   ),
