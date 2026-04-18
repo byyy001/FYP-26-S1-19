@@ -36,6 +36,9 @@ class AuthService {
         'lastName': lastName,
         'email': email,
         'authProvider': 'email',
+        'role': 'User',
+        'isActive': true,
+        'isPremium': false, 
         'createdAt': FieldValue.serverTimestamp(),
       });
 
