@@ -45,275 +45,49 @@ class UserManagementScreen extends StatelessWidget {
       ),
     ];
 
-    return Scaffold(
-      backgroundColor: AppColors.mainBackground,
-      body: SafeArea(
-        child: Row(
-          children: [
-            const _AdminSidebar(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1380),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _TopHeader(),
-                        const SizedBox(height: 10),
-                        const _PageTitleSection(),
-                        const SizedBox(height: 14),
-                        const _SearchAndFiltersPanel(),
-                        const SizedBox(height: 18),
-                        ...users.map(
-                          (user) => Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: _UserCard(user: user),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const _PaginationSection(),
-                      ],
-                    ),
-                  ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'User Management',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _UserData {
-  final String name;
-  final String email;
-  final String role;
-  final String status;
-
-  const _UserData({
-    required this.name,
-    required this.email,
-    required this.role,
-    required this.status,
-  });
-}
-
-class _AdminSidebar extends StatelessWidget {
-  const _AdminSidebar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 260,
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border(
-          right: BorderSide(
-            color: AppColors.primaryPurple.withAlpha(45),
+              const SizedBox(height: 8),
+              const Text(
+                'Manage user accounts, roles, and account statuses.',
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildSearchAndFiltersPanel(),
+              const SizedBox(height: 24),
+              ...users.map(
+                (user) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _UserCard(user: user),
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildPaginationSection(),
+            ],
           ),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: AppColors.premiumGradient,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.shield_outlined,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'LinkSentry Admin',
-                    style: TextStyle(
-                      color: AppColors.primaryText,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 28),
-            const _SidebarItem(
-              icon: Icons.dashboard_outlined,
-              label: 'Dashboard',
-            ),
-            const _SidebarItem(
-              icon: Icons.people_outline,
-              label: 'User Management',
-              selected: true,
-            ),
-            const _SidebarItem(
-              icon: Icons.security_outlined,
-              label: 'Security Management',
-            ),
-            const _SidebarItem(
-              icon: Icons.analytics_outlined,
-              label: 'Scan Statistics',
-            ),
-            const _SidebarItem(
-              icon: Icons.storage_outlined,
-              label: 'Database Management',
-            ),
-            const _SidebarItem(
-              icon: Icons.flag_outlined,
-              label: 'Flagged Reviews',
-            ),
-            const _SidebarItem(
-              icon: Icons.memory_outlined,
-              label: 'System Usage',
-            ),
-            const Spacer(),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              decoration: BoxDecoration(
-                color: AppColors.mainBackground,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: AppColors.primaryPurple.withAlpha(45),
-                ),
-              ),
-              child: const Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.white24,
-                    child: Icon(Icons.person_outline, color: Colors.white),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Admin User',
-                          style: TextStyle(
-                            color: AppColors.primaryText,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'admin@linksentry.com',
-                          style: TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.logout, color: AppColors.secondaryText, size: 20),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
-}
 
-class _SidebarItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-
-  const _SidebarItem({
-    required this.icon,
-    required this.label,
-    this.selected = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: selected
-            ? AppColors.primaryPurple.withAlpha(35)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        border: selected
-            ? Border.all(color: AppColors.primaryPurple.withAlpha(80))
-            : null,
-      ),
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: selected
-              ? AppColors.primaryPurple
-              : AppColors.secondaryText,
-        ),
-        title: Text(
-          label,
-          style: TextStyle(
-            color: selected
-                ? AppColors.primaryText
-                : AppColors.secondaryText,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-        onTap: () {},
-      ),
-    );
-  }
-}
-
-class _TopHeader extends StatelessWidget {
-  const _TopHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Text(
-      'User Management',
-      style: TextStyle(
-        color: AppColors.primaryText,
-        fontSize: 30,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-  }
-}
-
-class _PageTitleSection extends StatelessWidget {
-  const _PageTitleSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Text(
-      'Manage user accounts, roles, and account statuses.',
-      style: TextStyle(
-        color: AppColors.secondaryText,
-        fontSize: 14,
-      ),
-    );
-  }
-}
-
-class _SearchAndFiltersPanel extends StatelessWidget {
-  const _SearchAndFiltersPanel();
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSearchAndFiltersPanel() {
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -343,13 +117,13 @@ class _SearchAndFiltersPanel extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Container(
-            width: 360,
-            height: 50,
+            width: 320,
+            height: 44,
             decoration: BoxDecoration(
               color: AppColors.mainBackground,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: AppColors.primaryPurple.withAlpha(35),
+                color: AppColors.primaryPurple.withOpacity(0.35),
               ),
             ),
             child: const TextField(
@@ -359,7 +133,7 @@ class _SearchAndFiltersPanel extends StatelessWidget {
                 hintText: 'Search users...',
                 hintStyle: TextStyle(color: AppColors.disabledText),
                 prefixIcon: Icon(Icons.search, color: AppColors.secondaryText),
-                contentPadding: EdgeInsets.symmetric(vertical: 12),
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
               ),
             ),
           ),
@@ -367,6 +141,57 @@ class _SearchAndFiltersPanel extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildPaginationSection() {
+    return Column(
+      children: [
+        const Center(
+          child: Text(
+            'Showing 1–6 of 35 Users',
+            style: TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            _PageArrow(icon: Icons.chevron_left),
+            SizedBox(width: 8),
+            _PageNumber(label: '1', selected: true),
+            SizedBox(width: 8),
+            _PageNumber(label: '2'),
+            SizedBox(width: 8),
+            _PageNumber(label: '3'),
+            SizedBox(width: 8),
+            _PageNumber(label: '4'),
+            SizedBox(width: 8),
+            _PageNumber(label: '5'),
+            SizedBox(width: 8),
+            _PageNumber(label: '6'),
+            SizedBox(width: 8),
+            _PageArrow(icon: Icons.chevron_right),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _UserData {
+  final String name;
+  final String email;
+  final String role;
+  final String status;
+
+  const _UserData({
+    required this.name,
+    required this.email,
+    required this.role,
+    required this.status,
+  });
 }
 
 class _FilterChip extends StatelessWidget {
@@ -381,16 +206,16 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: selected
-            ? AppColors.primaryPurple.withAlpha(30)
+            ? AppColors.primaryPurple.withOpacity(0.2)
             : AppColors.mainBackground,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(30),
         border: Border.all(
           color: selected
-              ? AppColors.primaryPurple.withAlpha(80)
-              : Colors.white10,
+              ? AppColors.primaryPurple.withOpacity(0.6)
+              : AppColors.divider.withOpacity(0.3),
         ),
       ),
       child: Text(
@@ -398,6 +223,7 @@ class _FilterChip extends StatelessWidget {
         style: TextStyle(
           color: selected ? AppColors.primaryText : AppColors.secondaryText,
           fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          fontSize: 13,
         ),
       ),
     );
@@ -416,23 +242,17 @@ class _UserCard extends StatelessWidget {
     final bool isActive = user.status == 'Active';
 
     return _Panel(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: const EdgeInsets.all(16),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const SizedBox(width: 18),
           const CircleAvatar(
             radius: 28,
             backgroundColor: Colors.white24,
-            child: Icon(
-              Icons.person_outline,
-              color: Colors.white,
-              size: 28,
-            ),
+            child: Icon(Icons.person_outline, color: Colors.white, size: 28),
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: 20),
           Expanded(
-            flex: 5,
+            flex: 3,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -440,7 +260,7 @@ class _UserCard extends StatelessWidget {
                   user.name,
                   style: const TextStyle(
                     color: AppColors.primaryText,
-                    fontSize: 17,
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -455,9 +275,8 @@ class _UserCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 360,
+          Expanded(
+            flex: 2,
             child: Row(
               children: [
                 const Text(
@@ -467,19 +286,23 @@ class _UserCard extends StatelessWidget {
                     fontSize: 13,
                   ),
                 ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  width: 96,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: _InfoBadge(
-                      label: user.role,
-                      textColor: AppColors.primaryText,
-                      backgroundColor: Colors.white10,
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    user.role,
+                    style: const TextStyle(
+                      color: AppColors.primaryText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                const SizedBox(width: 28),
+                const SizedBox(width: 24),
                 const Text(
                   'Status:',
                   style: TextStyle(
@@ -487,121 +310,49 @@ class _UserCard extends StatelessWidget {
                     fontSize: 13,
                   ),
                 ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  width: 120,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: _InfoBadge(
-                      label: user.status,
-                      textColor:
-                          isActive ? Colors.greenAccent : Colors.redAccent,
-                      backgroundColor: isActive
-                          ? Colors.greenAccent.withAlpha(25)
-                          : Colors.redAccent.withAlpha(25),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? AppColors.safe.withOpacity(0.2)
+                        : AppColors.highRisk.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isActive
+                          ? AppColors.safe.withOpacity(0.5)
+                          : AppColors.highRisk.withOpacity(0.5),
+                    ),
+                  ),
+                  child: Text(
+                    user.status,
+                    style: TextStyle(
+                      color: isActive ? AppColors.safe : AppColors.highRisk,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 6),
           SizedBox(
-            width: 92,
+            width: 90,
             height: 40,
             child: OutlinedButton(
               onPressed: () {},
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primaryText,
-                side: BorderSide(
-                  color: AppColors.primaryPurple.withAlpha(80),
-                ),
+                side: BorderSide(color: AppColors.primaryPurple.withOpacity(0.5)),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Text(
-                'Edit',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
-          const SizedBox(width: 2),
         ],
       ),
-    );
-  }
-}
-
-class _InfoBadge extends StatelessWidget {
-  final String label;
-  final Color textColor;
-  final Color backgroundColor;
-
-  const _InfoBadge({
-    required this.label,
-    required this.textColor,
-    required this.backgroundColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _PaginationSection extends StatelessWidget {
-  const _PaginationSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const Center(
-          child: Text(
-            'Showing 1–6 of 35 Users',
-            style: TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 13,
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            _PageArrow(icon: Icons.chevron_left),
-            SizedBox(width: 10),
-            _PageNumber(label: '1', selected: true),
-            SizedBox(width: 10),
-            _PageNumber(label: '2'),
-            SizedBox(width: 10),
-            _PageNumber(label: '3'),
-            SizedBox(width: 10),
-            _PageNumber(label: '4'),
-            SizedBox(width: 10),
-            _PageNumber(label: '5'),
-            SizedBox(width: 10),
-            _PageNumber(label: '6'),
-            SizedBox(width: 10),
-            _PageArrow(icon: Icons.chevron_right),
-          ],
-        ),
-      ],
     );
   }
 }
@@ -624,7 +375,7 @@ class _PageNumber extends StatelessWidget {
         color: selected ? AppColors.primaryPurple : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: selected ? AppColors.primaryPurple : Colors.white10,
+          color: selected ? AppColors.primaryPurple : AppColors.divider.withOpacity(0.3),
         ),
       ),
       alignment: Alignment.center,
@@ -654,7 +405,7 @@ class _PageArrow extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.divider.withOpacity(0.3)),
       ),
       child: Icon(
         icon,
@@ -681,13 +432,13 @@ class _Panel extends StatelessWidget {
       padding: padding ?? const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.primaryPurple.withAlpha(35),
+          color: AppColors.primaryPurple.withOpacity(0.3),
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryPurple.withAlpha(14),
+            color: AppColors.primaryPurple.withOpacity(0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

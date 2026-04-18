@@ -6,260 +6,48 @@ class ScanStatisticsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.mainBackground,
-      body: SafeArea(
-        child: Row(
-          children: [
-            const _AdminSidebar(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1000),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _TopHeader(),
-                        const SizedBox(height: 10),
-                        const _PageTitleSection(),
-                        const SizedBox(height: 18),
-                        const _DateFilterCard(),
-                        const SizedBox(height: 16),
-                        const _SummaryStatsCard(),
-                        const SizedBox(height: 16),
-                        const _DailyScansCard(),
-                        const SizedBox(height: 16),
-                        const _ThreatDistributionCard(),
-                        const SizedBox(height: 18),
-                        const _ExportButton(),
-                      ],
-                    ),
-                  ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Scan Statistics',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminSidebar extends StatelessWidget {
-  const _AdminSidebar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 260,
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border(
-          right: BorderSide(
-            color: AppColors.primaryPurple.withAlpha(45),
+              const SizedBox(height: 8),
+              const Text(
+                'View scan trends, risk distribution, and activity over time.',
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildDateFilterCard(),
+              const SizedBox(height: 20),
+              _buildSummaryStatsCard(),
+              const SizedBox(height: 20),
+              _buildDailyScansCard(),
+              const SizedBox(height: 20),
+              _buildThreatDistributionCard(),
+              const SizedBox(height: 24),
+              _buildExportButton(),
+            ],
           ),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: AppColors.premiumGradient,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.shield_outlined,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'LinkSentry Admin',
-                    style: TextStyle(
-                      color: AppColors.primaryText,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 28),
-            const _SidebarItem(
-              icon: Icons.dashboard_outlined,
-              label: 'Dashboard',
-            ),
-            const _SidebarItem(
-              icon: Icons.people_outline,
-              label: 'User Management',
-            ),
-            const _SidebarItem(
-              icon: Icons.security_outlined,
-              label: 'Security Management',
-            ),
-            const _SidebarItem(
-              icon: Icons.analytics_outlined,
-              label: 'Scan Statistics',
-              selected: true,
-            ),
-            const _SidebarItem(
-              icon: Icons.storage_outlined,
-              label: 'Database Management',
-            ),
-            const _SidebarItem(
-              icon: Icons.flag_outlined,
-              label: 'Flagged Reviews',
-            ),
-            const _SidebarItem(
-              icon: Icons.memory_outlined,
-              label: 'System Usage',
-            ),
-            const Spacer(),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              decoration: BoxDecoration(
-                color: AppColors.mainBackground,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: AppColors.primaryPurple.withAlpha(45),
-                ),
-              ),
-              child: const Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.white24,
-                    child: Icon(Icons.person_outline, color: Colors.white),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Admin User',
-                          style: TextStyle(
-                            color: AppColors.primaryText,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'admin@linksentry.com',
-                          style: TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.logout, color: AppColors.secondaryText, size: 20),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
-}
 
-class _SidebarItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-
-  const _SidebarItem({
-    required this.icon,
-    required this.label,
-    this.selected = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: selected
-            ? AppColors.primaryPurple.withAlpha(35)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        border: selected
-            ? Border.all(color: AppColors.primaryPurple.withAlpha(80))
-            : null,
-      ),
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: selected
-              ? AppColors.primaryPurple
-              : AppColors.secondaryText,
-        ),
-        title: Text(
-          label,
-          style: TextStyle(
-            color: selected
-                ? AppColors.primaryText
-                : AppColors.secondaryText,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-        onTap: () {},
-      ),
-    );
-  }
-}
-
-class _TopHeader extends StatelessWidget {
-  const _TopHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Text(
-      'Scan Statistics',
-      style: TextStyle(
-        color: AppColors.primaryText,
-        fontSize: 30,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-  }
-}
-
-class _PageTitleSection extends StatelessWidget {
-  const _PageTitleSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Text(
-      'View scan trends, risk distribution, and activity over time.',
-      style: TextStyle(
-        color: AppColors.secondaryText,
-        fontSize: 14,
-      ),
-    );
-  }
-}
-
-class _DateFilterCard extends StatelessWidget {
-  const _DateFilterCard();
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildDateFilterCard() {
     return _Panel(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       child: Row(
@@ -294,7 +82,7 @@ class _DateFilterCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.mainBackground,
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: AppColors.primaryPurple.withAlpha(35)),
+              border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
             ),
             child: const Text(
               'Change',
@@ -309,13 +97,8 @@ class _DateFilterCard extends StatelessWidget {
       ),
     );
   }
-}
 
-class _SummaryStatsCard extends StatelessWidget {
-  const _SummaryStatsCard();
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSummaryStatsCard() {
     return _Panel(
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,7 +107,7 @@ class _SummaryStatsCard extends StatelessWidget {
             'Summary',
             style: TextStyle(
               color: AppColors.primaryText,
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -346,49 +129,8 @@ class _SummaryStatsCard extends StatelessWidget {
       ),
     );
   }
-}
 
-class _SummaryLine extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _SummaryLine({
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 20,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.primaryText,
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DailyScansCard extends StatelessWidget {
-  const _DailyScansCard();
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildDailyScansCard() {
     const values = [90.0, 120.0, 110.0, 150.0, 180.0, 160.0, 130.0];
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -412,7 +154,7 @@ class _DailyScansCard extends StatelessWidget {
               color: AppColors.mainBackground,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.primaryPurple.withAlpha(35),
+                color: AppColors.primaryPurple.withOpacity(0.35),
               ),
             ),
             child: Column(
@@ -471,37 +213,8 @@ class _DailyScansCard extends StatelessWidget {
       ),
     );
   }
-}
 
-class _Bar extends StatelessWidget {
-  final double height;
-
-  const _Bar({
-    required this.height,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 30,
-      height: height,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: AppColors.premiumGradient,
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-    );
-  }
-}
-
-class _ThreatDistributionCard extends StatelessWidget {
-  const _ThreatDistributionCard();
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildThreatDistributionCard() {
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -522,7 +235,7 @@ class _ThreatDistributionCard extends StatelessWidget {
               color: AppColors.mainBackground,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.primaryPurple.withAlpha(35),
+                color: AppColors.primaryPurple.withOpacity(0.35),
               ),
             ),
             child: const Column(
@@ -555,6 +268,66 @@ class _ThreatDistributionCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildExportButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: () {},
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryPurple,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: const Text(
+          'Export Report',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryLine extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _SummaryLine({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.primaryText,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -626,30 +399,25 @@ class _DistributionRow extends StatelessWidget {
   }
 }
 
-class _ExportButton extends StatelessWidget {
-  const _ExportButton();
+class _Bar extends StatelessWidget {
+  final double height;
+
+  const _Bar({
+    required this.height,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryPurple,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
+    return Container(
+      width: 30,
+      height: height,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: AppColors.premiumGradient,
         ),
-        child: const Text(
-          'Export Report',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 15,
-          ),
-        ),
+        borderRadius: BorderRadius.circular(10),
       ),
     );
   }
@@ -673,11 +441,11 @@ class _Panel extends StatelessWidget {
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: AppColors.primaryPurple.withAlpha(35),
+          color: AppColors.primaryPurple.withOpacity(0.35),
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryPurple.withAlpha(14),
+            color: AppColors.primaryPurple.withOpacity(0.14),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
