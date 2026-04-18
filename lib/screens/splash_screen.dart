@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'onboarding_screen.dart';
 import 'unregistered_home_screen.dart';
 import 'registered_home_screen.dart';
-import '../constants/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

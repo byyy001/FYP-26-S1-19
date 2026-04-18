@@ -48,7 +48,6 @@ class HybridEngine {
     final features = UrlFeatures(url);
     
     final staticEngine = StaticRuleEngine(features);
-    // ✅ await the async getter
     if (await staticEngine.isTrustedDomain) {
       return _buildSafeResult(url);
     }
@@ -81,7 +80,6 @@ class HybridEngine {
     final rawVector = features.toFeatureVector();
     final scaledVector = _scaler.transform(rawVector);
 
-    // ✅ await analyzeSync (now async)
     List<Map<String, dynamic>> staticThreats = await staticEngine.analyzeSync();
     
     if (redirectMalicious && redirectThreatDesc.isNotEmpty) {
@@ -227,20 +225,13 @@ class HybridEngine {
       mlConfidence = 'low';
     }
 
-    // ========== FINAL SAFETY: Prevent false positives on safe websites ==========
-    // If risk score is very low, force benign
+    // ========== CORRECTED SAFETY OVERRIDE ==========
+    // Only force benign when risk score is very low (<25)
     if (hybridScore < 25.0) {
       threatType = 'benign';
     }
-    // If risk score is low-to-medium and no strong external evidence, also downgrade to benign
-    else if (hybridScore < 50.0 && externalScore < 0.8) {
-      threatType = 'benign';
-    }
-    // If threat type is phishing but risk score is low (< 50), also downgrade
-    if (threatType == 'phishing' && hybridScore < 50.0) {
-      threatType = 'benign';
-    }
-    // ============================================================================
+    // For scores 25-50, keep original threat type (phishing/malware) – no forced benign
+    // ==============================================
 
     final severity = _getSeverity(hybridScore);
 
@@ -555,7 +546,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Dynamic actions and safety tips (unchanged)
+  // Dynamic actions and safety tips (updated to include low risk action)
   // --------------------------------------------------------------------------
   Map<String, dynamic> _getDynamicActionsAndTips({
     required String threatType,
@@ -665,6 +656,8 @@ class HybridEngine {
       actions.add('High risk – do not proceed');
     } else if (riskScore >= 50) {
       actions.add('Medium risk – avoid entering personal information');
+    } else if (riskScore >= 25) {
+      actions.add('Low risk – proceed with caution');
     }
 
     actions = actions.toSet().toList();

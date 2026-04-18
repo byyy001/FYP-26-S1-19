@@ -4,7 +4,7 @@ import '../constants/app_colors.dart';
 import 'help_screen.dart';
 import 'scan_settings_screen.dart';
 import 'camera_scanner.dart';
-import 'history_screen.dart';
+import 'view_history_screen.dart';
 import 'profile_screen.dart';
 import 'result_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -31,9 +31,12 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   final ScanHistoryService _scanHistoryService = ScanHistoryService();
   final ScanSettingsService _scanSettingsService = ScanSettingsService();
   bool _isScanning = false;
+  bool _engineReady = false;
+  bool _settingsLoaded = false;
+  String? _initError;
   late final ThreatEngine _engine;
   late Future<Map<String, int>> _statsFuture;
-  ScanSettings _userSettings = ScanSettings.forBeginner(); // default
+  ScanSettings _userSettings = ScanSettings.forBeginner();
 
   @override
   void initState() {
@@ -44,29 +47,96 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   }
 
   Future<void> _initEngine() async {
-    _engine = await ThreatEngine.getInstance();
+    try {
+      _engine = await ThreatEngine.getInstance();
+      if (mounted) {
+        setState(() {
+          _engineReady = true;
+          _initError = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _engineReady = false;
+          _initError = e.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _retryInit() async {
+    setState(() {
+      _engineReady = false;
+      _initError = null;
+    });
+    await _initEngine();
   }
 
   Future<void> _loadUserSettings() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      if (mounted) setState(() => _settingsLoaded = true);
+      return;
+    }
 
     try {
-      final settings = await _scanSettingsService.getScanSettings(
-        userId: user.uid,
-      );
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('scan_preferences')
+          .get();
 
-      if (!mounted) return;
+      if (doc.exists) {
+        final data = doc.data()!;
+        final userLevel = data['userLevel'] ?? 'beginner';
+        final isPremium = data['isPremium'] ?? true;
+        final phishingSensitivity = data['phishingSensitivity'] ?? true;
+        final deepScan = data['deepScan'] ?? true;
+        final scriptAnalysis = data['scriptAnalysis'] ?? true;
+        final useExternalApis = data['useExternalApis'] ?? true;
+        final useEnsemble = data['useEnsemble'] ?? (userLevel == 'beginner');
+        final useLogisticRegression = data['useLogisticRegression'] ?? true;
+        final useDecisionTree = data['useDecisionTree'] ?? true;
+        final useXGBoost = data['useXGBoost'] ?? true;
+        final useLightGBM = data['useLightGBM'] ?? true;
 
-      setState(() {
-        _userSettings = settings;
-      });
+        if (mounted) {
+          setState(() {
+            _userSettings = ScanSettings(
+              phishingSensitivity: phishingSensitivity,
+              httpSitesWarning: false,
+              scriptAnalysis: scriptAnalysis,
+              adReductionAnalysis: false,
+              adDensityLevel: 1,
+              autoRecheckScans: false,
+              sharingConfiguration: false,
+              useExternalApis: useExternalApis,
+              isPremium: isPremium,
+              userLevel: userLevel,
+              enableMachineLearning: true,
+              useEnsemble: useEnsemble,
+              useLogisticRegression: useLogisticRegression,
+              useDecisionTree: useDecisionTree,
+              useXGBoost: useXGBoost,
+              useLightGBM: useLightGBM,
+              deepScan: deepScan,
+              adFilter: false,
+            );
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _userSettings = ScanSettings.forBeginner();
+          });
+        }
+      }
     } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _userSettings = ScanSettings.forBeginner();
-      });
+      print('Error loading scan settings: $e');
+    } finally {
+      if (mounted) setState(() => _settingsLoaded = true);
     }
   }
 
@@ -159,7 +229,28 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     }
   }
 
-  Future<void> _scanURL(String url) async {
+  /// Normalize URL: remove spaces, add https:// if missing
+  String _normalizeUrl(String input) {
+    String url = input.trim().replaceAll(RegExp(r'\s+'), '');
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://$url';
+    }
+    return url;
+  }
+
+  Future<void> _scanURL(String rawUrl) async {
+    if (!_engineReady) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Scanner is still loading, please wait...'),
+          backgroundColor: AppColors.primaryPurple,
+        ),
+      );
+      return;
+    }
+
+    final url = _normalizeUrl(rawUrl);
+
     setState(() => _isScanning = true);
 
     try {
@@ -167,10 +258,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
       if (!mounted) return;
 
-      // Save to history
       await _saveScanToFirestore(url: url, scanResult: result['scan_result']);
 
-      // Navigate to result screen
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -261,6 +350,34 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           }
 
           String userName = snapshot.data ?? 'User';
+
+          if (!_settingsLoaded || !_engineReady) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _initError != null ? 'Failed to load scanner' : 'Loading security engine...',
+                    style: const TextStyle(color: AppColors.secondaryText),
+                  ),
+                  if (_initError != null) ...[
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _retryInit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryPurple,
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }
 
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
@@ -438,7 +555,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const HistoryScreen(),
+                                  builder: (context) => const ViewHistoryScreen(),
                                 ),
                               );
                             },
@@ -626,6 +743,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   }
 
   Widget _buildScanButton(BuildContext context) {
+    final bool isDisabled = !_engineReady || _isScanning || _initError != null;
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -636,7 +754,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: ElevatedButton.icon(
-        onPressed: _isScanning
+        onPressed: isDisabled
             ? null
             : () {
                 final url = _urlController.text.trim();
@@ -811,13 +929,15 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   _buildNavItem(
                     icon: Icons.settings_outlined,
                     label: 'Settings',
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const ScanSettingsScreen(),
                         ),
                       );
+                      // Reload settings after returning
+                      await _loadUserSettings();
                     },
                   ),
                 ],
