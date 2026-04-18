@@ -6,6 +6,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isSmall = screenWidth < 360;
+
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
       appBar: AppBar(
@@ -15,74 +18,154 @@ class PrivacyPolicyScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Privacy Policy',
-          style: TextStyle(color: AppColors.primaryText),
+          style: TextStyle(
+            color: AppColors.primaryText,
+            fontSize: isSmall ? 20 : 22,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header
               const Text(
-                'Last Updated: January 17, 2025',
+                'Your Privacy Matters',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryPurple,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'We believe you have the right to privacy and control over your information.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.secondaryText,
-                  fontStyle: FontStyle.italic,
+                  height: 1.4,
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'We believe that every user has the right to a safe experience while interacting with URLs. We also strongly believe that you have the right to privacy and control over your information. This is our fundamental belief which has shaped our Privacy Policy.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.secondaryText,
-                  height: 1.5,
-                ),
-              ),
+              const Divider(color: AppColors.divider, thickness: 0.5),
               const SizedBox(height: 24),
+
+              // Sections
               _buildSection(
                 '1. Information We Collect',
-                'We collect limited information to provide and improve our service:\n'
-                '• URLs you submit for scanning (temporarily processed, not stored permanently)\n'
-                '• Device information (model, OS version) for analytics and troubleshooting\n'
-                '• Usage data (features used, crash reports) to enhance user experience\n'
-                '• If you create an account, we store your email address and authentication data securely.',
+                Icons.data_usage,
+                [
+                  'URLs you submit for scanning – stored in your personal Firebase account as scan history (URL, verdict, risk score, timestamp).',
+                  'Account information – email address and authentication data (Firebase Auth).',
+                  'Device information – model, OS version, app version (for analytics and crash reporting).',
+                  'Usage data – features used, scan frequency, settings preferences.',
+                  'External API responses – when you enable external threat intelligence, we temporarily process data from VirusTotal, OpenPhish, IPQualityScore, Google Safe Browsing, and WHOIS. No external API data is permanently stored unless required for the scan result.',
+                ],
               ),
+              const SizedBox(height: 24),
               _buildSection(
                 '2. How We Use Your Information',
-                '• To provide URL scanning and risk analysis\n'
-                '• To improve app functionality and performance\n'
-                '• To communicate important updates or security alerts\n'
-                '• To ensure compliance with legal obligations',
+                Icons.analytics,
+                [
+                  'To provide URL scanning and risk analysis (core functionality).',
+                  'To store and display your scan history (only visible to you).',
+                  'To improve app performance, fix bugs, and enhance threat detection accuracy.',
+                  'To send critical security alerts or service updates (rare, only when necessary).',
+                  'To comply with legal obligations and enforce our Terms of Service.',
+                ],
               ),
+              const SizedBox(height: 24),
               _buildSection(
-                '3. Data Sharing',
-                'We do not sell or rent your personal information. We may share anonymized, aggregated data with partners for research. We may disclose information if required by law.',
+                '3. Data Storage & Retention',
+                Icons.storage,
+                [
+                  'Scan history is stored in Firebase Firestore and associated with your user ID.',
+                  'You can delete individual scans or your entire history from the Profile screen.',
+                  'Account deletion removes all associated data permanently.',
+                  'Anonymized usage data may be retained longer for research and model training.',
+                ],
               ),
+              const SizedBox(height: 24),
               _buildSection(
-                '4. Data Security',
-                'We implement industry-standard security measures to protect your data. However, no method of transmission over the internet is 100% secure.',
+                '4. External API Usage (Premium Feature)',
+                Icons.api,
+                [
+                  'When you enable external threat intelligence in Settings, we query:',
+                  '  • VirusTotal, Google Safe Browsing, OpenPhish, IPQualityScore, WHOIS.',
+                  'These services receive the URL you submit and may log it according to their own privacy policies.',
+                  'We do not control their data handling. You can disable external APIs at any time.',
+                ],
               ),
+              const SizedBox(height: 24),
               _buildSection(
-                '5. Your Rights',
-                'You may request access, correction, or deletion of your personal data by contacting us. You can opt out of non-essential data collection through your device settings.',
+                '5. Data Sharing & Third Parties',
+                Icons.share,
+                [
+                  'We do not sell or rent your personal data. Limited sharing occurs:',
+                  '  • With external security APIs (only if you enable them).',
+                  '  • With Firebase (Google) for authentication and database hosting.',
+                  '  • With crash reporting tools (anonymized data).',
+                  '  • If required by law or to protect our legal rights.',
+                ],
               ),
+              const SizedBox(height: 24),
               _buildSection(
-                '6. Children\'s Privacy',
-                'LinkSentry is not intended for children under 13. We do not knowingly collect data from children.',
+                '6. Data Security',
+                Icons.security,
+                [
+                  'We use industry‑standard security (Firebase security rules, encrypted connections). However, no internet transmission is 100% secure. You are responsible for keeping your account credentials safe.',
+                ],
               ),
+              const SizedBox(height: 24),
               _buildSection(
-                '7. Changes to This Policy',
-                'We may update this policy from time to time. We will notify you of significant changes through the app or by email.',
+                '7. Your Rights & Controls',
+                Icons.assignment_ind,
+                [
+                  'Access your scan history in the app.',
+                  'Delete individual scans or entire history.',
+                  'Delete your account and all associated data (Profile → Delete Account).',
+                  'Disable external APIs or machine learning features in Settings.',
+                  'Opt out of analytics by contacting support (limited functionality).',
+                ],
               ),
+              const SizedBox(height: 24),
               _buildSection(
-                '8. Contact Us',
-                'If you have questions or concerns, please contact us at:\nlinksentry@urlscanning.com',
+                '8. Children’s Privacy',
+                Icons.child_care,
+                [
+                  'LinkSentry is not intended for users under 13. We do not knowingly collect data from children. If you believe a child has provided data, contact us to remove it.',
+                ],
               ),
+              const SizedBox(height: 24),
+              _buildSection(
+                '9. Changes to This Policy',
+                Icons.update,
+                [
+                  'We may update this policy. Material changes will be notified via the app or email. Continued use after changes constitutes acceptance.',
+                ],
+              ),
+              const SizedBox(height: 24),
+              _buildSection(
+                '10. Contact Us',
+                Icons.email,
+                [
+                  'For privacy questions, data requests, or concerns:\n\nsupport@linksentry.com\n\nPlease allow up to 7 days for a response.',
+                ],
+              ),
+
+              const SizedBox(height: 32),
+              Center(
+                child: Text(
+                  'Last Updated: April 18, 2026',
+                  style: TextStyle(color: AppColors.disabledText, fontSize: 12),
+                ),
+              ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -90,31 +173,53 @@ class PrivacyPolicyScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSection(String title, String content) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primaryText,
+  Widget _buildSection(String title, IconData icon, List<String> bulletPoints) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 20, color: AppColors.primaryPurple),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryText,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            content,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.secondaryText,
-              height: 1.5,
-            ),
-          ),
-        ],
-      ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...bulletPoints.map((point) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '•',
+                    style: TextStyle(
+                      color: AppColors.primaryPurple,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      point,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.secondaryText,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )),
+        const Divider(color: AppColors.divider, thickness: 0.3, height: 24),
+      ],
     );
   }
 }

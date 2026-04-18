@@ -16,25 +16,27 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
 
   // Auth state
   bool _isLoggedIn = false;
+  bool _isPremium = false;
 
-  // Plan & Mode (only relevant when logged in)
-  String _userLevel = 'beginner'; // 'beginner' or 'advanced'
-  bool _isPremium = false;        // true for logged-in users, false for guests
+  // Scan mode
+  String _userLevel = 'beginner'; 
 
   // Threat detection toggles
   bool _phishingSensitivity = true;
-  bool _deepScan = true;           // replaces httpSitesWarning
+  bool _deepScan = true;
   bool _scriptAnalysis = true;
   bool _useExternalApis = true;
 
-  // ML model selection (only shown when _userLevel == 'advanced')
+  // ML model selection
   bool _useEnsemble = false;
   bool _useLogisticRegression = true;
   bool _useDecisionTree = true;
   bool _useXGBoost = true;
-  bool _useLightGBM = true;        // if model available
+  bool _useLightGBM = true;
 
   bool _isLoading = false;
+
+  bool get _canCustomize => _isPremium;
 
   @override
   void initState() {
@@ -44,24 +46,28 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
 
   Future<void> _checkAuthAndLoad() async {
     final user = FirebaseAuth.instance.currentUser;
+
     setState(() {
       _isLoggedIn = user != null;
-      _isPremium = _isLoggedIn; // logged-in users are premium for now
+      _isPremium = _isLoggedIn; 
     });
+
     if (_isLoggedIn) {
       await _loadSettings();
     } else {
-      // Guest mode: use free defaults
-      _userLevel = 'free';
-      _phishingSensitivity = true;
-      _deepScan = false;
-      _scriptAnalysis = false;
-      _useExternalApis = false;
-      _useEnsemble = false;
-      _useLogisticRegression = false;
-      _useDecisionTree = false;
-      _useXGBoost = false;
-      _useLightGBM = false;
+      // Guest / free defaults
+      setState(() {
+        _userLevel = 'beginner';
+        _phishingSensitivity = true;
+        _deepScan = false;
+        _scriptAnalysis = false;
+        _useExternalApis = false;
+        _useEnsemble = true;
+        _useLogisticRegression = true;
+        _useDecisionTree = true;
+        _useXGBoost = true;
+        _useLightGBM = true;
+      });
     }
   }
 
@@ -70,6 +76,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
     if (user == null) return;
 
     setState(() => _isLoading = true);
+
     try {
       final data = await _scanSettingsService.getSettings(userId: user.uid);
 
@@ -87,31 +94,34 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
           _useLightGBM = data['useLightGBM'] ?? true;
         });
       } else {
+
         await _scanSettingsService.createDefaultSettingsForUser(userId: user.uid);
         final fallbackData = await _scanSettingsService.getSettings(userId: user.uid);
 
         if (!mounted || fallbackData == null) {
           return;
         }
-
+        
+        // Default for registered / paid users
         setState(() {
-          _userLevel = fallbackData['userLevel'] ?? 'beginner';
-          _phishingSensitivity = fallbackData['phishingSensitivity'] ?? true;
-          _deepScan = fallbackData['deepScan'] ?? true;
-          _scriptAnalysis = fallbackData['scriptAnalysis'] ?? true;
-          _useExternalApis = fallbackData['useExternalApis'] ?? true;
-          _useEnsemble = fallbackData['useEnsemble'] ?? true;
-          _useLogisticRegression =
-              fallbackData['useLogisticRegression'] ?? false;
-          _useDecisionTree = fallbackData['useDecisionTree'] ?? false;
-          _useXGBoost = fallbackData['useXGBoost'] ?? false;
-          _useLightGBM = fallbackData['useLightGBM'] ?? false;
+          _userLevel = 'beginner';
+          _phishingSensitivity = true;
+          _deepScan = true;
+          _scriptAnalysis = true;
+          _useExternalApis = true;
+          _useEnsemble = true;
+          _useLogisticRegression = true;
+          _useDecisionTree = true;
+          _useXGBoost = true;
+          _useLightGBM = true;
         });
       }
     } catch (e) {
-      // ignore
+      // ignore for now
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -123,6 +133,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
     }
 
     setState(() => _isLoading = true);
+
     try {
       await _scanSettingsService.updateSettings(
         userId: user.uid,
@@ -142,6 +153,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
       );
 
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Settings saved!'),
@@ -150,6 +162,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error saving settings: $e'),
@@ -157,7 +170,9 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
         ),
       );
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -172,7 +187,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
             style: TextStyle(color: AppColors.primaryText),
           ),
           content: const Text(
-            'You need to be signed in to save your scan preferences. Would you like to sign in now?',
+            'You need to be signed in to save your scan settings. Would you like to sign in now?',
             style: TextStyle(color: AppColors.secondaryText),
           ),
           actions: [
@@ -199,11 +214,10 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
     );
   }
 
-  /// Build a ScanSettings object from current UI state (to be used by the scanner)
   ScanSettings buildScanSettings() {
     return ScanSettings(
       phishingSensitivity: _phishingSensitivity,
-      httpSitesWarning: false, // not used
+      httpSitesWarning: false,
       scriptAnalysis: _scriptAnalysis,
       adReductionAnalysis: false,
       adDensityLevel: 1,
@@ -225,13 +239,15 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool advancedModelsEnabled = _canCustomize && _userLevel == 'advanced';
+
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          'Scan Preferences',
+          'Scan Settings',
           style: TextStyle(color: AppColors.primaryText),
         ),
         leading: IconButton(
@@ -246,7 +262,6 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // PLAN & MODE section
                   _buildSectionHeader(
                     icon: Icons.tune,
                     title: 'PLAN & MODE',
@@ -255,82 +270,105 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
                   _buildPlanAndModeCard(),
                   const SizedBox(height: 24),
 
-                  // THREAT DETECTION
                   _buildSectionHeader(
                     icon: Icons.shield,
                     title: 'THREAT DETECTION',
                   ),
                   const SizedBox(height: 8),
+
                   _buildSwitchTile(
                     title: 'Phishing Sensitivity',
                     subtitle: 'Analyze URLs for phishing keywords and patterns',
                     value: _phishingSensitivity,
-                    onChanged: _isLoggedIn ? (val) => setState(() => _phishingSensitivity = val) : null,
+                    enabled: _canCustomize,
+                    onChanged: (val) => setState(() => _phishingSensitivity = val),
                   ),
                   _buildSwitchTile(
                     title: 'Deep Scan',
                     subtitle: 'Follow redirects and analyze page behavior',
                     value: _deepScan,
-                    onChanged: _isLoggedIn ? (val) => setState(() => _deepScan = val) : null,
+                    enabled: _canCustomize,
+                    onChanged: (val) => setState(() => _deepScan = val),
                   ),
                   _buildSwitchTile(
                     title: 'Script Analysis',
                     subtitle: 'Detect obfuscated or suspicious JavaScript',
                     value: _scriptAnalysis,
-                    onChanged: _isLoggedIn ? (val) => setState(() => _scriptAnalysis = val) : null,
+                    enabled: _canCustomize,
+                    onChanged: (val) => setState(() => _scriptAnalysis = val),
                   ),
                   _buildSwitchTile(
                     title: 'Use External APIs',
                     subtitle: 'Query VirusTotal, OpenPhish, IPQS, etc.',
                     value: _useExternalApis,
-                    onChanged: _isLoggedIn ? (val) => setState(() => _useExternalApis = val) : null,
+                    enabled: _canCustomize,
+                    onChanged: (val) => setState(() => _useExternalApis = val),
                   ),
+
                   const SizedBox(height: 24),
 
-                  // MACHINE LEARNING MODELS (only for advanced users)
-                  if (_isLoggedIn && _userLevel == 'advanced') ...[
-                    _buildSectionHeader(
-                      icon: Icons.memory,
-                      title: 'MACHINE LEARNING MODELS',
-                    ),
-                    const SizedBox(height: 8),
-                    _buildSwitchTile(
-                      title: 'Use Ensemble',
-                      subtitle: 'Combine all selected models',
-                      value: _useEnsemble,
-                      onChanged: (val) => setState(() => _useEnsemble = val),
-                    ),
-                    if (!_useEnsemble) ...[
-                      _buildSwitchTile(
-                        title: 'Logistic Regression',
-                        subtitle: 'Linear model for threat classification',
-                        value: _useLogisticRegression,
-                        onChanged: (val) => setState(() => _useLogisticRegression = val),
-                      ),
-                      _buildSwitchTile(
-                        title: 'Decision Tree',
-                        subtitle: 'Rule‑based tree classifier',
-                        value: _useDecisionTree,
-                        onChanged: (val) => setState(() => _useDecisionTree = val),
-                      ),
-                      _buildSwitchTile(
-                        title: 'XGBoost',
-                        subtitle: 'Gradient boosted trees',
-                        value: _useXGBoost,
-                        onChanged: (val) => setState(() => _useXGBoost = val),
-                      ),
-                      _buildSwitchTile(
-                        title: 'LightGBM',
-                        subtitle: 'Light gradient boosting (if available)',
-                        value: _useLightGBM,
-                        onChanged: (val) => setState(() => _useLightGBM = val),
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-                  ],
+                  _buildSectionHeader(
+                    icon: Icons.memory,
+                    title: 'MACHINE LEARNING MODELS',
+                  ),
+                  const SizedBox(height: 6),
 
-                  // Save button (only for logged-in users)
-                  if (_isLoggedIn)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 8),
+                    child: Text(
+                      _canCustomize
+                          ? (_userLevel == 'advanced'
+                              ? 'Available in Advanced mode.'
+                              : 'Switch to Advanced mode to customize individual models.')
+                          : 'Sign in to unlock advanced model controls.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.disabledText,
+                      ),
+                    ),
+                  ),
+
+                  _buildSwitchTile(
+                    title: 'Use Ensemble',
+                    subtitle: 'Turn off to manually select individual models',
+                    value: _useEnsemble,
+                    enabled: advancedModelsEnabled,
+                    onChanged: (val) => setState(() => _useEnsemble = val),
+                  ),
+
+                  _buildSwitchTile(
+                    title: 'Logistic Regression',
+                    subtitle: 'Linear model for threat classification',
+                    value: _useLogisticRegression,
+                    enabled: advancedModelsEnabled && !_useEnsemble,
+                    onChanged: (val) =>
+                        setState(() => _useLogisticRegression = val),
+                  ),
+                  _buildSwitchTile(
+                    title: 'Decision Tree',
+                    subtitle: 'Rule-based tree classifier',
+                    value: _useDecisionTree,
+                    enabled: advancedModelsEnabled && !_useEnsemble,
+                    onChanged: (val) => setState(() => _useDecisionTree = val),
+                  ),
+                  _buildSwitchTile(
+                    title: 'XGBoost',
+                    subtitle: 'Gradient boosted trees',
+                    value: _useXGBoost,
+                    enabled: advancedModelsEnabled && !_useEnsemble,
+                    onChanged: (val) => setState(() => _useXGBoost = val),
+                  ),
+                  _buildSwitchTile(
+                    title: 'LightGBM',
+                    subtitle: 'Light gradient boosting (if available)',
+                    value: _useLightGBM,
+                    enabled: advancedModelsEnabled && !_useEnsemble,
+                    onChanged: (val) => setState(() => _useLightGBM = val),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  if (_canCustomize)
                     SizedBox(
                       width: double.infinity,
                       height: 56,
@@ -352,7 +390,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
                                 ),
                               )
                             : const Text(
-                                'Save Preferences',
+                                'Save Settings',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -361,6 +399,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
                               ),
                       ),
                     ),
+
                   const SizedBox(height: 20),
                 ],
               ),
@@ -369,29 +408,50 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
   }
 
   Widget _buildPlanAndModeCard() {
+    final double disabledOpacity = _canCustomize ? 1.0 : 0.55;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _canCustomize
+              ? Colors.white.withOpacity(0.05)
+              : Colors.white.withOpacity(0.08),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.workspace_premium, color: AppColors.primaryPurple, size: 20),
+              const Icon(
+                Icons.workspace_premium,
+                color: AppColors.primaryPurple,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
                   'Plan',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.primaryText),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.primaryText,
+                  ),
                 ),
               ),
               Text(
-                _isLoggedIn ? 'Premium' : 'Free',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primaryPurple),
+                _isPremium ? 'Premium' : 'Free',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _isPremium
+                      ? AppColors.primaryPurple
+                      : AppColors.disabledText,
+                ),
               ),
             ],
           ),
@@ -399,86 +459,127 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
           Padding(
             padding: const EdgeInsets.only(left: 28),
             child: Text(
-              _isLoggedIn
+              _isPremium
                   ? 'You have access to all features'
                   : 'Sign in to unlock premium scanning (ML models, deep scan, external APIs)',
-              style: const TextStyle(fontSize: 12, color: AppColors.disabledText),
-            ),
-          ),
-          if (_isLoggedIn) ...[
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                const Icon(Icons.analytics_outlined, color: AppColors.primaryPurple, size: 20),
-                const SizedBox(width: 8),
-                const Text(
-                  'Scan Mode',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.primaryText),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            const Padding(
-              padding: EdgeInsets.only(left: 28),
-              child: Text(
-                'Beginner: ensemble of all models, simplified output. Advanced: choose individual models, detailed technical data.',
-                style: TextStyle(fontSize: 12, color: AppColors.disabledText),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.disabledText,
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: RadioListTile<String>(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    title: const Text('Beginner', style: TextStyle(color: AppColors.primaryText)),
-                    value: 'beginner',
-                    groupValue: _userLevel,
-                    activeColor: AppColors.primaryPurple,
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _userLevel = value;
-                          if (_userLevel == 'beginner') {
-                            _useEnsemble = true;
-                          } else {
-                            _useEnsemble = false;
-                          }
-                        });
-                      }
-                    },
-                  ),
+          ),
+          const SizedBox(height: 18),
+
+          Row(
+            children: [
+              const Icon(
+                Icons.analytics_outlined,
+                color: AppColors.primaryPurple,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Scan Mode',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.primaryText,
                 ),
-                Expanded(
-                  child: RadioListTile<String>(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    title: const Text('Advanced', style: TextStyle(color: AppColors.primaryText)),
-                    value: 'advanced',
-                    groupValue: _userLevel,
-                    activeColor: AppColors.primaryPurple,
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _userLevel = value;
-                          if (_userLevel == 'advanced') {
-                            _useEnsemble = false;
-                          }
-                        });
-                      }
-                    },
-                  ),
+              ),
+              if (!_canCustomize) ...[
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.lock_outline,
+                  size: 16,
+                  color: AppColors.disabledText,
                 ),
               ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 28),
+            child: Text(
+              _canCustomize
+                  ? 'Default: simple result. Advanced: detailed technical analysis.'
+                  : 'Visible for free users, but locked until sign in.',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.disabledText,
+              ),
             ),
-          ],
+          ),
+          const SizedBox(height: 8),
+
+          Opacity(
+            opacity: disabledOpacity,
+            child: IgnorePointer(
+              ignoring: !_canCustomize,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: Text(
+                        'Default',
+                        style: TextStyle(
+                          color: _canCustomize
+                              ? AppColors.primaryText
+                              : AppColors.disabledText,
+                        ),
+                      ),
+                      value: 'beginner',
+                      groupValue: _userLevel,
+                      activeColor: AppColors.primaryPurple,
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _userLevel = value;
+                            _useEnsemble = true;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: Text(
+                        'Advanced',
+                        style: TextStyle(
+                          color: _canCustomize
+                              ? AppColors.primaryText
+                              : AppColors.disabledText,
+                        ),
+                      ),
+                      value: 'advanced',
+                      groupValue: _userLevel,
+                      activeColor: AppColors.primaryPurple,
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _userLevel = value;
+                            _useEnsemble = false;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionHeader({required IconData icon, required String title}) {
+  Widget _buildSectionHeader({
+    required IconData icon,
+    required String title,
+  }) {
     return Row(
       children: [
         Icon(icon, color: AppColors.primaryPurple, size: 20),
@@ -500,29 +601,58 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
     required String title,
     required String subtitle,
     required bool value,
-    required ValueChanged<bool>? onChanged,
+    required bool enabled,
+    required ValueChanged<bool> onChanged,
   }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: SwitchListTile(
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w500, color: AppColors.primaryText),
+    final double opacity = enabled ? 1.0 : 0.5;
+
+    return Opacity(
+      opacity: opacity,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: enabled
+                ? Colors.white.withOpacity(0.04)
+                : Colors.white.withOpacity(0.08),
+          ),
         ),
-        subtitle: Text(subtitle, style: TextStyle(color: AppColors.secondaryText)),
-        value: value,
-        onChanged: onChanged,
-        activeThumbColor: AppColors.primaryPurple,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        secondary: Icon(
-          value ? Icons.check_circle : Icons.radio_button_unchecked,
-          color: value ? AppColors.safe : AppColors.disabledText,
-          size: 22,
+        child: SwitchListTile(
+          title: Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.w500,
+              color: enabled
+                  ? AppColors.primaryText
+                  : AppColors.disabledText,
+            ),
+          ),
+          subtitle: Text(
+            enabled ? subtitle : '$subtitle • Locked',
+            style: TextStyle(
+              color: enabled
+                  ? AppColors.secondaryText
+                  : AppColors.disabledText,
+            ),
+          ),
+          value: value,
+          onChanged: enabled ? onChanged : null,
+          activeThumbColor: AppColors.primaryPurple,
+          inactiveThumbColor: AppColors.disabledText,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          secondary: Icon(
+            enabled
+                ? (value ? Icons.check_circle : Icons.radio_button_unchecked)
+                : Icons.lock_outline,
+            color: enabled
+                ? (value ? AppColors.safe : AppColors.disabledText)
+                : AppColors.disabledText,
+            size: 22,
+          ),
         ),
       ),
     );

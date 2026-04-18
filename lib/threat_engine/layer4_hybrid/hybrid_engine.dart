@@ -48,7 +48,6 @@ class HybridEngine {
     final features = UrlFeatures(url);
     
     final staticEngine = StaticRuleEngine(features);
-    // ✅ await the async getter
     if (await staticEngine.isTrustedDomain) {
       return _buildSafeResult(url);
     }
@@ -81,7 +80,6 @@ class HybridEngine {
     final rawVector = features.toFeatureVector();
     final scaledVector = _scaler.transform(rawVector);
 
-    // ✅ await analyzeSync (now async)
     List<Map<String, dynamic>> staticThreats = await staticEngine.analyzeSync();
     
     if (redirectMalicious && redirectThreatDesc.isNotEmpty) {
@@ -109,6 +107,22 @@ class HybridEngine {
       }
     }
     
+    // ========== FIX #1: Add generic external threat if staticThreats empty ==========
+    final externalScoreRaw = (externalResult['score'] as double?) ?? 0.0;
+    // Convert sources to List<String> safely
+    final externalSourcesRaw = externalResult['sources'] as List? ?? [];
+    final List<String> externalSourcesList = externalSourcesRaw.cast<String>();
+    
+    if (staticThreats.isEmpty && externalScoreRaw >= 0.8) {
+      staticThreats.add({
+        'type': 'external_flag',
+        'severity': 'high',
+        'description': 'Flagged by external threat intelligence: ${externalSourcesList.join(', ')} (score: ${(externalScoreRaw * 100).toStringAsFixed(0)}%)',
+        'score': externalScoreRaw,
+      });
+    }
+    // =============================================================================
+
     final staticScore = _computeStaticScore(staticThreats);
 
     // ---- ML predictions ----
@@ -176,7 +190,7 @@ class HybridEngine {
     final fusedClass = ensembleProbs.indexOf(maxProb);
     const double confidenceThreshold = 0.85;
     final lowConfidence = maxProb < confidenceThreshold;
-    final adjustedClass = fusedClass; // keep original class
+    final adjustedClass = fusedClass;
     final mlScore = maxProb;
     String threatType = _classNames[adjustedClass];
     String mlConfidence = (!mlUsed || lowConfidence)
@@ -198,8 +212,7 @@ class HybridEngine {
       aiScore = aiEngine?.analyze(features) ?? 0.0;
     }
 
-    final externalScore = (externalResult['score'] as double?) ?? 0.0;
-    final externalSources = externalResult['sources'] as List? ?? [];
+    final externalScore = externalScoreRaw;
 
     double hybridScore = _fuseScores(
       staticScore: staticScore,
@@ -219,28 +232,18 @@ class HybridEngine {
     // External override (high confidence external sources)
     if (externalScore >= 0.9) {
       hybridScore = math.max(hybridScore, 85.0);
-      if (externalSources.contains('VirusTotal') ||
-          externalSources.contains('OpenPhish') ||
-          externalSources.contains('IPQualityScore')) {
+      if (externalSourcesList.contains('VirusTotal') ||
+          externalSourcesList.contains('OpenPhish') ||
+          externalSourcesList.contains('IPQualityScore')) {
         threatType = 'malicious';
       }
       mlConfidence = 'low';
     }
 
-    // ========== FINAL SAFETY: Prevent false positives on safe websites ==========
-    // If risk score is very low, force benign
+    // Safety override only for very low risk
     if (hybridScore < 25.0) {
       threatType = 'benign';
     }
-    // If risk score is low-to-medium and no strong external evidence, also downgrade to benign
-    else if (hybridScore < 50.0 && externalScore < 0.8) {
-      threatType = 'benign';
-    }
-    // If threat type is phishing but risk score is low (< 50), also downgrade
-    if (threatType == 'phishing' && hybridScore < 50.0) {
-      threatType = 'benign';
-    }
-    // ============================================================================
 
     final severity = _getSeverity(hybridScore);
 
@@ -261,6 +264,7 @@ class HybridEngine {
       staticThreats: staticThreats,
       behaviorPatterns: behaviorPatterns,
       riskScore: hybridScore,
+      externalSources: externalSourcesList, // now correctly typed as List<String>
     );
 
     Map<String, dynamic> result = {
@@ -277,7 +281,7 @@ class HybridEngine {
       'behavior_score': behaviorScore.toStringAsFixed(2),
       'ad_density': adDensity.toStringAsFixed(2),
       'external_score': externalScore.toStringAsFixed(2),
-      'external_sources': externalSources,
+      'external_sources': externalSourcesList,
       'actions': actionsAndTips['actions'],
       'safety_tips': actionsAndTips['safetyTips'],
     };
@@ -434,7 +438,7 @@ class HybridEngine {
 
   Map<String, double> _getFusionWeights(ScanSettings s, String mlConf, double extScore) {
     double staticW = s.phishingSensitivity ? 0.35 : 0.25;
-    double mlW = mlConf == 'high' ? 0.3 : (mlConf == 'medium' ? 0.2 : 0.0);
+    double mlW = mlConf == 'high' ? 0.3 : (mlConf == 'medium' ? 0.2 : 0.1); // was 0.0, now 0.1 for low
     double behaviorW = s.deepScan ? 0.2 : 0.0;
     double aiW = s.deepScan ? 0.1 : 0.0;
     double extW = 0.0;
@@ -555,7 +559,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Dynamic actions and safety tips (unchanged)
+  // Dynamic actions and safety tips (updated with fixes)
   // --------------------------------------------------------------------------
   Map<String, dynamic> _getDynamicActionsAndTips({
     required String threatType,
@@ -564,6 +568,7 @@ class HybridEngine {
     required List<Map<String, dynamic>> staticThreats,
     required List<String> behaviorPatterns,
     required double riskScore,
+    required List<String> externalSources,
   }) {
     List<String> actions = [];
     List<String> safetyTips = [];
@@ -586,6 +591,7 @@ class HybridEngine {
         ]);
         break;
       case 'malware':
+      case 'malicious':
         actions.addAll([
           'Do NOT download any files',
           'Do NOT run any scripts or allow notifications',
@@ -608,7 +614,9 @@ class HybridEngine {
         ]);
         break;
       default:
-        actions.add('Proceed with caution');
+        if (riskScore < 50) {
+          actions.add('Proceed with caution');
+        }
         safetyTips.add('If unsure, manually verify the URL or use a search engine to find the official site.');
     }
 
@@ -621,6 +629,15 @@ class HybridEngine {
     if (externalScore >= 0.8) {
       actions.add('Verified by multiple threat intelligence sources');
       safetyTips.add('External security vendors have flagged this URL.');
+      if (externalSources.contains('IPQualityScore')) {
+        safetyTips.add('IPQualityScore reports a high risk score for this URL.');
+      }
+      if (externalSources.contains('VirusTotal')) {
+        safetyTips.add('VirusTotal has flagged this URL as malicious.');
+      }
+      if (externalSources.contains('OpenPhish')) {
+        safetyTips.add('OpenPhish has identified this URL in phishing feeds.');
+      }
     }
 
     for (final threat in staticThreats) {
@@ -641,6 +658,9 @@ class HybridEngine {
       }
       if (desc.contains('new domain') || desc.contains('registered less than')) {
         safetyTips.add('Very new domains are often used for fraudulent activity.');
+      }
+      if (desc.contains('external threat intelligence')) {
+        safetyTips.add('External security services have flagged this URL as dangerous.');
       }
     }
 
@@ -665,8 +685,11 @@ class HybridEngine {
       actions.add('High risk – do not proceed');
     } else if (riskScore >= 50) {
       actions.add('Medium risk – avoid entering personal information');
+    } else if (riskScore >= 25) {
+      actions.add('Low risk – proceed with caution');
     }
 
+    // Remove duplicates while preserving order
     actions = actions.toSet().toList();
     safetyTips = safetyTips.toSet().toList();
 

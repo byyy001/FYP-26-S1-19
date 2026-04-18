@@ -1,187 +1,399 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
+import 'scan_settings_screen.dart';
+import 'notification_settings_screen.dart';
+import 'help_screen.dart';
+import 'about_screen.dart';
+import 'unregistered_home_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isLoading = true;
+
+  String _fullName = 'User';
+  String _email = '';
+  bool _isPremium = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (mounted) {
+        setState(() {
+          _fullName = 'Guest User';
+          _email = '';
+          _isPremium = false;
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final data = userDoc.data();
+
+      final firstName = data?['firstName']?.toString().trim() ?? '';
+      final lastName = data?['lastName']?.toString().trim() ?? '';
+      final fullName = '$firstName $lastName'.trim();
+
+      if (!mounted) return;
+
+      setState(() {
+        _fullName = fullName.isNotEmpty ? fullName : 'User';
+        _email = user.email ?? '';
+        _isPremium = data?['isPremium'] ?? true;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _fullName = 'User';
+        _email = user.email ?? '';
+        _isPremium = true;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const UnregisteredHomeScreen(),
+        ),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error signing out: $e'),
+          backgroundColor: AppColors.highRisk,
+        ),
+      );
+    }
+  }
+
+  void _showComingSoon(String label) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label coming soon'),
+        backgroundColor: AppColors.primaryPurple,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final bool isSmall = screenWidth < 360;
 
-    final List<String> settingsItems = [
-      'Delete Scan History',
-      'Security Levels',
-      'Sensitivity Levels',
-      'Report Issues',
-      'Push Notifications',
-      'Delete Account',
-      'Help/About',
-    ];
-
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'My\nProfile',
-                style: TextStyle(
-                  fontSize: isSmall ? 26 : 32,
-                  fontWeight: FontWeight.bold,
-                  fontStyle: FontStyle.italic,
-                  height: 1.0,
-                  color: AppColors.primaryText,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.primaryPurple.withAlpha(70),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: isSmall ? 28 : 34,
-                      backgroundColor: AppColors.disabledText.withAlpha(100),
-                      child: Icon(
-                        Icons.person,
-                        size: isSmall ? 28 : 34,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Full Name',
-                            style: TextStyle(
-                              color: AppColors.primaryText,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'exampleemail.com',
-                            style: TextStyle(
-                              color: AppColors.secondaryText,
-                              fontSize: 13,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 22),
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.primaryPurple.withAlpha(50),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.disabledText.withAlpha(35),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(16),
-                          topRight: Radius.circular(16),
-                        ),
-                      ),
-                      child: const Text(
-                        'Account Settings',
-                        style: TextStyle(
-                          color: AppColors.primaryText,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    ...List.generate(
-                      settingsItems.length,
-                      (index) => _ProfileSettingTile(
-                        label: settingsItems[index],
-                        showDivider: index != settingsItems.length - 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 26),
-              Center(
-                child: SizedBox(
-                  width: screenWidth * 0.5,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Sign out tapped'),
-                          backgroundColor: AppColors.primaryPurple,
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.disabledText.withAlpha(60),
-                      foregroundColor: AppColors.primaryText,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Sign out',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'My Profile',
+          style: TextStyle(
+            color: AppColors.primaryText,
+            fontSize: isSmall ? 20 : 22,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: AppColors.cardBackground,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primaryPurple,
-        unselectedItemColor: AppColors.secondaryText,
-        currentIndex: 2,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: AppColors.primaryPurple,
+              ),
+            )
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Profile card
+                    _buildProfileCard(),
+                    const SizedBox(height: 24),
+
+                    // Account section
+                    _buildSectionCard(
+                      title: 'Account',
+                      icon: Icons.account_circle_outlined,
+                      children: [
+                        _ProfileSettingTile(
+                          label: 'Delete Scan History',
+                          onTap: () => _showComingSoon('Delete Scan History'),
+                        ),
+                        _ProfileSettingTile(
+                          label: 'Delete Account',
+                          isDestructive: true,
+                          onTap: () => _showComingSoon('Delete Account'),
+                          showDivider: false,
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // Preferences section
+                    _buildSectionCard(
+                      title: 'Preferences',
+                      icon: Icons.tune_outlined,
+                      children: [
+                        _ProfileSettingTile(
+                          label: 'Scan Settings',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const ScanSettingsScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        _ProfileSettingTile(
+                          label: 'Push Notifications',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const NotificationSettingsScreen(),
+                              ),
+                            );
+                          },
+                          showDivider: false,
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // Support section
+                    _buildSectionCard(
+                      title: 'Support',
+                      icon: Icons.help_outline,
+                      children: [
+                        _ProfileSettingTile(
+                          label: 'Report Issues',
+                          onTap: () => _showComingSoon('Report Issues'),
+                        ),
+                        _ProfileSettingTile(
+                          label: 'Help',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const HelpScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        _ProfileSettingTile(
+                          label: 'About',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AboutScreen(),
+                              ),
+                            );
+                          },
+                          showDivider: false,
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    Center(
+                      child: SizedBox(
+                        width: screenWidth * 0.52,
+                        height: 50,
+                        child: OutlinedButton(
+                          onPressed: _signOut,
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                              color: AppColors.highRisk,
+                              width: 1.2,
+                            ),
+                            foregroundColor: AppColors.highRisk,
+                            backgroundColor: AppColors.highRisk.withAlpha(18),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Sign Out',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildProfileCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
-        onTap: (index) {},
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 32,
+            backgroundColor: AppColors.primaryPurple.withOpacity(0.2),
+            child: Icon(
+              Icons.person,
+              size: 32,
+              color: AppColors.primaryPurple,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _fullName,
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _email.isNotEmpty ? _email : 'No email found',
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _isPremium
+                        ? AppColors.primaryPurple.withOpacity(0.15)
+                        : AppColors.disabledText.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _isPremium
+                          ? AppColors.primaryPurple
+                          : AppColors.disabledText,
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    _isPremium ? 'Premium User' : 'Free User',
+                    style: TextStyle(
+                      color: _isPremium
+                          ? AppColors.primaryPurple
+                          : AppColors.secondaryText,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider.withOpacity(0.3), width: 1),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: AppColors.primaryPurple),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 1, color: AppColors.divider),
+          ...children,
+        ],
       ),
     );
   }
@@ -189,31 +401,42 @@ class ProfileScreen extends StatelessWidget {
 
 class _ProfileSettingTile extends StatelessWidget {
   final String label;
+  final VoidCallback onTap;
   final bool showDivider;
+  final bool isDestructive;
 
   const _ProfileSettingTile({
     required this.label,
-    required this.showDivider,
+    required this.onTap,
+    this.showDivider = true,
+    this.isDestructive = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final Color textColor =
+        isDestructive ? AppColors.highRisk : AppColors.primaryText;
+
     return Column(
       children: [
         ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
           title: Text(
             label,
-            style: const TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 14,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 15,
+              fontWeight: isDestructive ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
-          trailing: const Icon(
+          trailing: Icon(
             Icons.chevron_right,
-            color: AppColors.secondaryText,
+            color: isDestructive
+                ? AppColors.highRisk.withOpacity(0.7)
+                : AppColors.secondaryText,
           ),
-          onTap: () {},
+          onTap: onTap,
         ),
         if (showDivider)
           const Divider(

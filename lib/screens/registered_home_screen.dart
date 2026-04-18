@@ -5,7 +5,7 @@ import 'help_screen.dart';
 import 'scan_settings_screen.dart';
 import 'security_insights_screen.dart';
 import 'camera_scanner.dart';
-import 'history_screen.dart';
+import 'view_history_screen.dart';
 import 'profile_screen.dart';
 import 'result_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -32,9 +32,12 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   final ScanHistoryService _scanHistoryService = ScanHistoryService();
   final ScanSettingsService _scanSettingsService = ScanSettingsService();
   bool _isScanning = false;
+  bool _engineReady = false;
+  bool _settingsLoaded = false;
+  String? _initError;
   late final ThreatEngine _engine;
   late Future<Map<String, int>> _statsFuture;
-  ScanSettings _userSettings = ScanSettings.forBeginner(); // default
+  ScanSettings _userSettings = ScanSettings.forBeginner();
 
   @override
   void initState() {
@@ -45,29 +48,96 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   }
 
   Future<void> _initEngine() async {
-    _engine = await ThreatEngine.getInstance();
+    try {
+      _engine = await ThreatEngine.getInstance();
+      if (mounted) {
+        setState(() {
+          _engineReady = true;
+          _initError = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _engineReady = false;
+          _initError = e.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _retryInit() async {
+    setState(() {
+      _engineReady = false;
+      _initError = null;
+    });
+    await _initEngine();
   }
 
   Future<void> _loadUserSettings() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      if (mounted) setState(() => _settingsLoaded = true);
+      return;
+    }
 
     try {
-      final settings = await _scanSettingsService.getScanSettings(
-        userId: user.uid,
-      );
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('scan_preferences')
+          .get();
 
-      if (!mounted) return;
+      if (doc.exists) {
+        final data = doc.data()!;
+        final userLevel = data['userLevel'] ?? 'beginner';
+        final isPremium = data['isPremium'] ?? true;
+        final phishingSensitivity = data['phishingSensitivity'] ?? true;
+        final deepScan = data['deepScan'] ?? true;
+        final scriptAnalysis = data['scriptAnalysis'] ?? true;
+        final useExternalApis = data['useExternalApis'] ?? true;
+        final useEnsemble = data['useEnsemble'] ?? (userLevel == 'beginner');
+        final useLogisticRegression = data['useLogisticRegression'] ?? true;
+        final useDecisionTree = data['useDecisionTree'] ?? true;
+        final useXGBoost = data['useXGBoost'] ?? true;
+        final useLightGBM = data['useLightGBM'] ?? true;
 
-      setState(() {
-        _userSettings = settings;
-      });
+        if (mounted) {
+          setState(() {
+            _userSettings = ScanSettings(
+              phishingSensitivity: phishingSensitivity,
+              httpSitesWarning: false,
+              scriptAnalysis: scriptAnalysis,
+              adReductionAnalysis: false,
+              adDensityLevel: 1,
+              autoRecheckScans: false,
+              sharingConfiguration: false,
+              useExternalApis: useExternalApis,
+              isPremium: isPremium,
+              userLevel: userLevel,
+              enableMachineLearning: true,
+              useEnsemble: useEnsemble,
+              useLogisticRegression: useLogisticRegression,
+              useDecisionTree: useDecisionTree,
+              useXGBoost: useXGBoost,
+              useLightGBM: useLightGBM,
+              deepScan: deepScan,
+              adFilter: false,
+            );
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _userSettings = ScanSettings.forBeginner();
+          });
+        }
+      }
     } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _userSettings = ScanSettings.forBeginner();
-      });
+      print('Error loading scan settings: $e');
+    } finally {
+      if (mounted) setState(() => _settingsLoaded = true);
     }
   }
 
@@ -160,7 +230,28 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     }
   }
 
-  Future<void> _scanURL(String url) async {
+  /// Normalize URL: remove spaces, add https:// if missing
+  String _normalizeUrl(String input) {
+    String url = input.trim().replaceAll(RegExp(r'\s+'), '');
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://$url';
+    }
+    return url;
+  }
+
+  Future<void> _scanURL(String rawUrl) async {
+    if (!_engineReady) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Scanner is still loading, please wait...'),
+          backgroundColor: AppColors.primaryPurple,
+        ),
+      );
+      return;
+    }
+
+    final url = _normalizeUrl(rawUrl);
+
     setState(() => _isScanning = true);
 
     try {
@@ -168,10 +259,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
       if (!mounted) return;
 
-      // Save to history
       await _saveScanToFirestore(url: url, scanResult: result['scan_result']);
 
-      // Navigate to result screen
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -263,6 +352,34 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
           String userName = snapshot.data ?? 'User';
 
+          if (!_settingsLoaded || !_engineReady) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _initError != null ? 'Failed to load scanner' : 'Loading security engine...',
+                    style: const TextStyle(color: AppColors.secondaryText),
+                  ),
+                  if (_initError != null) ...[
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _retryInit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryPurple,
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }
+
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
             child: Column(
@@ -302,12 +419,17 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                           Icons.qr_code_scanner,
                           'Total Scans',
                           '${stats['totalScans'] ?? 0}',
+                          themeColor: AppColors.primaryPurple,
+                          iconColor: AppColors.primaryPurple,
+                          valueColor: AppColors.primaryText,
                         ),
                         const SizedBox(width: 12),
                         _buildStatCard(
                           Icons.shield,
                           'Safe Links',
                           '${stats['safeLinks'] ?? 0}',
+                          themeColor: AppColors.safe,
+                          iconColor: AppColors.safe,
                           valueColor: AppColors.safe,
                         ),
                         const SizedBox(width: 12),
@@ -315,6 +437,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                           Icons.warning_amber_rounded,
                           'Threats',
                           '${stats['threats'] ?? 0}',
+                          themeColor: AppColors.highRisk,
+                          iconColor: AppColors.highRisk,
                           valueColor: AppColors.highRisk,
                         ),
                       ],
@@ -322,199 +446,259 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   },
                 ),
                 const SizedBox(height: 18),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.link_rounded,
-                            size: 20,
-                            color: AppColors.primaryPurple,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Scan a Link',
-                            style: TextStyle(
-                              fontSize: isSmall ? 18 : 20,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primaryText,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Paste any URL to check if it\'s safe',
-                        style: TextStyle(
-                          fontSize: isSmall ? 12 : 14,
-                          color: AppColors.secondaryText,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _urlController,
-                              decoration: InputDecoration(
-                                hintText: 'example-link.com',
-                                hintStyle: const TextStyle(
-                                  color: AppColors.disabledText,
-                                ),
-                                filled: true,
-                                fillColor: AppColors.mainBackground,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
-                              ),
-                              style: const TextStyle(
-                                color: AppColors.primaryText,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          _buildScanButton(context),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                _buildScanCard(isSmall),
                 const SizedBox(height: 18),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.history_rounded,
-                            size: 18,
-                            color: AppColors.primaryPurple,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Recents',
-                            style: TextStyle(
-                              fontSize: isSmall ? 16 : 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primaryText,
-                            ),
-                          ),
-                          const Spacer(),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const HistoryScreen(),
-                                ),
-                              );
-                            },
-                            child: const Text(
-                              'View History →',
-                              style: TextStyle(
-                                color: AppColors.primaryPurple,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      StreamBuilder<QuerySnapshot>(
-                        stream: _scanHistoryService.getHistoryStream(),
-                        builder: (context, historySnapshot) {
-                          if (historySnapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 20),
-                              child: Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            );
-                          }
-
-                          final docs = historySnapshot.data?.docs ?? [];
-                          if (docs.isEmpty) {
-                            return _buildEmptyState();
-                          }
-
-                          return ListView.separated(
-                            padding: EdgeInsets.zero,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: docs.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final data =
-                                  docs[index].data() as Map<String, dynamic>;
-                              final statusText = (data['result'] ??
-                                      data['verdict'] ??
-                                      'Unknown')
-                                  .toString();
-                              final timestamp = data['scannedAt'];
-                              final formattedTime = timestamp is Timestamp
-                                  ? formatFirestoreTimestamp(timestamp)
-                                  : 'Just now';
-
-                              return _buildRecentItem(
-                                domain:
-                                    data['url']?.toString() ?? 'Unknown URL',
-                                time:
-                                    '${data['source']?.toString() ?? 'URL scan'} • $formattedTime',
-                                statusText: statusText,
-                                statusColor: _statusColor(statusText),
-                                leadingColor: _statusColor(statusText),
-                                statusIcon: _statusIcon(statusText),
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+                _buildRecentsCard(isSmall),
               ],
             ),
           );
         },
       ),
       bottomNavigationBar: _buildCustomBottomNav(context),
+    );
+  }
+
+  // ======================== STAT CARD WITH GLOW ========================
+  Widget _buildStatCard(
+    IconData icon,
+    String label,
+    String value, {
+    required Color themeColor,
+    required Color iconColor,
+    required Color valueColor,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [themeColor.withOpacity(0.1), AppColors.cardBackground],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: themeColor.withOpacity(0.3), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: themeColor.withOpacity(0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: iconColor, size: 26),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: valueColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.secondaryText,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ======================== SCAN CARD (ORIGINAL STYLE – NO GLOW) ========================
+  Widget _buildScanCard(bool isSmall) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(25),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.link_rounded,
+                size: 20,
+                color: AppColors.primaryPurple,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Scan a Link',
+                style: TextStyle(
+                  fontSize: isSmall ? 18 : 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryText,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Paste any URL to check if it\'s safe',
+            style: TextStyle(
+              fontSize: isSmall ? 12 : 14,
+              color: AppColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _urlController,
+                  decoration: InputDecoration(
+                    hintText: 'example-link.com',
+                    hintStyle: const TextStyle(
+                      color: AppColors.disabledText,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.mainBackground,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                  ),
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _buildScanButton(context),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ======================== RECENTS CARD ========================
+  Widget _buildRecentsCard(bool isSmall) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.history_rounded,
+                size: 18,
+                color: AppColors.primaryPurple,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Recents',
+                style: TextStyle(
+                  fontSize: isSmall ? 16 : 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryText,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ViewHistoryScreen(),
+                    ),
+                  );
+                },
+                child: const Text(
+                  'View History →',
+                  style: TextStyle(
+                    color: AppColors.primaryPurple,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          StreamBuilder<QuerySnapshot>(
+            stream: _scanHistoryService.getHistoryStream(),
+            builder: (context, historySnapshot) {
+              if (historySnapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              final docs = historySnapshot.data?.docs ?? [];
+              if (docs.isEmpty) {
+                return _buildEmptyState();
+              }
+
+              return ListView.separated(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final data = docs[index].data() as Map<String, dynamic>;
+                  final statusText = (data['result'] ?? data['verdict'] ?? 'Unknown')
+                      .toString();
+                  final timestamp = data['scannedAt'];
+                  final formattedTime = timestamp is Timestamp
+                      ? formatFirestoreTimestamp(timestamp)
+                      : 'Just now';
+
+                  return _buildRecentItem(
+                    domain: data['url']?.toString() ?? 'Unknown URL',
+                    time:
+                        '${data['source']?.toString() ?? 'URL scan'} • $formattedTime',
+                    statusText: statusText,
+                    statusColor: _statusColor(statusText),
+                    leadingColor: _statusColor(statusText),
+                    statusIcon: _statusIcon(statusText),
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -579,54 +763,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     }
   }
 
-  Widget _buildStatCard(
-    IconData icon,
-    String label,
-    String value, {
-    Color valueColor = AppColors.primaryText,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(20),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: AppColors.primaryPurple, size: 26),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: valueColor,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.secondaryText,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildScanButton(BuildContext context) {
+    final bool isDisabled = !_engineReady || _isScanning || _initError != null;
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -637,7 +775,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: ElevatedButton.icon(
-        onPressed: _isScanning
+        onPressed: isDisabled
             ? null
             : () {
                 final url = _urlController.text.trim();
@@ -697,6 +835,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       decoration: BoxDecoration(
         color: AppColors.mainBackground,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider.withOpacity(0.2), width: 0.5),
       ),
       child: Row(
         children: [
@@ -804,13 +943,9 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                     icon: Icons.analytics_outlined,
                     label: 'Analytics',
                     onTap: () {
-                      // ScaffoldMessenger.of(context).showSnackBar(
-                      //   const SnackBar(content: Text('Analytics coming soon')),
-                      // );
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          // builder: (context) => const ScanStatisticsScreen(), //admin
                           builder: (context) => const SecurityInsightsScreen(),
                         ),
                       );
@@ -819,13 +954,14 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                   _buildNavItem(
                     icon: Icons.settings_outlined,
                     label: 'Settings',
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const ScanSettingsScreen(),
                         ),
                       );
+                      await _loadUserSettings();
                     },
                   ),
                 ],
