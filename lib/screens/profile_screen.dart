@@ -51,6 +51,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final data = userDoc.data();
 
+      final settingsDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('scan_preferences')
+          .get();
+
+      final settingsData = settingsDoc.data();
+
       final firstName = data?['firstName']?.toString().trim() ?? '';
       final lastName = data?['lastName']?.toString().trim() ?? '';
       final fullName = '$firstName $lastName'.trim();
@@ -60,21 +69,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _fullName = fullName.isNotEmpty ? fullName : 'User';
         _email = user.email ?? '';
-        _isPremium = data?['isPremium'] ?? true;
+        _isPremium = settingsData?['isPremium'] ?? false;
         _isLoading = false;
       });
-    } catch (e) {
-      if (!mounted) return;
+        } catch (e) {
+          if (!mounted) return;
 
-      setState(() {
-        _fullName = 'User';
-        _email = user.email ?? '';
-        _isPremium = true;
-        _isLoading = false;
-      });
-    }
-  }
-
+          setState(() {
+            _fullName = 'User';
+            _email = user.email ?? '';
+            _isPremium = false;
+            _isLoading = false;
+          });
+        }
+      }
   Future<void> _signOut() async {
     try {
       await FirebaseAuth.instance.signOut();

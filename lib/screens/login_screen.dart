@@ -25,6 +25,27 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isHoveringGoogle = false;
   bool _obscurePassword = true;
 
+  Future<void> _loadRememberedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedEmail = prefs.getString('rememberedEmail');
+    final rememberMe = prefs.getBool('rememberMe') ?? false;
+
+    if (!mounted) return;
+
+    setState(() {
+      _rememberMe = rememberMe;
+      if (rememberMe && savedEmail != null) {
+        _emailController.text = savedEmail;
+      }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedEmail();
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -47,31 +68,34 @@ class _LoginScreenState extends State<LoginScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('isGuestMode');
 
+      if (_rememberMe) {
+        await prefs.setBool('rememberMe', true);
+        await prefs.setString('rememberedEmail', _emailController.text.trim());
+      } else {
+        await prefs.setBool('rememberMe', false);
+        await prefs.remove('rememberedEmail');
+      }
+
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Login successful'),
-          backgroundColor: AppColors.primaryPurple,
-        ),
-      );
-
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const RegisteredHomeScreen()),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Login failed: $e'),
-          backgroundColor: AppColors.highRisk,
+        MaterialPageRoute(
+          builder: (context) => const RegisteredHomeScreen(showLoginSuccess: true),
         ),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+        (route) => false,
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Login failed: $e'),
+            backgroundColor: AppColors.highRisk,
+          ),
+        );
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
     }
-  }
 
   Future<void> _handleGoogleLogin() async {
     setState(() => _isLoading = true);
