@@ -22,7 +22,12 @@ String formatFirestoreTimestamp(Timestamp timestamp) {
 }
 
 class RegisteredHomeScreen extends StatefulWidget {
-  const RegisteredHomeScreen({super.key});
+  final bool showLoginSuccess;
+
+  const RegisteredHomeScreen({
+    super.key,
+    this.showLoginSuccess = false,
+  });
 
   @override
   State<RegisteredHomeScreen> createState() => _RegisteredHomeScreenState();
@@ -46,7 +51,51 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     _initEngine();
     _loadUserSettings();
     _statsFuture = _getScanStats();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.showLoginSuccess) {
+        _showLoginSuccessBanner();
+      }
+    });
   }
+
+  void _showLoginSuccessBanner() {
+  final overlay = Overlay.of(context);
+  if (overlay == null) return;
+
+  late OverlayEntry entry;
+
+  entry = OverlayEntry(
+    builder: (context) => Positioned(
+      left: 0,
+      right: 0,
+      bottom: 74,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          height: 56,
+          color: Colors.green,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: const Text(
+            'Login successful',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  overlay.insert(entry);
+
+  Future.delayed(const Duration(seconds: 2), () {
+    entry.remove();
+  });
+}
 
   Future<void> _initEngine() async {
     try {
@@ -293,6 +342,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       extendBody: true,
       backgroundColor: AppColors.mainBackground,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
         toolbarHeight: 84,
