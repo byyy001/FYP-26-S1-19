@@ -112,7 +112,7 @@ class HybridEngine {
     final externalSourcesRaw = externalResult['sources'] as List? ?? [];
     final List<String> externalSourcesList = externalSourcesRaw.cast<String>();
     
-    if (staticThreats.isEmpty && externalScoreRaw >= 0.5) {  // lowered from 0.8
+    if (staticThreats.isEmpty && externalScoreRaw >= 0.5) {
       staticThreats.add({
         'type': 'external_flag',
         'severity': externalScoreRaw >= 0.8 ? 'high' : 'medium',
@@ -189,11 +189,20 @@ class HybridEngine {
     const double confidenceThreshold = 0.85;
     final lowConfidence = maxProb < confidenceThreshold;
     final adjustedClass = fusedClass;
-    final mlScore = maxProb;
+    double mlScore = maxProb;
     String threatType = _classNames[adjustedClass];
     String mlConfidence = (!mlUsed || lowConfidence)
         ? 'low'
         : (mlScore >= 0.9 ? 'high' : 'medium');
+
+    // ========== AMBIGUITY PENALTY ==========
+    // If the top two class probabilities are very close, reduce ML score by 30%
+    final sortedProbs = List<double>.from(ensembleProbs)..sort((a,b) => b.compareTo(a));
+    if (sortedProbs.length >= 2 && (sortedProbs[0] - sortedProbs[1]) < 0.2) {
+      mlScore *= 0.7;
+      mlConfidence = 'low'; // downgrade confidence
+    }
+    // =====================================
 
     // ---- Behavior & AI ----
     double behaviorScore = 0.0;
@@ -222,14 +231,31 @@ class HybridEngine {
       mlConfidence: mlConfidence,
     );
 
+    // ========== DOMAIN AGE ADJUSTMENT ==========
+    // If WHOIS age is available, adjust risk score
+    final whoisDetails = externalResult['details']?['whois'] as Map<String, dynamic>?;
+    if (whoisDetails != null && whoisDetails['age_days'] != null) {
+      final ageDays = whoisDetails['age_days'] as int;
+      if (ageDays < 7) {
+        // Very new domain: add 10% risk (cap at 100)
+        hybridScore = (hybridScore + 10).clamp(0, 100);
+      } else if (ageDays > 365) {
+        // Established domain: reduce risk by 5% (floor at 0)
+        hybridScore = (hybridScore - 5).clamp(0, 100);
+      }
+    }
+    // ==========================================
+
     if (adjustedClass == 2 && mlConfidence == 'high') {
       hybridScore = math.max(hybridScore, 80.0);
       if (mlScore > 0.98) hybridScore = math.min(100, hybridScore + 15);
     }
 
-    // External override (lowered threshold to 0.8)
+    // External override (continuous boost) – keep existing logic
     if (externalScore >= 0.8) {
-      hybridScore = math.max(hybridScore, 85.0);
+      double boost = (externalScore - 0.8) * 100;
+      hybridScore = hybridScore + boost;
+      hybridScore = hybridScore.clamp(0, 100);
       if (externalSourcesList.contains('VirusTotal') ||
           externalSourcesList.contains('OpenPhish') ||
           externalSourcesList.contains('IPQualityScore')) {
@@ -237,6 +263,17 @@ class HybridEngine {
       }
       mlConfidence = 'low';
     }
+
+    // ========== 50% CAP WHEN NO EXTERNAL EVIDENCE ==========
+    // If no external source flagged the URL, cap risk at 50% (Medium)
+    if (externalScore == 0.0 && hybridScore > 50.0) {
+      hybridScore = 50.0;
+      if (threatType != 'benign') {
+        threatType = 'suspicious';
+      }
+      mlConfidence = 'low';
+    }
+    // ======================================================
 
     // Improved safety override: only force benign if hybridScore < 25 AND externalScore < 0.5
     if (hybridScore < 25.0 && externalScore < 0.5) {
@@ -557,7 +594,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Dynamic actions and safety tips (improved with colored circle emojis)
+  // Dynamic actions and safety tips (unchanged)
   // --------------------------------------------------------------------------
   Map<String, dynamic> _getDynamicActionsAndTips({
     required String threatType,
@@ -571,7 +608,6 @@ class HybridEngine {
     List<String> actions = [];
     List<String> safetyTips = [];
 
-    // ---- Base actions and tips by threat type ----
     switch (threatType) {
       case 'benign':
         actions.add('Safe to use – no immediate threats detected');
@@ -622,14 +658,12 @@ class HybridEngine {
         safetyTips.add('• If unsure, manually verify the URL by typing it into a search engine to find the official site.');
     }
 
-    // ---- ML confidence based actions ----
     if (mlConfidence == 'high' && threatType != 'benign') {
       actions.add('High confidence threat – take immediate action');
     } else if (mlConfidence == 'medium' && threatType != 'benign') {
       actions.add('Moderate confidence – consider manual verification');
     }
 
-    // ---- External sources based tips ----
     if (externalScore >= 0.8) {
       actions.add('Verified by multiple threat intelligence sources');
       safetyTips.add('External security vendors have flagged this URL as dangerous.');
@@ -644,7 +678,6 @@ class HybridEngine {
       }
     }
 
-    // ---- Static threats specific tips ----
     for (final threat in staticThreats) {
       final desc = threat['description'] as String;
       if (desc.contains('shortening service')) {
@@ -669,7 +702,6 @@ class HybridEngine {
       }
     }
 
-    // ---- Behavior analysis tips ----
     if (behaviorPatterns.isNotEmpty) {
       if (behaviorPatterns.contains('eval() call') ||
           behaviorPatterns.contains('atob / btoa encoding') ||
@@ -687,7 +719,6 @@ class HybridEngine {
       }
     }
 
-    // ---- Risk level based final actions with colored circles ----
     if (riskScore >= 75) {
       actions.add('🔴 High risk – do not proceed under any circumstances');
     } else if (riskScore >= 50) {
@@ -698,7 +729,6 @@ class HybridEngine {
       actions.add('🟢 Safe – no significant threats detected');
     }
 
-    // Remove duplicates while preserving order
     actions = actions.toSet().toList();
     safetyTips = safetyTips.toSet().toList();
 

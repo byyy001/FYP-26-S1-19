@@ -192,7 +192,7 @@ class StaticRuleEngine {
   };
 
   // --------------------------------------------------------------------------
-  // OpenPhish static cache
+  // OpenPhish static cache (shared across all engine instances)
   // --------------------------------------------------------------------------
   static Set<String>? _openPhishCache;
   static DateTime? _openPhishLastUpdate;
@@ -210,7 +210,6 @@ class StaticRuleEngine {
   
   bool get isShortener => shorteners.any((s) => features.url.contains(s));
   
-  // NEW: Check if the domain itself is a known shortener (for whitelist override)
   bool get isShortenerDomain {
     final domain = features.domain;
     return shorteners.any((s) => domain.contains(s));
@@ -221,16 +220,13 @@ class StaticRuleEngine {
     final full = features.domain;
     if (full.isEmpty) return false;
 
-    // Shorteners should never be considered trusted, even if in whitelist
     if (isShortenerDomain) return false;
 
-    // Check dynamic whitelist (Cisco Umbrella)
     final dynamicManager = await DynamicWhitelistManager.getInstance();
     if (await dynamicManager.contains(full)) {
       return true;
     }
 
-    // Fallback to static whitelist
     if (staticTrustedDomains.contains(full)) return true;
     for (final trusted in staticTrustedDomains) {
       if (full.endsWith('.$trusted') || full == trusted) return true;
@@ -583,8 +579,6 @@ class StaticRuleEngine {
   // --------------------------------------------------------------------------
   Future<List<Map<String, dynamic>>> analyzeSync() async {
     final threats = <Map<String, dynamic>>[];
-    
-    // Skip only if domain is truly trusted (shorteners are excluded)
     if (await isTrustedDomain) return threats;
 
     if (features.isMalformed) {
@@ -607,31 +601,31 @@ class StaticRuleEngine {
 
     final keywords = findPhishingKeywords();
     if (keywords.isNotEmpty) {
+      final severity = keywords.length >= 3 ? 'high' : 'medium';
       threats.add({
         'type': 'phishing_keywords',
-        'severity': 'high',
+        'severity': severity,
         'description': "Contains phishing terms: ${keywords.take(3).join(', ')}.",
-        'score': 0.7,
+        'score': severity == 'high' ? 0.7 : 0.5,
       });
     }
 
     final patterns = findSuspiciousPatterns();
-    if (patterns.isNotEmpty) {
+    for (final pattern in patterns) {
       threats.add({
         'type': 'suspicious_pattern',
         'severity': 'medium',
-        'description': patterns.join(', '),
+        'description': pattern,
         'score': 0.6,
       });
     }
 
-    // Shortener threat – now guaranteed to be added because isTrustedDomain returns false for shorteners
     if (isShortener) {
       threats.add({
         'type': 'url_shortener',
-        'severity': 'low',
+        'severity': 'medium',
         'description': 'Link uses a URL shortening service.',
-        'score': 0.3,
+        'score': 0.5,
       });
     }
 
