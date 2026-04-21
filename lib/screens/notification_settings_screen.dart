@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
-import 'registered_home_screen.dart';
-import 'view_history_screen.dart';
-import 'profile_screen.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
@@ -146,49 +143,6 @@ class _NotificationSettingsScreenState
             ],
           ),
         ),
-      ),
-
-      // bottom nav
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: AppColors.cardBackground,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primaryPurple,
-        unselectedItemColor: AppColors.secondaryText,
-        currentIndex: 0,
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.history), label: 'History'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline), label: 'Profile'),
-        ],
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const RegisteredHomeScreen()),
-                (route) => false,
-              );
-              break;
-            case 1:
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const ViewHistoryScreen()),
-              );
-              break;
-            case 2:
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const ProfileScreen()),
-              );
-              break;
-          }
-        },
       ),
     );
   }

@@ -97,6 +97,44 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   });
 }
 
+void _showDeleteHistoryBanner() {
+  final overlay = Overlay.of(context);
+  if (overlay == null) return;
+
+  late OverlayEntry entry;
+
+  entry = OverlayEntry(
+    builder: (context) => Positioned(
+      left: 0,
+      right: 0,
+      bottom: 74,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          height: 56,
+          color: AppColors.primaryPurple,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: const Text(
+            'Scan history deleted successfully.',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  overlay.insert(entry);
+
+  Future.delayed(const Duration(seconds: 2), () {
+    entry.remove();
+  });
+}
+
   Future<void> _initEngine() async {
     try {
       _engine = await ThreatEngine.getInstance();
@@ -375,17 +413,27 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 18),
             child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                );
-              },
-              child: const CircleAvatar(
-                radius: 10,
-                backgroundColor: AppColors.primaryPurple,
-              ),
+            onTap: () async {
+              final deletedHistory = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
+
+              if (!mounted) return;
+
+              if (deletedHistory == true) {
+                setState(() {
+                  _statsFuture = _getScanStats();
+                });
+
+                _showDeleteHistoryBanner();
+              }
+            },
+            child: const CircleAvatar(
+              radius: 10,
+              backgroundColor: AppColors.primaryPurple,
             ),
+          ),
           ),
         ],
         bottom: PreferredSize(
