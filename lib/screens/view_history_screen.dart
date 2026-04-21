@@ -101,7 +101,7 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
               children: [
                 // Search field
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
                   child: TextField(
                     controller: _searchController,
                     onChanged: (value) =>
@@ -112,6 +112,8 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                         color: AppColors.disabledText,
                         fontSize: 13,
                       ),
+
+
                       filled: true,
                       fillColor: AppColors.cardBackground,
                       prefixIcon: const Icon(Icons.search_rounded,
@@ -137,13 +139,14 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                   ),
                 ),
                 // Filter chips
+                const SizedBox(height: 12),
                 SizedBox(
-                  height: 44,
+                  height: 36,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     itemCount: _filters.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    separatorBuilder: (_, __) => const SizedBox(width: 10),
                     itemBuilder: (context, index) {
                       final filter = _filters[index];
                       final isSelected = _selectedFilter == filter;
@@ -151,13 +154,13 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                         onTap: () => setState(() => _selectedFilter = filter),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? AppColors.primaryPurple
                                 : AppColors.cardBackground,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(18),
                             border: Border.all(
                               color: isSelected
                                   ? AppColors.primaryPurple
@@ -168,12 +171,9 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                           child: Text(
                             filter,
                             style: TextStyle(
-                              color: isSelected
-                                  ? Colors.white
-                                  : AppColors.secondaryText,
-                              fontSize: 13,
-                              fontWeight:
-                                  isSelected ? FontWeight.w700 : FontWeight.w500,
+                              color: isSelected ? Colors.white : AppColors.secondaryText,
+                              fontSize: 12.5,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                             ),
                           ),
                         ),
@@ -181,7 +181,7 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                     },
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 // History list
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
@@ -229,11 +229,12 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                       final grouped = _groupByDate(filteredDocs);
 
                       return ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                        padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
                         itemCount: grouped.length,
                         itemBuilder: (context, groupIndex) {
                           final dateLabel = grouped.keys.elementAt(groupIndex);
                           final docsInGroup = grouped[dateLabel]!;
+
 
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,

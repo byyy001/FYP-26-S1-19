@@ -117,6 +117,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _deleteScanHistory() async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please sign in first.'),
+        backgroundColor: AppColors.highRisk,
+      ),
+    );
+    return;
+  }
+
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: AppColors.cardBackground,
+      title: const Text(
+        'Delete Scan History',
+        style: TextStyle(color: AppColors.primaryText),
+      ),
+      content: const Text(
+        'Are you sure you want to delete all scan history?',
+        style: TextStyle(color: AppColors.secondaryText),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text(
+            'Delete',
+            style: TextStyle(color: AppColors.highRisk),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  if (confirm != true) return;
+
+  try {
+    final scansRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('scans');
+
+    final snapshot = await scansRef.get();
+
+    for (final doc in snapshot.docs) {
+      await doc.reference.delete();
+    }
+
+    if (!mounted) return;
+    Navigator.pop(context, true);
+
+  } catch (e) {   
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to delete scan history: $e'),
+        backgroundColor: AppColors.highRisk,
+      ),
+    );
+   }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -163,8 +233,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         _ProfileSettingTile(
                           label: 'Delete Scan History',
-                          onTap: () => _showComingSoon('Delete Scan History'),
+                          onTap: _deleteScanHistory,
                         ),
+
+                        
                         _ProfileSettingTile(
                           label: 'Delete Account',
                           isDestructive: true,
