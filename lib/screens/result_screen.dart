@@ -8,6 +8,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../constants/app_colors.dart';
 import '../threat_engine/scan_settings.dart';
+import '../threat_engine/layer5_facade/threat_engine.dart';
 
 enum ScanMode {
   defaultMode,
@@ -258,6 +259,97 @@ Explanation: ${widget.explanation}
       }
     }
   }
+  
+
+  // ======================== RESCAN ========================
+  Future<void> _rescanUrl() async {
+    if (widget.settings == null || widget.url.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to re-scan this URL'),
+          backgroundColor: AppColors.highRisk,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.7,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.75),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 3),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Re-scanning...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  widget.url,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  
+    try {
+      final engine = await ThreatEngine.getInstance();
+      final result = await engine.analyze(widget.url, settings: widget.settings!);
+
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ResultScreen.fromEngineResult(
+            engineResult: result['scan_result'],
+            settings: widget.settings!,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Re-scan failed: $e'),
+          backgroundColor: AppColors.highRisk,
+        ),
+      );
+    }
+  }
 
   // ======================== UI ========================
   @override
@@ -281,11 +373,7 @@ Explanation: ${widget.explanation}
             ? [
                 IconButton(
                   icon: const Icon(Icons.refresh, color: AppColors.primaryText),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Re-scan feature coming soon')),
-                    );
-                  },
+                  onPressed: _rescanUrl,
                   tooltip: 'Re-scan this URL',
                 ),
                 PopupMenuButton<String>(
@@ -404,7 +492,7 @@ Explanation: ${widget.explanation}
                           color: AppColors.primaryText,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
@@ -468,7 +556,7 @@ Explanation: ${widget.explanation}
                       ),
                     ],
                   ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -503,10 +591,10 @@ Explanation: ${widget.explanation}
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             Text(widget.explanation,
                 style: const TextStyle(color: AppColors.secondaryText, fontSize: 14)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             Center(
               child: Container(
                 width: 220,
@@ -598,7 +686,7 @@ Explanation: ${widget.explanation}
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
         ],
         Text('What this means',
             style: TextStyle(
@@ -607,7 +695,7 @@ Explanation: ${widget.explanation}
                 color: AppColors.primaryText)),
         const SizedBox(height: 10),
         _buildInfoCard(whatThisMeans),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         Text('What you should do',
             style: TextStyle(
                 fontSize: isSmall ? 17 : 19,
@@ -631,37 +719,52 @@ Explanation: ${widget.explanation}
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: const [
-                      Text('TECHNICAL BREAKDOWN (Premium)',
-                          style: TextStyle(
-                              color: AppColors.primaryPurple,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14)),
+                      Text(
+                        'TECHNICAL BREAKDOWN (Premium)',
+                        style: TextStyle(
+                          color: AppColors.primaryPurple,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
                       SizedBox(height: 12),
-                      Text('• External API Results (VirusTotal, Google Safe Browsing...)',
-                          style: TextStyle(color: AppColors.primaryText)),
-                      Text('• Static Rules Fired',
-                          style: TextStyle(color: AppColors.primaryText)),
-                      Text('• Machine Learning Probabilities',
-                          style: TextStyle(color: AppColors.primaryText)),
+                      Text(
+                        '• External API Results (VirusTotal, Google Safe Browsing...)',
+                        style: TextStyle(color: AppColors.primaryText),
+                      ),
+                      Text(
+                        '• Static Rules Fired',
+                        style: TextStyle(color: AppColors.primaryText),
+                      ),
+                      Text(
+                        '• Machine Learning Probabilities',
+                        style: TextStyle(color: AppColors.primaryText),
+                      ),
                     ],
                   ),
                 ),
               ),
-              Container(
-                color: Colors.black54,
-                child: Center(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Upgrade to see full report')),
-                      );
-                    },
-                    icon: const Icon(Icons.lock_open),
-                    label: const Text('Unlock Full Report'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryPurple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black54,
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Upgrade to see full report')),
+                        );
+                      },
+                      icon: const Icon(Icons.lock_outline),
+                      label: const Text('Unlock Full Report'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryPurple,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -714,7 +817,7 @@ Explanation: ${widget.explanation}
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionHeader('THREAT SUMMARY', Icons.summarize),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Container(
           width: double.infinity,
           decoration: _cardDecoration(),
@@ -727,7 +830,7 @@ Explanation: ${widget.explanation}
         ),
         const SizedBox(height: 24),
         _buildSectionHeader('DETECTED ISSUES', Icons.bug_report),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         widget.reasons.isNotEmpty
             ? Column(children: widget.reasons
                 .map((reason) => _buildListItem(reason, Icons.warning, AppColors.mediumRisk))
@@ -735,7 +838,7 @@ Explanation: ${widget.explanation}
             : _buildEmptyMessage('No specific threats detected'),
         const SizedBox(height: 24),
         _buildSectionHeader('RECOMMENDED ACTIONS', Icons.gavel),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         widget.recommendedActions.isNotEmpty
             ? Column(children: widget.recommendedActions
                 .map((action) => _buildListItem(action, Icons.check_circle, AppColors.safe))
@@ -744,7 +847,7 @@ Explanation: ${widget.explanation}
         const SizedBox(height: 24),
         if (_safetyTips.isNotEmpty) ...[
           _buildSectionHeader('SAFETY TIPS', Icons.lightbulb),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           ..._safetyTips.map((tip) => _buildListItem(tip, Icons.info, AppColors.primaryPurple)),
           const SizedBox(height: 24),
         ],
@@ -850,7 +953,7 @@ Explanation: ${widget.explanation}
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionHeader('THREAT SUMMARY', Icons.summarize),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Container(
           width: double.infinity,
           decoration: _cardDecoration(),
@@ -863,7 +966,7 @@ Explanation: ${widget.explanation}
         ),
         const SizedBox(height: 24),
         _buildSectionHeader('DETECTED ISSUES', Icons.bug_report),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         widget.reasons.isNotEmpty
             ? Column(children: widget.reasons
                 .map((reason) => _buildListItem(reason, Icons.warning, AppColors.mediumRisk))
@@ -871,7 +974,7 @@ Explanation: ${widget.explanation}
             : _buildEmptyMessage('No specific threats detected'),
         const SizedBox(height: 24),
         _buildSectionHeader('RECOMMENDED ACTIONS', Icons.gavel),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         widget.recommendedActions.isNotEmpty
             ? Column(children: widget.recommendedActions
                 .map((action) => _buildListItem(action, Icons.check_circle, AppColors.safe))
@@ -880,7 +983,7 @@ Explanation: ${widget.explanation}
         const SizedBox(height: 24),
         if (_safetyTips.isNotEmpty) ...[
           _buildSectionHeader('SAFETY TIPS', Icons.lightbulb),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           ..._safetyTips.map((tip) => _buildListItem(tip, Icons.info, AppColors.primaryPurple)),
           const SizedBox(height: 24),
         ],
@@ -888,7 +991,7 @@ Explanation: ${widget.explanation}
         if (isEngineResult) ...[
           const Divider(height: 32, thickness: 1, color: AppColors.divider),
           _buildSectionHeader('TECHNICAL BREAKDOWN', Icons.code),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
           _buildAnimatedExpandableSection(
             title: 'External API Results',
@@ -909,7 +1012,7 @@ Explanation: ${widget.explanation}
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
           _buildAnimatedExpandableSection(
             title: 'Static Rules Fired',
@@ -932,7 +1035,7 @@ Explanation: ${widget.explanation}
                       .toList(),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
           _buildAnimatedExpandableSection(
             title: 'Machine Learning Probabilities',
@@ -944,7 +1047,7 @@ Explanation: ${widget.explanation}
             },
             child: _buildMLProbabilitiesTable(engine),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
           _buildAnimatedExpandableSection(
             title: 'External Threat Intelligence (Raw)',
@@ -970,9 +1073,9 @@ Explanation: ${widget.explanation}
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
-          if (behaviorPatterns.isNotEmpty || behaviorCategories != null)
+          if (behaviorPatterns.isNotEmpty || behaviorCategories != null) ...[
             _buildAnimatedExpandableSection(
               title: 'Behavior Analysis',
               icon: Icons.insights,
@@ -990,7 +1093,7 @@ Explanation: ${widget.explanation}
                             color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 4),
                     ...behaviorPatterns.map((pattern) => _buildInfoLine(pattern, Icons.pattern)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                   ],
                   if (behaviorCategories != null) ...[
                     const Text('Categories:',
@@ -1011,9 +1114,10 @@ Explanation: ${widget.explanation}
                 ],
               ),
             ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 24),
+          ],
 
-          if (modelCount != null || staticScore != null || mlRawScore != null)
+          if (modelCount != null || staticScore != null || mlRawScore != null) ...[
             _buildAnimatedExpandableSection(
               title: 'Model Metrics',
               icon: Icons.memory,
@@ -1024,9 +1128,10 @@ Explanation: ${widget.explanation}
               },
               child: _buildMetricsTable(modelCount, staticScore, mlRawScore),
             ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 24),
+          ],
 
-          if (fusionWeights != null && fusionWeights.isNotEmpty)
+          if (fusionWeights != null && fusionWeights.isNotEmpty) ...[
             _buildAnimatedExpandableSection(
               title: 'Fusion Details',
               icon: Icons.merge_type,
@@ -1037,7 +1142,8 @@ Explanation: ${widget.explanation}
               },
               child: _buildFusionDetailsTable(fusionWeights),
             ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 24),
+          ],
         ],
 
         const SizedBox(height: 24),

@@ -20,7 +20,6 @@ import 'screens/admin/admin_system_settings_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/unregistered_home_screen.dart';
 import 'screens/registered_home_screen.dart';
-import 'screens/result_screen.dart';
 import 'screens/about_screen.dart';
 
 
