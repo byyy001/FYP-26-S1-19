@@ -41,7 +41,6 @@ class DynamicWhitelistManager {
     if (_instance == null) {
       _instance = DynamicWhitelistManager._();
       await _instance!._loadCache();
-      // Refresh in background if stale
       if (_instance!._isStale()) {
         _instance!._refreshInBackground();
       }
@@ -104,7 +103,6 @@ class DynamicWhitelistManager {
   }
 
   Future<void> _refreshInBackground() async {
-    // Run without awaiting (fire and forget)
     _refresh().catchError((e) => print('Background refresh failed: $e'));
   }
 
@@ -117,7 +115,6 @@ class DynamicWhitelistManager {
         return;
       }
 
-      // Unzip
       final archive = ZipDecoder().decodeBytes(response.bodyBytes);
       if (archive.isEmpty) {
         print('Zip file empty');
@@ -149,7 +146,6 @@ class DynamicWhitelistManager {
     }
   }
 
-  /// Public method to check if a domain is in the dynamic whitelist.
   Future<bool> contains(String domain) async {
     if (_whitelist == null) await _loadCache();
     return _whitelist?.contains(domain) ?? false;
@@ -157,7 +153,7 @@ class DynamicWhitelistManager {
 }
 
 // --------------------------------------------------------------------------
-// Static Rule Engine (unchanged except isTrustedDomain now uses dynamic whitelist)
+// Static Rule Engine
 // --------------------------------------------------------------------------
 class StaticRuleEngine {
   static const Set<String> suspiciousTlds = {
@@ -192,11 +188,11 @@ class StaticRuleEngine {
     'harvard.edu', 'stanford.edu', 'mit.edu', 'ox.ac.uk', 'cam.ac.uk',
     'bbc.com', 'cnn.com', 'nytimes.com', 'wsj.com', 'reuters.com',
     'aljazeera.com', 'theguardian.com', 'economist.com',
-    'youtube.com', // added
+    'youtube.com',
   };
 
   // --------------------------------------------------------------------------
-  // OpenPhish static cache (shared across all engine instances)
+  // OpenPhish static cache
   // --------------------------------------------------------------------------
   static Set<String>? _openPhishCache;
   static DateTime? _openPhishLastUpdate;
@@ -211,12 +207,22 @@ class StaticRuleEngine {
   // Core rule checks (synchronous)
   // --------------------------------------------------------------------------
   bool get isSuspiciousTld => suspiciousTlds.contains(features.tldSuffix);
+  
   bool get isShortener => shorteners.any((s) => features.url.contains(s));
+  
+  // NEW: Check if the domain itself is a known shortener (for whitelist override)
+  bool get isShortenerDomain {
+    final domain = features.domain;
+    return shorteners.any((s) => domain.contains(s));
+  }
 
-  // UPDATED: Check dynamic whitelist first, then static whitelist
+  // UPDATED: Trusted domain check – shorteners are NEVER trusted
   Future<bool> get isTrustedDomain async {
     final full = features.domain;
     if (full.isEmpty) return false;
+
+    // Shorteners should never be considered trusted, even if in whitelist
+    if (isShortenerDomain) return false;
 
     // Check dynamic whitelist (Cisco Umbrella)
     final dynamicManager = await DynamicWhitelistManager.getInstance();
@@ -244,7 +250,7 @@ class StaticRuleEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Heuristic anomaly detection (synchronous)
+  // Heuristic anomaly detection
   // --------------------------------------------------------------------------
   List<String> findSuspiciousPatterns() {
     final patterns = <String>[];
@@ -323,7 +329,6 @@ class StaticRuleEngine {
     };
   }
 
-  // OpenPhish
   static Future<void> _refreshOpenPhishFeed() async {
     try {
       final response = await http.get(Uri.parse('https://openphish.com/feed.txt'));
@@ -578,6 +583,8 @@ class StaticRuleEngine {
   // --------------------------------------------------------------------------
   Future<List<Map<String, dynamic>>> analyzeSync() async {
     final threats = <Map<String, dynamic>>[];
+    
+    // Skip only if domain is truly trusted (shorteners are excluded)
     if (await isTrustedDomain) return threats;
 
     if (features.isMalformed) {
@@ -618,6 +625,7 @@ class StaticRuleEngine {
       });
     }
 
+    // Shortener threat – now guaranteed to be added because isTrustedDomain returns false for shorteners
     if (isShortener) {
       threats.add({
         'type': 'url_shortener',
