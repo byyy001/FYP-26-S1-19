@@ -107,21 +107,19 @@ class HybridEngine {
       }
     }
     
-    // ========== FIX #1: Add generic external threat if staticThreats empty ==========
+    // Fallback: add generic external threat for moderate to high external scores
     final externalScoreRaw = (externalResult['score'] as double?) ?? 0.0;
-    // Convert sources to List<String> safely
     final externalSourcesRaw = externalResult['sources'] as List? ?? [];
     final List<String> externalSourcesList = externalSourcesRaw.cast<String>();
     
-    if (staticThreats.isEmpty && externalScoreRaw >= 0.8) {
+    if (staticThreats.isEmpty && externalScoreRaw >= 0.5) {  // lowered from 0.8
       staticThreats.add({
         'type': 'external_flag',
-        'severity': 'high',
+        'severity': externalScoreRaw >= 0.8 ? 'high' : 'medium',
         'description': 'Flagged by external threat intelligence: ${externalSourcesList.join(', ')} (score: ${(externalScoreRaw * 100).toStringAsFixed(0)}%)',
         'score': externalScoreRaw,
       });
     }
-    // =============================================================================
 
     final staticScore = _computeStaticScore(staticThreats);
 
@@ -229,8 +227,8 @@ class HybridEngine {
       if (mlScore > 0.98) hybridScore = math.min(100, hybridScore + 15);
     }
 
-    // External override (high confidence external sources)
-    if (externalScore >= 0.9) {
+    // External override (lowered threshold to 0.8)
+    if (externalScore >= 0.8) {
       hybridScore = math.max(hybridScore, 85.0);
       if (externalSourcesList.contains('VirusTotal') ||
           externalSourcesList.contains('OpenPhish') ||
@@ -240,8 +238,8 @@ class HybridEngine {
       mlConfidence = 'low';
     }
 
-    // Safety override only for very low risk
-    if (hybridScore < 25.0) {
+    // Improved safety override: only force benign if hybridScore < 25 AND externalScore < 0.5
+    if (hybridScore < 25.0 && externalScore < 0.5) {
       threatType = 'benign';
     }
 
@@ -264,7 +262,7 @@ class HybridEngine {
       staticThreats: staticThreats,
       behaviorPatterns: behaviorPatterns,
       riskScore: hybridScore,
-      externalSources: externalSourcesList, // now correctly typed as List<String>
+      externalSources: externalSourcesList,
     );
 
     Map<String, dynamic> result = {
@@ -438,7 +436,7 @@ class HybridEngine {
 
   Map<String, double> _getFusionWeights(ScanSettings s, String mlConf, double extScore) {
     double staticW = s.phishingSensitivity ? 0.35 : 0.25;
-    double mlW = mlConf == 'high' ? 0.3 : (mlConf == 'medium' ? 0.2 : 0.1); // was 0.0, now 0.1 for low
+    double mlW = mlConf == 'high' ? 0.3 : (mlConf == 'medium' ? 0.2 : 0.1);
     double behaviorW = s.deepScan ? 0.2 : 0.0;
     double aiW = s.deepScan ? 0.1 : 0.0;
     double extW = 0.0;
@@ -559,7 +557,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Dynamic actions and safety tips (updated with fixes)
+  // Dynamic actions and safety tips (improved with colored circle emojis)
   // --------------------------------------------------------------------------
   Map<String, dynamic> _getDynamicActionsAndTips({
     required String threatType,
@@ -573,120 +571,131 @@ class HybridEngine {
     List<String> actions = [];
     List<String> safetyTips = [];
 
+    // ---- Base actions and tips by threat type ----
     switch (threatType) {
       case 'benign':
-        actions.add('Safe to use');
-        safetyTips.add('Always keep your browser and antivirus updated.');
+        actions.add('Safe to use – no immediate threats detected');
+        safetyTips.add('• Keep your browser and antivirus updated.');
+        safetyTips.add('• Always double-check URLs before entering personal information.');
         break;
       case 'phishing':
         actions.addAll([
-          'Do NOT enter any password or credit card information',
+          'Do NOT enter any password, credit card, or personal information',
           'Close this page immediately',
           'Report this URL to Google Safe Browsing or OpenPhish',
         ]);
         safetyTips.addAll([
-          'Phishing sites steal login credentials and personal data.',
-          'Check the URL carefully – legitimate companies never ask for sensitive info via random links.',
-          'Enable two-factor authentication on important accounts.',
+          '• Phishing sites impersonate legitimate companies to steal your login credentials and financial data.',
+          '• Legitimate companies never ask for sensitive information via random links – always go directly to their official website.',
+          '• Enable two-factor authentication (2FA) on important accounts for extra security.',
         ]);
         break;
       case 'malware':
       case 'malicious':
         actions.addAll([
-          'Do NOT download any files',
-          'Do NOT run any scripts or allow notifications',
-          'Close this page and run a full antivirus scan',
+          'Do NOT download any files from this site',
+          'Do NOT run any scripts or allow browser notifications',
+          'Close this page and run a full antivirus / anti-malware scan on your device',
         ]);
         safetyTips.addAll([
-          'Malware can steal files, encrypt data, or use your device for attacks.',
-          'Keep your operating system and software up to date.',
-          'Use ad blockers and avoid clicking on pop-ups.',
+          '• Malware can steal your files, encrypt data (ransomware), or use your device for attacks.',
+          '• Keep your operating system and all software up to date to patch security vulnerabilities.',
+          '• Use an ad blocker and avoid clicking on pop-ups or "allow notifications" prompts.',
         ]);
         break;
       case 'defacement':
         actions.addAll([
-          'The website may have been hacked – avoid interacting',
-          'Do not click any links on this page',
+          'The website may have been hacked – avoid interacting with the page',
+          'Do not click any links or buttons on this site',
         ]);
         safetyTips.addAll([
-          'Defaced sites sometimes inject malicious redirects.',
-          'Wait for the site owner to restore the original content.',
+          '• Defaced websites often contain hidden malicious redirects or drive-by downloads.',
+          '• Wait for the site owner to restore the original content before visiting again.',
         ]);
         break;
       default:
         if (riskScore < 50) {
-          actions.add('Proceed with caution');
+          actions.add('Proceed with caution – low risk, but stay alert');
+        } else {
+          actions.add('Exercise caution – the link shows suspicious signs');
         }
-        safetyTips.add('If unsure, manually verify the URL or use a search engine to find the official site.');
+        safetyTips.add('• If unsure, manually verify the URL by typing it into a search engine to find the official site.');
     }
 
+    // ---- ML confidence based actions ----
     if (mlConfidence == 'high' && threatType != 'benign') {
       actions.add('High confidence threat – take immediate action');
     } else if (mlConfidence == 'medium' && threatType != 'benign') {
       actions.add('Moderate confidence – consider manual verification');
     }
 
+    // ---- External sources based tips ----
     if (externalScore >= 0.8) {
       actions.add('Verified by multiple threat intelligence sources');
-      safetyTips.add('External security vendors have flagged this URL.');
-      if (externalSources.contains('IPQualityScore')) {
-        safetyTips.add('IPQualityScore reports a high risk score for this URL.');
-      }
+      safetyTips.add('External security vendors have flagged this URL as dangerous.');
       if (externalSources.contains('VirusTotal')) {
-        safetyTips.add('VirusTotal has flagged this URL as malicious.');
+        safetyTips.add('• VirusTotal: multiple antivirus engines detected malware or phishing.');
       }
       if (externalSources.contains('OpenPhish')) {
-        safetyTips.add('OpenPhish has identified this URL in phishing feeds.');
+        safetyTips.add('• OpenPhish: this URL appears in a live phishing feed.');
+      }
+      if (externalSources.contains('IPQualityScore')) {
+        safetyTips.add('• IPQualityScore: the domain has a very high risk score.');
       }
     }
 
+    // ---- Static threats specific tips ----
     for (final threat in staticThreats) {
       final desc = threat['description'] as String;
       if (desc.contains('shortening service')) {
-        actions.add('Expand the URL before visiting (use a link expander)');
-        safetyTips.add('Shortened URLs hide the real destination – be extra cautious.');
+        actions.add('Expand the URL before visiting (use a link expander like CheckShortURL)');
+        safetyTips.add('• Shortened URLs hide the real destination – always check where they lead before clicking.');
       }
       if (desc.contains('phishing terms')) {
-        safetyTips.add('The URL contains words commonly used in phishing (e.g., "verify", "secure").');
+        safetyTips.add('• The URL contains words like "verify", "secure", or "account" – commonly used in phishing attacks.');
       }
       if (desc.contains('typosquatting')) {
-        actions.add('Double-check the domain name for misspellings');
-        safetyTips.add('Attackers register domains similar to popular brands to trick you.');
+        actions.add('Double-check the domain name for misspellings (e.g., "paypal" vs "paypa1")');
+        safetyTips.add('• Attackers register domains that look similar to popular brands to trick you.');
       }
       if (desc.contains('suspicious TLD')) {
-        safetyTips.add('Unusual top-level domains (e.g., .tk, .xyz) are often abused for scams.');
+        safetyTips.add('• Unusual top-level domains (e.g., .tk, .xyz, .top) are often abused for scams because they are cheap and anonymous.');
       }
       if (desc.contains('new domain') || desc.contains('registered less than')) {
-        safetyTips.add('Very new domains are often used for fraudulent activity.');
+        safetyTips.add('• Very new domains (less than 30 days old) are frequently used for fraudulent activity – be extra cautious.');
       }
       if (desc.contains('external threat intelligence')) {
-        safetyTips.add('External security services have flagged this URL as dangerous.');
+        safetyTips.add('• External security services have flagged this URL as dangerous – do not proceed.');
       }
     }
 
+    // ---- Behavior analysis tips ----
     if (behaviorPatterns.isNotEmpty) {
       if (behaviorPatterns.contains('eval() call') ||
           behaviorPatterns.contains('atob / btoa encoding') ||
           behaviorPatterns.contains('String.fromCharCode')) {
-        safetyTips.add('Obfuscated JavaScript detected – the page may hide malicious code.');
+        safetyTips.add('• Obfuscated JavaScript detected – the page may be hiding malicious code.');
       }
       if (behaviorPatterns.contains('window.location redirect') ||
           behaviorPatterns.contains('location.href/replace')) {
         actions.add('Check where the page redirects before proceeding');
-        safetyTips.add('Automatic redirects can lead to phishing or malware sites.');
+        safetyTips.add('• Automatic redirects can lead to phishing or malware sites – be cautious.');
       }
       if (behaviorPatterns.contains('javascript: URI')) {
         actions.add('Do not click any "javascript:" links');
-        safetyTips.add('These can execute arbitrary code in your browser.');
+        safetyTips.add('• These can execute arbitrary code in your browser.');
       }
     }
 
+    // ---- Risk level based final actions with colored circles ----
     if (riskScore >= 75) {
-      actions.add('High risk – do not proceed');
+      actions.add('🔴 High risk – do not proceed under any circumstances');
     } else if (riskScore >= 50) {
-      actions.add('Medium risk – avoid entering personal information');
+      actions.add('🟠 Medium risk – avoid entering personal information');
     } else if (riskScore >= 25) {
-      actions.add('Low risk – proceed with caution');
+      actions.add('🟡 Low risk – proceed with caution, but avoid sensitive actions');
+    } else {
+      actions.add('🟢 Safe – no significant threats detected');
     }
 
     // Remove duplicates while preserving order
