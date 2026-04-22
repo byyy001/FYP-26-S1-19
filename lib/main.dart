@@ -44,8 +44,6 @@ class MyApp extends StatelessWidget {
       ),
 
       home: const SplashScreen(),
-      //home: EngineerDashboardScreen(),
-      //home: AdminDashboardScreen(),
     );
   }
 }

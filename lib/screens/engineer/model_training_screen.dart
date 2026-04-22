@@ -1,8 +1,213 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../../constants/app_colors.dart';
 
-class ModelTrainingScreen extends StatelessWidget {
+class ModelTrainingScreen extends StatefulWidget {
   const ModelTrainingScreen({super.key});
+
+  @override
+  State<ModelTrainingScreen> createState() => _ModelTrainingScreenState();
+}
+
+class _ModelTrainingScreenState extends State<ModelTrainingScreen> {
+  bool _isUploading = false;
+  bool _isStartingTraining = false;
+
+  String _currentStatus = 'Idle';
+  String _latestLog =
+      'Waiting for engineer to upload dataset and start training.';
+  double _progressValue = 0.0;
+
+  String _baseDatasetName = 'final_dataset_with_all_features_v3.1.csv';
+  String _uploadedFileName = 'No file selected';
+  String _fileFormat = 'CSV';
+  String _detectedRows = '-';
+  String _detectedColumns = '-';
+  String _schemaStatus = 'Not Ready';
+
+  String _lastRun = '-';
+  String _latestJobId = '-';
+
+  Future<void> _pickAndUploadCsv() async {
+    try {
+      setState(() {
+        _isUploading = true;
+        _currentStatus = 'Uploading';
+        _latestLog = 'Opening file picker...';
+        _progressValue = 0.1;
+      });
+
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) {
+        setState(() {
+          _isUploading = false;
+          _currentStatus = 'Idle';
+          _latestLog = 'File selection cancelled.';
+          _progressValue = 0.0;
+        });
+        return;
+      }
+
+      final PlatformFile pickedFile = result.files.first;
+      final Uint8List? fileBytes = pickedFile.bytes;
+
+      if (fileBytes == null) {
+        setState(() {
+          _isUploading = false;
+          _currentStatus = 'Upload Failed';
+          _latestLog = 'Could not read file bytes. Please try again.';
+          _progressValue = 0.0;
+        });
+        return;
+      }
+
+      final String fileName = pickedFile.name;
+      final int fileSize = pickedFile.size;
+      final String datasetId =
+          'dataset_${DateTime.now().millisecondsSinceEpoch}';
+      final String storagePath = 'datasets/raw/$datasetId-$fileName';
+
+      setState(() {
+        _uploadedFileName = fileName;
+        _fileFormat = 'CSV';
+        _detectedRows = 'Pending';
+        _detectedColumns = 'Pending';
+        _schemaStatus = 'Uploading...';
+        _latestLog = 'Uploading $fileName to Firebase Storage...';
+        _progressValue = 0.35;
+      });
+
+      final Reference storageRef = FirebaseStorage.instance.ref().child(
+        storagePath,
+      );
+
+      final SettableMetadata metadata = SettableMetadata(
+        contentType: 'text/csv',
+      );
+
+      await storageRef.putData(fileBytes, metadata);
+
+      setState(() {
+        _latestLog = 'Upload complete. Saving dataset metadata to Firestore...';
+        _progressValue = 0.75;
+      });
+
+      await FirebaseFirestore.instance
+          .collection('datasets')
+          .doc(datasetId)
+          .set({
+            'name': fileName,
+            'type': 'raw',
+            'storagePath': storagePath,
+            'status': 'uploaded',
+            'uploadedAt': Timestamp.now(),
+            'sizeBytes': fileSize,
+            'baseDataset': _baseDatasetName,
+            'labelColumn': 'label',
+            'featureCount': 59,
+          });
+
+      setState(() {
+        _isUploading = false;
+        _currentStatus = 'Ready';
+        _latestLog = 'Dataset uploaded successfully and metadata saved.';
+        _progressValue = 1.0;
+        _schemaStatus = 'Ready';
+        _detectedRows = 'To validate';
+        _detectedColumns = '59';
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('CSV uploaded successfully.')),
+      );
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+        _currentStatus = 'Upload Failed';
+        _latestLog = 'Upload error: $e';
+        _progressValue = 0.0;
+        _schemaStatus = 'Failed';
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+    }
+  }
+
+  Future<void> _startTrainingJob() async {
+    if (_uploadedFileName == 'No file selected') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please upload a CSV dataset first.')),
+      );
+      return;
+    }
+
+    try {
+      setState(() {
+        _isStartingTraining = true;
+        _currentStatus = 'Queued';
+        _latestLog = 'Creating training job record...';
+        _progressValue = 0.15;
+      });
+
+      final String jobId = 'train_${DateTime.now().millisecondsSinceEpoch}';
+
+      await FirebaseFirestore.instance
+          .collection('training_jobs')
+          .doc(jobId)
+          .set({
+            'jobId': jobId,
+            'status': 'queued',
+            'createdAt': Timestamp.now(),
+            'createdBy': 'engineer',
+            'modelType': 'logistic_regression',
+            'mergeMode': 'base_plus_uploaded',
+            'featureSet': 'full_features',
+            'exportFormat': 'json_mobile_threat_engine',
+            'baseDataset': _baseDatasetName,
+            'uploadedFileName': _uploadedFileName,
+          });
+
+      setState(() {
+        _isStartingTraining = false;
+        _currentStatus = 'Queued';
+        _latestLog = 'Training job created. Backend trigger not connected yet.';
+        _progressValue = 0.25;
+        _latestJobId = jobId;
+        _lastRun = DateTime.now().toString();
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Training job created in Firestore.')),
+      );
+    } catch (e) {
+      setState(() {
+        _isStartingTraining = false;
+        _currentStatus = 'Create Job Failed';
+        _latestLog = 'Failed to create training job: $e';
+        _progressValue = 0.0;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to create training job: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,28 +224,62 @@ class ModelTrainingScreen extends StatelessWidget {
                   final bool isWide = constraints.maxWidth > 1050;
 
                   if (isWide) {
-                    return const Row(
+                    return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 7, child: _DatasetSourcePanel()),
-                        SizedBox(width: 16),
-                        Expanded(flex: 5, child: _TrainingStatusPanel()),
+                        Expanded(
+                          flex: 7,
+                          child: _DatasetSourcePanel(
+                            baseDatasetName: _baseDatasetName,
+                            uploadedFileName: _uploadedFileName,
+                            fileFormat: _fileFormat,
+                            detectedRows: _detectedRows,
+                            detectedColumns: _detectedColumns,
+                            schemaStatus: _schemaStatus,
+                            isUploading: _isUploading,
+                            onChooseFile: _pickAndUploadCsv,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          flex: 5,
+                          child: _TrainingStatusPanel(
+                            currentStatus: _currentStatus,
+                            lastRun: _lastRun,
+                            latestJobId: _latestJobId,
+                            progressValue: _progressValue,
+                            latestLog: _latestLog,
+                          ),
+                        ),
                       ],
                     );
                   }
 
-                  return const Column(
+                  return Column(
                     children: [
-                      _DatasetSourcePanel(),
-                      SizedBox(height: 16),
-                      _TrainingStatusPanel(),
+                      _DatasetSourcePanel(
+                        baseDatasetName: _baseDatasetName,
+                        uploadedFileName: _uploadedFileName,
+                        fileFormat: _fileFormat,
+                        detectedRows: _detectedRows,
+                        detectedColumns: _detectedColumns,
+                        schemaStatus: _schemaStatus,
+                        isUploading: _isUploading,
+                        onChooseFile: _pickAndUploadCsv,
+                      ),
+                      const SizedBox(height: 16),
+                      _TrainingStatusPanel(
+                        currentStatus: _currentStatus,
+                        lastRun: _lastRun,
+                        latestJobId: _latestJobId,
+                        progressValue: _progressValue,
+                        latestLog: _latestLog,
+                      ),
                     ],
                   );
                 },
               ),
-
               const SizedBox(height: 18),
-
               LayoutBuilder(
                 builder: (context, constraints) {
                   final bool isWide = constraints.maxWidth > 1050;
@@ -65,9 +304,12 @@ class ModelTrainingScreen extends StatelessWidget {
                   );
                 },
               ),
-
               const SizedBox(height: 18),
-
+              _TrainingConfigActions(
+                isStartingTraining: _isStartingTraining,
+                onStartTraining: _startTrainingJob,
+              ),
+              const SizedBox(height: 18),
               const _LatestModelResultsPanel(),
             ],
           ),
@@ -78,7 +320,25 @@ class ModelTrainingScreen extends StatelessWidget {
 }
 
 class _DatasetSourcePanel extends StatelessWidget {
-  const _DatasetSourcePanel();
+  final String baseDatasetName;
+  final String uploadedFileName;
+  final String fileFormat;
+  final String detectedRows;
+  final String detectedColumns;
+  final String schemaStatus;
+  final bool isUploading;
+  final Future<void> Function() onChooseFile;
+
+  const _DatasetSourcePanel({
+    required this.baseDatasetName,
+    required this.uploadedFileName,
+    required this.fileFormat,
+    required this.detectedRows,
+    required this.detectedColumns,
+    required this.schemaStatus,
+    required this.isUploading,
+    required this.onChooseFile,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +360,6 @@ class _DatasetSourcePanel extends StatelessWidget {
             style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
           ),
           const SizedBox(height: 16),
-
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(18),
@@ -139,7 +398,7 @@ class _DatasetSourcePanel extends StatelessWidget {
                 SizedBox(
                   height: 44,
                   child: ElevatedButton.icon(
-                    onPressed: () {},
+                    onPressed: isUploading ? null : onChooseFile,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryPurple,
                       foregroundColor: Colors.white,
@@ -147,40 +406,43 @@ class _DatasetSourcePanel extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    icon: const Icon(Icons.file_upload_outlined, size: 18),
-                    label: const Text(
-                      'Choose CSV File',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                    icon: Icon(
+                      isUploading
+                          ? Icons.hourglass_top
+                          : Icons.file_upload_outlined,
+                      size: 18,
+                    ),
+                    label: Text(
+                      isUploading ? 'Uploading...' : 'Choose CSV File',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-
           const SizedBox(height: 16),
-
           Container(
             decoration: BoxDecoration(
               color: AppColors.mainBackground,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Column(
+            child: Column(
               children: [
-                _InfoRow(label: 'Base Dataset', value: 'dataset.csv'),
-                _DividerLine(),
-                _InfoRow(label: 'Uploaded File', value: 'new_scan_data.csv'),
-                _DividerLine(),
-                _InfoRow(label: 'File Format', value: 'CSV'),
-                _DividerLine(),
-                _InfoRow(label: 'Detected Rows', value: '4,820'),
-                _DividerLine(),
-                _InfoRow(label: 'Detected Columns', value: '59'),
-                _DividerLine(),
+                _InfoRow(label: 'Base Dataset', value: baseDatasetName),
+                const _DividerLine(),
+                _InfoRow(label: 'Uploaded File', value: uploadedFileName),
+                const _DividerLine(),
+                _InfoRow(label: 'File Format', value: fileFormat),
+                const _DividerLine(),
+                _InfoRow(label: 'Detected Rows', value: detectedRows),
+                const _DividerLine(),
+                _InfoRow(label: 'Detected Columns', value: detectedColumns),
+                const _DividerLine(),
                 _InfoRow(
                   label: 'Schema Status',
-                  value: 'Ready',
-                  highlight: true,
+                  value: schemaStatus,
+                  highlight: schemaStatus == 'Ready',
                 ),
               ],
             ),
@@ -192,7 +454,19 @@ class _DatasetSourcePanel extends StatelessWidget {
 }
 
 class _TrainingStatusPanel extends StatelessWidget {
-  const _TrainingStatusPanel();
+  final String currentStatus;
+  final String lastRun;
+  final String latestJobId;
+  final double progressValue;
+  final String latestLog;
+
+  const _TrainingStatusPanel({
+    required this.currentStatus,
+    required this.lastRun,
+    required this.latestJobId,
+    required this.progressValue,
+    required this.latestLog,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -214,7 +488,6 @@ class _TrainingStatusPanel extends StatelessWidget {
             style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
           ),
           const SizedBox(height: 16),
-
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -222,20 +495,18 @@ class _TrainingStatusPanel extends StatelessWidget {
               color: AppColors.mainBackground,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _InfoRow(label: 'Current Status', value: 'Idle'),
-                SizedBox(height: 10),
-                _InfoRow(label: 'Last Run', value: '12 Feb 2026, 08:45 PM'),
-                SizedBox(height: 10),
-                _InfoRow(label: 'Latest Job ID', value: 'train_20260212_01'),
+                _InfoRow(label: 'Current Status', value: currentStatus),
+                const SizedBox(height: 10),
+                _InfoRow(label: 'Last Run', value: lastRun),
+                const SizedBox(height: 10),
+                _InfoRow(label: 'Latest Job ID', value: latestJobId),
               ],
             ),
           ),
-
           const SizedBox(height: 16),
-
           const Text(
             'Progress',
             style: TextStyle(
@@ -244,21 +515,18 @@ class _TrainingStatusPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
-              value: 0.0,
+              value: progressValue,
               minHeight: 10,
               backgroundColor: Colors.white10,
-              valueColor: AlwaysStoppedAnimation<Color>(
+              valueColor: const AlwaysStoppedAnimation<Color>(
                 AppColors.primaryPurple,
               ),
             ),
           ),
-
           const SizedBox(height: 18),
-
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -269,20 +537,20 @@ class _TrainingStatusPanel extends StatelessWidget {
                 color: AppColors.primaryPurple.withOpacity(0.20),
               ),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Latest Log',
                   style: TextStyle(
                     color: AppColors.primaryText,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
-                  'Waiting for engineer to upload dataset and start training.',
-                  style: TextStyle(
+                  latestLog,
+                  style: const TextStyle(
                     color: AppColors.secondaryText,
                     fontSize: 12,
                   ),
@@ -319,7 +587,6 @@ class _DatasetPreviewPanel extends StatelessWidget {
             style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
           ),
           const SizedBox(height: 16),
-
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Container(
@@ -382,9 +649,7 @@ class _DatasetPreviewPanel extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 16),
-
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
@@ -426,31 +691,22 @@ class _TrainingConfigPanel extends StatelessWidget {
             style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
           ),
           const SizedBox(height: 16),
-
           const _FieldLabel('Selected Model'),
           const SizedBox(height: 8),
           const _FakeSelectField(value: 'Logistic Regression'),
-
           const SizedBox(height: 14),
-
           const _FieldLabel('Dataset Merge Mode'),
           const SizedBox(height: 8),
           const _FakeSelectField(value: 'Base Dataset + Uploaded Data'),
-
           const SizedBox(height: 14),
-
           const _FieldLabel('Feature Set'),
           const SizedBox(height: 8),
           const _FakeSelectField(value: 'Full Features'),
-
           const SizedBox(height: 14),
-
           const _FieldLabel('Export Format'),
           const SizedBox(height: 8),
           const _FakeSelectField(value: 'JSON for Mobile Threat Engine'),
-
           const SizedBox(height: 14),
-
           const _FieldLabel('Training Notes'),
           const SizedBox(height: 8),
           TextField(
@@ -479,29 +735,42 @@ class _TrainingConfigPanel extends StatelessWidget {
               ),
             ),
           ),
-
-          const SizedBox(height: 16),
-
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: ElevatedButton.icon(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryPurple,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text(
-                'Start Training',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
         ],
+      ),
+    );
+  }
+}
+
+class _TrainingConfigActions extends StatelessWidget {
+  final bool isStartingTraining;
+  final Future<void> Function() onStartTraining;
+
+  const _TrainingConfigActions({
+    required this.isStartingTraining,
+    required this.onStartTraining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 46,
+      child: ElevatedButton.icon(
+        onPressed: isStartingTraining ? null : onStartTraining,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryPurple,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        icon: Icon(
+          isStartingTraining ? Icons.hourglass_top : Icons.play_arrow_rounded,
+        ),
+        label: Text(
+          isStartingTraining ? 'Creating Job...' : 'Start Training',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
       ),
     );
   }
@@ -530,7 +799,6 @@ class _LatestModelResultsPanel extends StatelessWidget {
             style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
           ),
           const SizedBox(height: 16),
-
           LayoutBuilder(
             builder: (context, constraints) {
               final bool isWide = constraints.maxWidth > 900;
@@ -603,9 +871,7 @@ class _LatestModelResultsPanel extends StatelessWidget {
               );
             },
           ),
-
           const SizedBox(height: 18),
-
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -624,9 +890,7 @@ class _LatestModelResultsPanel extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(height: 16),
-
           Row(
             children: [
               Expanded(
