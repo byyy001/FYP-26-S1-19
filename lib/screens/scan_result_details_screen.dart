@@ -96,7 +96,6 @@ class ScanResultDetailsScreen extends StatefulWidget {
 class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
   bool _isRescanning = false;
 
-  // Get verdict from risk score (same as result screen)
   String _getVerdict(double score) {
     if (score >= 76) return 'Malicious';
     if (score >= 51) return 'Suspicious';
@@ -131,10 +130,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'Scan Details',
-          style: TextStyle(color: AppColors.primaryText),
-        ),
+        title: const Text('Scan Details', style: TextStyle(color: AppColors.primaryText)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
           onPressed: () => Navigator.pop(context),
@@ -177,9 +173,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                             backgroundColor: AppColors.highRisk,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           child: const Text('Delete from History'),
                         ),
@@ -188,11 +182,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppColors.primaryPurple, Color(0xFFA855F7)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
+                            gradient: const LinearGradient(colors: [AppColors.primaryPurple, Color(0xFFA855F7)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: ElevatedButton(
@@ -202,9 +192,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                               shadowColor: Colors.transparent,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             child: const Text('Rescan URL'),
                           ),
@@ -225,20 +213,10 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [riskColor.withOpacity(0.15), AppColors.cardBackground],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: LinearGradient(colors: [riskColor.withOpacity(0.15), AppColors.cardBackground], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: riskColor.withOpacity(0.3), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: riskColor.withOpacity(0.2),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: riskColor.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 6))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,44 +229,19 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      verdict,
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryText,
-                      ),
-                    ),
+                    Text(verdict, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.primaryText)),
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: riskColor,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
+                        Container(width: 12, height: 12, decoration: BoxDecoration(color: riskColor, shape: BoxShape.circle)),
                         const SizedBox(width: 8),
-                        Text(
-                          riskLevel,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: riskColor,
-                          ),
-                        ),
+                        Text(riskLevel, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: riskColor)),
                       ],
                     ),
                   ],
                 ),
               ),
-              SizedBox(
-                width: 100,
-                height: 100,
-                child: _RiskGauge(score: scan.riskScore / 100, color: riskColor),
-              ),
+              SizedBox(width: 100, height: 100, child: _RiskGauge(score: scan.riskScore / 100, color: riskColor)),
             ],
           ),
           const SizedBox(height: 24),
@@ -299,14 +252,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.divider.withOpacity(0.2)),
             ),
-            child: Text(
-              scan.explanation,
-              style: const TextStyle(
-                color: AppColors.secondaryText,
-                fontSize: 14,
-                height: 1.5,
-              ),
-            ),
+            child: Text(scan.explanation, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14, height: 1.5)),
           ),
           const SizedBox(height: 24),
           Row(
@@ -314,21 +260,8 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.mainBackground,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.divider),
-                  ),
-                  child: Text(
-                    scan.url,
-                    style: const TextStyle(
-                      color: AppColors.primaryText,
-                      fontSize: 13,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                  ),
+                  decoration: BoxDecoration(color: AppColors.mainBackground, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.divider)),
+                  child: Text(scan.url, style: const TextStyle(color: AppColors.primaryText, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
                 ),
               ),
               const SizedBox(width: 8),
@@ -336,40 +269,34 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                 icon: const Icon(Icons.copy, size: 20, color: AppColors.primaryPurple),
                 onPressed: () async {
                   await Clipboard.setData(ClipboardData(text: scan.url));
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('URL copied'), backgroundColor: AppColors.safe),
-                    );
-                  }
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('URL copied'), backgroundColor: AppColors.safe));
                 },
                 tooltip: 'Copy URL',
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'Scanned at ${scan.scanDate}',
-              style: const TextStyle(color: AppColors.disabledText, fontSize: 11),
-            ),
-          ),
+          Align(alignment: Alignment.centerRight, child: Text('Scanned at ${scan.scanDate}', style: const TextStyle(color: AppColors.disabledText, fontSize: 11))),
         ],
       ),
     );
   }
 
-  // ================= THREAT SUMMARY CARD =================
+  // ================= THREAT SUMMARY CARD (with proper formatting) =================
   Widget _buildThreatSummaryCard(ScanResult scan) {
+    String _formatScore(double value) {
+      if (value == 0.0) return '—';
+      return value.toStringAsFixed(value < 1 ? 4 : 2);
+    }
+
     final rows = [
       {'label': 'Threat Type', 'value': scan.threatType},
       {'label': 'ML Confidence', 'value': scan.mlConfidence},
-      {'label': 'ML Score', 'value': scan.mlScore.toStringAsFixed(4)},
-      {'label': 'AI Score', 'value': scan.aiScore.toStringAsFixed(2)},
-      {'label': 'Behavior Score', 'value': scan.behaviorScore.toStringAsFixed(2)},
-      {'label': 'External Score', 'value': scan.externalScore.toStringAsFixed(2)},
-      {'label': 'External Sources',
-          'value': scan.externalSources.isNotEmpty ? scan.externalSources.join(', ') : 'None'},
+      {'label': 'ML Score', 'value': _formatScore(scan.mlScore)},
+      {'label': 'AI Score', 'value': _formatScore(scan.aiScore)},
+      {'label': 'Behavior Score', 'value': _formatScore(scan.behaviorScore)},
+      {'label': 'External Score', 'value': _formatScore(scan.externalScore)},
+      {'label': 'External Sources', 'value': scan.externalSources.isNotEmpty ? scan.externalSources.join(', ') : 'None'},
     ];
 
     return Card(
@@ -381,43 +308,15 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.summarize, color: AppColors.primaryPurple, size: 20),
-                const SizedBox(width: 8),
-                const Text(
-                  'Threat Summary',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.primaryText),
-                ),
-              ],
-            ),
+            Row(children: [Icon(Icons.summarize, color: AppColors.primaryPurple, size: 20), const SizedBox(width: 8), const Text('Threat Summary', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.primaryText))]),
             const SizedBox(height: 16),
             ...rows.map((row) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    width: 120,
-                    child: Text(
-                      row['label']!,
-                      style: const TextStyle(
-                        color: AppColors.secondaryText,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      row['value']!,
-                      style: const TextStyle(
-                        color: AppColors.primaryText,
-                        fontSize: 13,
-                      ),
-                      softWrap: true,
-                    ),
-                  ),
+                  SizedBox(width: 120, child: Text(row['label']!, style: const TextStyle(color: AppColors.secondaryText, fontSize: 13, fontWeight: FontWeight.w500))),
+                  Expanded(child: Text(row['value']!, style: const TextStyle(color: AppColors.primaryText, fontSize: 13), softWrap: true)),
                 ],
               ),
             )),
@@ -429,37 +328,24 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
 
   // ================= DETECTED ISSUES (chips) =================
   Widget _buildDetectedIssues(ScanResult scan) {
-    if (scan.detectedThreats.isEmpty) {
-      return _buildEmptyMessage('No specific threats detected.');
-    }
+    if (scan.detectedThreats.isEmpty) return _buildEmptyMessage('No specific threats detected.');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionHeader('DETECTED ISSUES', Icons.bug_report),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: scan.detectedThreats.map((issue) => _buildIssueChip(issue)).toList(),
-        ),
+        Wrap(spacing: 10, runSpacing: 10, children: scan.detectedThreats.map((issue) => _buildIssueChip(issue)).toList()),
       ],
     );
   }
 
   // ================= RECOMMENDED ACTIONS =================
   Widget _buildRecommendedActions(ScanResult scan) {
-    List<String> actions = scan.recommendedActions.isNotEmpty
-        ? scan.recommendedActions
-        : _generateDefaultActions(scan.threatType, scan.riskScore);
-
-    // Move risk-level action to top
+    List<String> actions = scan.recommendedActions.isNotEmpty ? scan.recommendedActions : _generateDefaultActions(scan.threatType, scan.riskScore);
     int riskIndex = -1;
     for (int i = 0; i < actions.length; i++) {
       final lower = actions[i].toLowerCase();
-      if (lower.contains('high risk') ||
-          lower.contains('medium risk') ||
-          lower.contains('low risk') ||
-          lower.contains('safe')) {
+      if (lower.contains('high risk') || lower.contains('medium risk') || lower.contains('low risk') || lower.contains('safe')) {
         riskIndex = i;
         break;
       }
@@ -468,7 +354,6 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
       final riskAction = actions.removeAt(riskIndex);
       actions.insert(0, riskAction);
     }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -485,11 +370,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
               children: actions.asMap().entries.map((entry) {
                 final index = entry.key;
                 final action = entry.value;
-                final bool isRiskAction = index == 0 &&
-                    (action.toLowerCase().contains('high risk') ||
-                        action.toLowerCase().contains('medium risk') ||
-                        action.toLowerCase().contains('low risk') ||
-                        action.toLowerCase().contains('safe'));
+                final bool isRiskAction = index == 0 && (action.toLowerCase().contains('high risk') || action.toLowerCase().contains('medium risk') || action.toLowerCase().contains('low risk') || action.toLowerCase().contains('safe'));
                 IconData icon;
                 Color iconColor;
                 if (isRiskAction) {
@@ -514,16 +395,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(icon, color: iconColor, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          action,
-                          style: const TextStyle(color: AppColors.primaryText, fontSize: 14),
-                        ),
-                      ),
-                    ],
+                    children: [Icon(icon, color: iconColor, size: 18), const SizedBox(width: 8), Expanded(child: Text(action, style: const TextStyle(color: AppColors.primaryText, fontSize: 14)))],
                   ),
                 );
               }).toList(),
@@ -553,16 +425,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.lightbulb_outline, color: AppColors.primaryPurple, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        tip,
-                        style: const TextStyle(color: AppColors.primaryText, fontSize: 14),
-                      ),
-                    ),
-                  ],
+                  children: [const Icon(Icons.lightbulb_outline, color: AppColors.primaryPurple, size: 18), const SizedBox(width: 8), Expanded(child: Text(tip, style: const TextStyle(color: AppColors.primaryText, fontSize: 14)))],
                 ),
               )).toList(),
             ),
@@ -573,32 +436,8 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
   }
 
   // ================= HELPER WIDGETS =================
-  Widget _buildDivider() {
-    return Divider(
-      height: 1,
-      thickness: 1,
-      color: AppColors.divider.withOpacity(0.3),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.primaryPurple, size: 22),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: AppColors.primaryText,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ],
-    );
-  }
-
+  Widget _buildDivider() => Divider(height: 1, thickness: 1, color: AppColors.divider.withOpacity(0.3));
+  Widget _buildSectionHeader(String title, IconData icon) => Row(children: [Icon(icon, color: AppColors.primaryPurple, size: 22), const SizedBox(width: 10), Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.primaryText, letterSpacing: 0.5))]);
   Widget _buildIssueChip(String text) {
     Color chipColor;
     IconData icon;
@@ -621,56 +460,25 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     );
   }
-
-  Widget _buildEmptyMessage(String message) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, color: AppColors.secondaryText, size: 18),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(color: AppColors.secondaryText, fontStyle: FontStyle.italic),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildEmptyMessage(String message) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+    decoration: BoxDecoration(color: AppColors.cardBackground, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.divider.withOpacity(0.3))),
+    child: Row(children: [Icon(Icons.info_outline, color: AppColors.secondaryText, size: 18), const SizedBox(width: 12), Expanded(child: Text(message, style: const TextStyle(color: AppColors.secondaryText, fontStyle: FontStyle.italic)))]),
+  );
 
   // ================= UTILITIES =================
   List<String> _generateDefaultActions(String threatType, double riskScore) {
     final actions = <String>[];
-    if (riskScore >= 76) {
-      actions.add('High risk – do not proceed under any circumstances');
-    } else if (riskScore >= 51) {
-      actions.add('Medium risk – avoid entering personal information');
-    } else if (riskScore >= 26) {
-      actions.add('Low risk – proceed with caution, but avoid sensitive actions');
-    } else {
-      actions.add('Safe – no significant threats detected');
-    }
+    if (riskScore >= 76) actions.add('High risk – do not proceed under any circumstances');
+    else if (riskScore >= 51) actions.add('Medium risk – avoid entering personal information');
+    else if (riskScore >= 26) actions.add('Low risk – proceed with caution, but avoid sensitive actions');
+    else actions.add('Safe – no significant threats detected');
 
     final lowerType = threatType.toLowerCase();
     if (lowerType.contains('malware') || lowerType.contains('malicious')) {
-      actions.addAll([
-        'Do NOT download any files from this site',
-        'Do NOT run any scripts or allow browser notifications',
-        'Close this page and run a full antivirus / anti-malware scan on your device',
-      ]);
+      actions.addAll(['Do NOT download any files from this site', 'Do NOT run any scripts or allow browser notifications', 'Close this page and run a full antivirus / anti-malware scan on your device']);
     } else if (lowerType.contains('phishing')) {
-      actions.addAll([
-        'Do NOT enter any password, credit card, or personal information',
-        'Close this page immediately',
-        'Report this URL to Google Safe Browsing or OpenPhish',
-      ]);
+      actions.addAll(['Do NOT enter any password, credit card, or personal information', 'Close this page immediately', 'Report this URL to Google Safe Browsing or OpenPhish']);
     } else if (lowerType.contains('ad_tracker')) {
       actions.add('Consider using an ad blocker or privacy-focused browser');
     } else {
@@ -689,18 +497,11 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => ResultScreen.fromEngineResult(
-            engineResult: result['scan_result'],
-            settings: settings,
-          ),
+          builder: (context) => ResultScreen.fromEngineResult(engineResult: result['scan_result'], settings: settings),
         ),
       );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Rescan failed: $e'), backgroundColor: AppColors.highRisk),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Rescan failed: $e'), backgroundColor: AppColors.highRisk));
     } finally {
       if (mounted) setState(() => _isRescanning = false);
     }
@@ -712,18 +513,14 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.cardBackground,
         title: const Text('Delete Scan', style: TextStyle(color: AppColors.primaryText)),
-        content: const Text('Are you sure you want to delete this scan?',
-            style: TextStyle(color: AppColors.secondaryText)),
+        content: const Text('Are you sure you want to delete this scan?', style: TextStyle(color: AppColors.secondaryText)),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText))),
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // close dialog
-              widget.onDelete(); // call the delete callback
-              Navigator.pop(context); // close details screen
+              Navigator.pop(context);
+              widget.onDelete();
+              Navigator.pop(context);
             },
             child: const Text('Delete', style: TextStyle(color: AppColors.highRisk)),
           ),
@@ -737,24 +534,15 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
 class _RiskGauge extends StatelessWidget {
   final double score;
   final Color color;
-
   const _RiskGauge({required this.score, required this.color});
-
   @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _SemiCircularGaugePainter(score: score, color: color),
-      child: const Center(child: Text('')),
-    );
-  }
+  Widget build(BuildContext context) => CustomPaint(painter: _SemiCircularGaugePainter(score: score, color: color), child: const Center(child: Text('')));
 }
 
 class _SemiCircularGaugePainter extends CustomPainter {
   final double score;
   final Color color;
-
   _SemiCircularGaugePainter({required this.score, required this.color});
-
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height);
@@ -766,44 +554,20 @@ class _SemiCircularGaugePainter extends CustomPainter {
       ..strokeWidth = 12
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius - 6),
-      startAngle,
-      sweepAngle,
-      false,
-      backgroundPaint,
-    );
-
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius - 6), startAngle, sweepAngle, false, backgroundPaint);
     final progressAngle = sweepAngle * score;
     final progressPaint = Paint()
       ..color = color
       ..strokeWidth = 12
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius - 6),
-      startAngle,
-      progressAngle,
-      false,
-      progressPaint,
-    );
-
-    final textSpan = TextSpan(
-      text: '${(score * 100).toInt()}%',
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-    );
-    final textPainter = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-    );
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius - 6), startAngle, progressAngle, false, progressPaint);
+    final textSpan = TextSpan(text: '${(score * 100).toInt()}%', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white));
+    final textPainter = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
     textPainter.layout();
-    final textOffset = Offset(
-      center.dx - textPainter.width / 2,
-      center.dy - textPainter.height - 4,
-    );
+    final textOffset = Offset(center.dx - textPainter.width / 2, center.dy - textPainter.height - 4);
     textPainter.paint(canvas, textOffset);
   }
-
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
