@@ -2,18 +2,21 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 
 class InvalidUrlScreen extends StatelessWidget {
-  const InvalidUrlScreen({super.key});
+  final List<String> reasons;
+
+  const InvalidUrlScreen({
+    super.key,
+    this.reasons = const [
+      'URL contains invalid characters',
+      'Domain format not recognised',
+      'Missing protocol',
+    ],
+  });
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final bool isSmall = screenWidth < 360;
-
-    const List<String> reasons = [
-      'URL contains invalid characters',
-      'Domain format not recognised',
-      'Missing protocol',
-    ];
 
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
@@ -22,9 +25,7 @@ class InvalidUrlScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Invalid URL',
@@ -41,17 +42,6 @@ class InvalidUrlScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Invalid URL',
-                  style: TextStyle(
-                    fontSize: isSmall ? 20 : 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryText,
-                  ),
-                ),
-              ),
               const SizedBox(height: 28),
               Container(
                 width: double.infinity,
@@ -115,8 +105,8 @@ class InvalidUrlScreen extends StatelessWidget {
                 child: Text(
                   'We Detected:',
                   style: TextStyle(
-                    fontSize: isSmall ? 17 : 19,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.primaryText,
                   ),
                 ),
@@ -138,11 +128,11 @@ class InvalidUrlScreen extends StatelessWidget {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Padding(
-                                padding: EdgeInsets.only(top: 6),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
                                 child: Icon(
                                   Icons.circle,
-                                  size: 6,
+                                  size: 8,
                                   color: AppColors.primaryText,
                                 ),
                               ),
@@ -163,21 +153,18 @@ class InvalidUrlScreen extends StatelessWidget {
                       .toList(),
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 height: 52,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.cardBackground,
-                    foregroundColor: AppColors.primaryText,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.primaryPurple),
+                    foregroundColor: AppColors.primaryPurple,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    elevation: 0,
                   ),
                   child: const Text(
                     'Try Again',
@@ -193,9 +180,7 @@ class InvalidUrlScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
+                  onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryPurple,
                     foregroundColor: Colors.white,
@@ -215,19 +200,6 @@ class InvalidUrlScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: AppColors.cardBackground,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primaryPurple,
-        unselectedItemColor: AppColors.secondaryText,
-        currentIndex: 0,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
-        ],
-        onTap: (index) {},
       ),
     );
   }

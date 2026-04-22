@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../services/scan_settings_service.dart';
-import '../threat_engine/scan_settings.dart'; // your engine's ScanSettings class
+import '../threat_engine/scan_settings.dart';
 
 class ScanSettingsScreen extends StatefulWidget {
   const ScanSettingsScreen({super.key});
@@ -94,7 +94,6 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
           _useLightGBM = data['useLightGBM'] ?? true;
         });
       } else {
-
         await _scanSettingsService.createDefaultSettingsForUser(userId: user.uid);
         final fallbackData = await _scanSettingsService.getSettings(userId: user.uid);
 
@@ -400,7 +399,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
                       ),
                     ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24), // was 20 → 24
                 ],
               ),
             ),
@@ -519,7 +518,8 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
                 children: [
                   Expanded(
                     child: RadioListTile<String>(
-                      contentPadding: EdgeInsets.zero,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      visualDensity: VisualDensity.compact,
                       dense: true,
                       title: Text(
                         'Default',
@@ -544,7 +544,8 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
                   ),
                   Expanded(
                     child: RadioListTile<String>(
-                      contentPadding: EdgeInsets.zero,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      visualDensity: VisualDensity.compact,
                       dense: true,
                       title: Text(
                         'Advanced',
@@ -561,7 +562,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
                         if (value != null) {
                           setState(() {
                             _userLevel = value;
-                            _useEnsemble = false;
+                            _useEnsemble = true; // now enabled by default
                           });
                         }
                       },

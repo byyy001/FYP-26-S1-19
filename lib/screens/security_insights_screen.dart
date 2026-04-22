@@ -220,6 +220,8 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
                             const SizedBox(height: 24),
                             _buildThreatPieSection(),
                             const SizedBox(height: 24),
+                            _buildRiskOverTimeChart(), // NEW: line chart
+                            const SizedBox(height: 24),
                             _buildOldestSafeLinksSection(),
                             const SizedBox(height: 24),
                             _buildTopThreatsSection(),
@@ -429,9 +431,131 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
     );
   }
 
+  // ================= NEW: RISK SCORE OVER TIME (LINE CHART) =================
+  Widget _buildRiskOverTimeChart() {
+    if (_scans.isEmpty) return const SizedBox.shrink();
+    // Group scans by week
+    final now = DateTime.now();
+    final cutoff = now.subtract(Duration(days: _periodDays));
+    final filteredScans = _scans.where((s) => s.timestamp.isAfter(cutoff)).toList();
+    if (filteredScans.isEmpty) return const SizedBox.shrink();
+
+    // Determine date range: start from oldest scan or cutoff
+    final oldest = filteredScans.map((s) => s.timestamp).reduce((a, b) => a.isBefore(b) ? a : b);
+    final startDate = oldest.isBefore(cutoff) ? cutoff : oldest;
+    final weeks = ((now.difference(startDate).inDays / 7).ceil()).clamp(1, 12);
+    final Map<int, double> weeklyAvg = {};
+    for (int i = 0; i < weeks; i++) {
+      final weekStart = startDate.add(Duration(days: i * 7));
+      final weekEnd = weekStart.add(const Duration(days: 7));
+      final weekScans = filteredScans.where((s) => s.timestamp.isAfter(weekStart) && s.timestamp.isBefore(weekEnd)).toList();
+      if (weekScans.isNotEmpty) {
+        final avg = weekScans.map((s) => s.riskScore).reduce((a, b) => a + b) / weekScans.length;
+        weeklyAvg[i] = avg;
+      } else {
+        // If no scans, use previous week's value or 0
+        weeklyAvg[i] = i > 0 ? weeklyAvg[i-1]! : 0;
+      }
+    }
+
+    final spots = weeklyAvg.entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList();
+    final maxY = weeklyAvg.values.reduce((a, b) => a > b ? a : b).ceilToDouble();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('RISK TREND', Icons.trending_up),
+        const SizedBox(height: 12),
+        _buildCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Average risk score per week',
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 220,
+                child: LineChart(
+                  LineChartData(
+                    gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (value) {
+                      return FlLine(color: AppColors.divider.withOpacity(0.3), strokeWidth: 1);
+                    }),
+                    titlesData: FlTitlesData(
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 40,
+                          getTitlesWidget: (value, meta) => Text('${value.toInt()}%', style: const TextStyle(color: AppColors.secondaryText, fontSize: 10)),
+                        ),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            final week = value.toInt();
+                            if (week < 0 || week >= weeks) return const SizedBox.shrink();
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text('Week ${week+1}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 10)),
+                            );
+                          },
+                          reservedSize: 30,
+                        ),
+                      ),
+                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    ),
+                    borderData: FlBorderData(show: false),
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: spots,
+                        isCurved: true,
+                        color: AppColors.primaryPurple,
+                        barWidth: 3,
+                        belowBarData: BarAreaData(show: true, color: AppColors.primaryPurple.withOpacity(0.1)),
+                        dotData: FlDotData(show: true, getDotPainter: (spot, percent, barData, index) {
+                          return FlDotCirclePainter(
+                            radius: 4,
+                            color: AppColors.primaryPurple,
+                            strokeWidth: 0,
+                          );
+                        }),
+                      ),
+                    ],
+                    minY: 0,
+                    maxY: maxY > 0 ? maxY : 100,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildOldestSafeLinksSection() {
     final safeLinks = _oldestSafeLinksNotRescanned(_scans);
-    if (safeLinks.isEmpty) return const SizedBox.shrink();
+    if (safeLinks.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader('OLDEST SAFE LINKS', Icons.history),
+          const SizedBox(height: 12),
+          _buildCard(
+            child: const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'All your safe links are up to date. Great job!',
+                style: TextStyle(color: AppColors.secondaryText),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     final maxDays = safeLinks.map((scan) => DateTime.now().difference(scan.timestamp).inDays).reduce((a, b) => a > b ? a : b).toDouble() + 1;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,7 +566,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Safe links that have not been rescanned', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+              const Text('Safe links that have not been rescanned (older than 7 days)', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
               const SizedBox(height: 16),
               Semantics(
                 label: 'Bar chart showing days since last scan for each safe link.',
@@ -535,7 +659,6 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
             children: [
               ...topThreats.map((threat) => _buildThreatItem(_formatThreatLabel(threat.threatType), threat.count, threatColors[threat.threatType] ?? AppColors.primaryPurple)),
               const SizedBox(height: 16),
-              // Fixed: proper string interpolation (no "Instance of 'ThreatCount'")
               Text(_getDynamicTopThreatSummary(topThreats.first, totalScans), style: const TextStyle(color: AppColors.secondaryText, fontSize: 14, height: 1.5)),
             ],
           ),
@@ -579,7 +702,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
         _buildCard(
           child: Column(
             children: trends.map((trend) {
-              // Skip benign trends (should not happen, but safe check)
+              // Skip benign – already excluded by analyzer, but double‑check
               if (trend.threatType == 'benign') return const SizedBox.shrink();
               final icon = trend.direction == 'up' ? Icons.arrow_upward : Icons.arrow_downward;
               final color = trend.direction == 'up' ? AppColors.highRisk : AppColors.safe;
@@ -698,7 +821,13 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
       if (url.isEmpty) continue;
       occurrences[url] = (occurrences[url] ?? 0) + 1;
     }
-    final safeLinks = scans.where((scan) => scan.threatType == 'benign' && scan.url.trim().isNotEmpty && occurrences[scan.url.trim()] == 1).toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final now = DateTime.now();
+    final safeLinks = scans.where((scan) =>
+        scan.threatType == 'benign' &&
+        scan.url.trim().isNotEmpty &&
+        occurrences[scan.url.trim()] == 1 &&
+        now.difference(scan.timestamp).inDays > 7 // only older than 7 days
+    ).toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     return safeLinks.take(3).toList();
   }
 

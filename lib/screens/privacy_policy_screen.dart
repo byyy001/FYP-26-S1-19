@@ -184,7 +184,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             Text(
               title,
               style: const TextStyle(
-                fontSize: 18,
+                fontSize: 20, // changed from 18 to 20
                 fontWeight: FontWeight.w700,
                 color: AppColors.primaryText,
               ),

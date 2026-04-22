@@ -72,17 +72,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isPremium = settingsData?['isPremium'] ?? false;
         _isLoading = false;
       });
-        } catch (e) {
-          if (!mounted) return;
+    } catch (e) {
+      if (!mounted) return;
 
-          setState(() {
-            _fullName = 'User';
-            _email = user.email ?? '';
-            _isPremium = false;
-            _isLoading = false;
-          });
-        }
-      }
+      setState(() {
+        _fullName = 'User';
+        _email = user.email ?? '';
+        _isPremium = false;
+        _isLoading = false;
+      });
+    }
+  }
+
   Future<void> _signOut() async {
     try {
       await FirebaseAuth.instance.signOut();
@@ -118,73 +119,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _deleteScanHistory() async {
-  final user = FirebaseAuth.instance.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
 
-  if (user == null) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Please sign in first.'),
-        backgroundColor: AppColors.highRisk,
-      ),
-    );
-    return;
-  }
-
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: AppColors.cardBackground,
-      title: const Text(
-        'Delete Scan History',
-        style: TextStyle(color: AppColors.primaryText),
-      ),
-      content: const Text(
-        'Are you sure you want to delete all scan history?',
-        style: TextStyle(color: AppColors.secondaryText),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please sign in first.'),
+          backgroundColor: AppColors.highRisk,
         ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text(
-            'Delete',
-            style: TextStyle(color: AppColors.highRisk),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  if (confirm != true) return;
-
-  try {
-    final scansRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('scans');
-
-    final snapshot = await scansRef.get();
-
-    for (final doc in snapshot.docs) {
-      await doc.reference.delete();
+      );
+      return;
     }
 
-    if (!mounted) return;
-    Navigator.pop(context, true);
-
-  } catch (e) {   
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Failed to delete scan history: $e'),
-        backgroundColor: AppColors.highRisk,
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: const Text(
+          'Delete Scan History',
+          style: TextStyle(color: AppColors.primaryText),
+        ),
+        content: const Text(
+          'Are you sure you want to delete all scan history?',
+          style: TextStyle(color: AppColors.secondaryText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: AppColors.highRisk),
+            ),
+          ),
+        ],
       ),
     );
-   }
+
+    if (confirm != true) return;
+
+    try {
+      final scansRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('scans');
+
+      final snapshot = await scansRef.get();
+
+      for (final doc in snapshot.docs) {
+        await doc.reference.delete();
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete scan history: $e'),
+          backgroundColor: AppColors.highRisk,
+        ),
+      );
+    }
   }
 
   @override
@@ -235,8 +235,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           label: 'Delete Scan History',
                           onTap: _deleteScanHistory,
                         ),
-
-                        
                         _ProfileSettingTile(
                           label: 'Delete Account',
                           isDestructive: true,
@@ -246,7 +244,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 16),
 
                     // Preferences section
                     _buildSectionCard(
@@ -281,7 +279,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 16),
 
                     // Support section
                     _buildSectionCard(
@@ -320,19 +318,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                     const SizedBox(height: 30),
 
+                    // Sign Out button (solid red)
                     Center(
                       child: SizedBox(
                         width: screenWidth * 0.52,
                         height: 50,
-                        child: OutlinedButton(
+                        child: ElevatedButton(
                           onPressed: _signOut,
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(
-                              color: AppColors.highRisk,
-                              width: 1.2,
-                            ),
-                            foregroundColor: AppColors.highRisk,
-                            backgroundColor: AppColors.highRisk.withAlpha(18),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.highRisk,
+                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),

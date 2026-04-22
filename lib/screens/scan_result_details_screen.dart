@@ -75,7 +75,7 @@ class ScanResult {
 }
 
 // ============================================================================
-// Threat Category Helper
+// Threat Category Helper (aligned with result screen thresholds)
 // ============================================================================
 class ThreatCategory {
   final String label;
@@ -85,24 +85,17 @@ class ThreatCategory {
   const ThreatCategory._(this.label, this.icon, this.color);
 
   static ThreatCategory fromScanResult(ScanResult result) {
-    final type = result.threatType.toLowerCase();
     final score = result.riskScore;
 
-    if (type.contains('malware') ||
-        type.contains('malicious') ||
-        type.contains('phishing') ||
-        score >= 75) {
+    if (score >= 76) {
       return const ThreatCategory._('MALICIOUS', Icons.warning, AppColors.highRisk);
-    }
-
-    if (type.contains('suspicious') ||
-        type.contains('ad_tracker') ||
-        type.contains('defacement') ||
-        score >= 50) {
+    } else if (score >= 51) {
       return const ThreatCategory._('WARNING', Icons.warning_amber, AppColors.mediumRisk);
+    } else if (score >= 26) {
+      return const ThreatCategory._('LOW RISK', Icons.info_outline, AppColors.mediumRisk);
+    } else {
+      return const ThreatCategory._('SAFE', Icons.check_circle, AppColors.safe);
     }
-
-    return const ThreatCategory._('SAFE', Icons.check_circle, AppColors.safe);
   }
 }
 
@@ -127,6 +120,20 @@ class ScanResultDetailsScreen extends StatefulWidget {
 
 class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
   bool _isRescanning = false;
+
+  Color _getRiskColor(double score) {
+    if (score >= 76) return AppColors.highRisk;
+    if (score >= 51) return AppColors.mediumRisk;
+    if (score >= 26) return AppColors.mediumRisk;
+    return AppColors.safe;
+  }
+
+  String _getRiskLevel(double score) {
+    if (score >= 76) return 'High Risk';
+    if (score >= 51) return 'Medium Risk';
+    if (score >= 26) return 'Low Risk';
+    return 'Safe';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -176,14 +183,15 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                     const SizedBox(height: 24),
                   ],
                   const SizedBox(height: 16),
+                  // ✅ TWO BUTTONS ONLY (Delete + Rescan)
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton(
+                        child: ElevatedButton(
                           onPressed: () => _showDeleteDialog(context),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppColors.highRisk),
-                            foregroundColor: AppColors.highRisk,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.highRisk,
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -194,36 +202,33 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _rescanUrl(scan.url),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryPurple,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppColors.primaryPurple, Color(0xFFA855F7)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Text('Rescan URL'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.cardBackground,
-                            foregroundColor: AppColors.secondaryText,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                          child: ElevatedButton(
+                            onPressed: () => _rescanUrl(scan.url),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
+                            child: const Text('Rescan URL'),
                           ),
-                          child: const Text('Back'),
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -659,27 +664,13 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
   }
 
   // ================= UTILITIES =================
-  Color _getRiskColor(double score) {
-    if (score >= 75) return AppColors.highRisk;
-    if (score >= 50) return AppColors.mediumRisk;
-    if (score >= 25) return AppColors.mediumRisk;
-    return AppColors.safe;
-  }
-
-  String _getRiskLevel(double score) {
-    if (score >= 75) return 'High Risk';
-    if (score >= 50) return 'Medium Risk';
-    if (score >= 25) return 'Low Risk';
-    return 'Safe';
-  }
-
   List<String> _generateDefaultActions(String threatType, double riskScore) {
     final actions = <String>[];
-    if (riskScore >= 75) {
+    if (riskScore >= 76) {
       actions.add('High risk – do not proceed under any circumstances');
-    } else if (riskScore >= 50) {
+    } else if (riskScore >= 51) {
       actions.add('Medium risk – avoid entering personal information');
-    } else if (riskScore >= 25) {
+    } else if (riskScore >= 26) {
       actions.add('Low risk – proceed with caution, but avoid sensitive actions');
     } else {
       actions.add('Safe – no significant threats detected');

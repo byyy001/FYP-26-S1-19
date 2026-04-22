@@ -83,19 +83,19 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (context) => const RegisteredHomeScreen(showLoginSuccess: true),
         ),
         (route) => false,
-        );
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Login failed: $e'),
-            backgroundColor: AppColors.highRisk,
-          ),
-        );
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login failed: $e'),
+          backgroundColor: AppColors.highRisk,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
 
   Future<void> _handleGoogleLogin() async {
     setState(() => _isLoading = true);
@@ -155,7 +155,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 32), // 30 → 32
                   Center(
                     child: Image.asset(
                       'assets/images/LinkSentryLogoTop.png',
@@ -163,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       fit: BoxFit.contain,
                     ),
                   ),
-                  const SizedBox(height: 50),
+                  const SizedBox(height: 48), // 50 → 48
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -191,7 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     thickness: 0.5,
                     height: 1,
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 32), // 30 → 32
                   AbsorbPointer(
                     absorbing: _isLoading,
                     child: Form(
@@ -385,7 +385,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: TextStyle(
                           color: AppColors.primaryPurple,
                           fontWeight: FontWeight.w600,
-                          fontSize: 15,
+                          fontSize: 16, // 15 → 16
                         ),
                       ),
                     ),
@@ -433,7 +433,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 32), // 30 → 32
                 ],
               ),
             ),

@@ -3,7 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_colors.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_screen.dart';
-import 'about_screen.dart';  // added import
+import 'about_screen.dart';
 
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
@@ -65,7 +65,7 @@ class HelpScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const Divider(color: AppColors.divider, thickness: 0.5, height: 1),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24), // was 28 → 24
 
             // ================= FAQ =================
             _buildSectionHeader('Frequently Asked Questions', Icons.help_outline),
@@ -114,7 +114,7 @@ class HelpScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const Divider(color: AppColors.divider, thickness: 0.5, height: 1),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24), // was 28 → 24
 
             // ================= CONTACT SUPPORT =================
             _buildSectionHeader('Contact Support', Icons.contact_mail),
@@ -188,7 +188,7 @@ class HelpScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const Divider(color: AppColors.divider, thickness: 0.5, height: 1),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24), // was 28 → 24
 
             // ================= ABOUT LINKSENTRY =================
             _buildSectionHeader('About LinkSentry', Icons.info_outline),
@@ -241,7 +241,7 @@ class HelpScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const Divider(color: AppColors.divider, thickness: 0.5, height: 1),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24), // was 28 → 24
 
             // ================= LEGAL LINKS =================
             _buildSectionHeader('Legal', Icons.gavel),
@@ -249,11 +249,8 @@ class HelpScreen extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: _buildLegalButton(
-                    context: context,
-                    label: 'Privacy Policy',
-                    icon: Icons.privacy_tip,
-                    onTap: () {
+                  child: ElevatedButton.icon(
+                    onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -261,15 +258,22 @@ class HelpScreen extends StatelessWidget {
                         ),
                       );
                     },
+                    icon: const Icon(Icons.privacy_tip, size: 20),
+                    label: const Text('Privacy Policy'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryPurple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildLegalButton(
-                    context: context,
-                    label: 'Terms & Conditions',
-                    icon: Icons.description,
-                    onTap: () {
+                  child: ElevatedButton.icon(
+                    onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -277,11 +281,21 @@ class HelpScreen extends StatelessWidget {
                         ),
                       );
                     },
+                    icon: const Icon(Icons.description, size: 20),
+                    label: const Text('Terms & Conditions'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryPurple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24), // was 20 → 24
           ],
         ),
       ),
@@ -320,7 +334,7 @@ class HelpScreen extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12), // was 14 → 12
               border: Border.all(color: AppColors.divider.withOpacity(0.3)),
             ),
             child: Icon(icon, color: AppColors.primaryPurple, size: 24),
@@ -364,7 +378,7 @@ class HelpScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12), // was 14 → 12
         border: Border.all(color: AppColors.divider.withOpacity(0.3)),
       ),
       child: Theme(
@@ -400,42 +414,6 @@ class HelpScreen extends StatelessWidget {
                   fontSize: 14,
                   height: 1.5,
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLegalButton({
-    required BuildContext context,
-    required String label,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider.withOpacity(0.3)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: AppColors.primaryPurple, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.primaryText,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
               ),
             ),
           ],

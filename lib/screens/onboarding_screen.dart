@@ -57,9 +57,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             'Welcome to LinkSentry!',
             style: TextStyle(color: AppColors.primaryText),
           ),
-          content: const Text(
-            'How would you like to proceed?',
-            style: TextStyle(color: AppColors.secondaryText),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8), // added for spacing
+              const Text(
+                'How would you like to proceed?',
+                style: TextStyle(color: AppColors.secondaryText),
+              ),
+            ],
           ),
           actions: [
             // Guest option
@@ -78,7 +85,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.primaryPurple),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12), // 8 → 12
                 ),
               ),
               child: const Text(
@@ -102,7 +109,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.primaryPurple),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12), // 8 → 12
                 ),
               ),
               child: const Text(
@@ -126,7 +133,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.primaryPurple),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12), // 8 → 12
                 ),
               ),
               child: const Text(
@@ -221,7 +228,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24), // 20 → 24
             Padding(
               padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.1),
               child: MouseRegion(

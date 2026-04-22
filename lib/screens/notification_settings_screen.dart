@@ -48,7 +48,7 @@ class _NotificationSettingsScreenState
               // master toggle
               Container(
                 width: double.infinity,
-                padding:const EdgeInsets.symmetric(
+                padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: AppColors.cardBackground,
@@ -58,28 +58,25 @@ class _NotificationSettingsScreenState
                     width: 1,
                   ),
                 ),
-
                 child: _buildToggleRow(
                   title: 'Allow Notifications',
                   value: allowNotifications,
                   onChanged: (value) =>
                       setState(() => allowNotifications = value),
                   showDivider: false,
-                  // Master toggle is always enabled
                   forceEnabled: true,
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 24), // 22 → 24
               const Text(
                 'Filters',
                 style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w600,
-                  fontStyle: FontStyle.italic,
+                  fontSize: 20,      // 19 → 20
+                  fontWeight: FontWeight.w700,
                   color: AppColors.primaryText,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16), // 12 → 16
 
               // sub toggles (greyed out when notifications off)
               AnimatedOpacity(
@@ -88,7 +85,7 @@ class _NotificationSettingsScreenState
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
+                      horizontal: 16, vertical: 12), // 8 → 12
                   decoration: BoxDecoration(
                     color: AppColors.cardBackground,
                     borderRadius: BorderRadius.circular(16),
@@ -97,43 +94,42 @@ class _NotificationSettingsScreenState
                       width: 1,
                     ),
                   ),
-
-                child: Column(
-                  children: [
-                    _buildToggleRow(
-                      title: 'Scan Results Alert',
-                      value: scanResultsAlert,
-                      onChanged: (v) =>
+                  child: Column(
+                    children: [
+                      _buildToggleRow(
+                        title: 'Scan Results Alert',
+                        value: scanResultsAlert,
+                        onChanged: (v) =>
                             setState(() => scanResultsAlert = v),
                       ),
-                    _buildToggleRow(
-                      title: 'AI Risk Level',
-                      value: aiRiskLevel,
-                      onChanged: (v) =>
+                      _buildToggleRow(
+                        title: 'AI Risk Level',
+                        value: aiRiskLevel,
+                        onChanged: (v) =>
                             setState(() => aiRiskLevel = v),
                       ),
-                    _buildToggleRow(
-                      title: 'High Risk Only',
-                      value: highRiskOnly,
-                      onChanged: (v) =>
+                      _buildToggleRow(
+                        title: 'High Risk Only',
+                        value: highRiskOnly,
+                        onChanged: (v) =>
                             setState(() => highRiskOnly = v),
                       ),
-                    _buildToggleRow(
-                      title: 'Weekly Report',
-                      value: weeklyReport,
-                      onChanged: (v) =>
+                      _buildToggleRow(
+                        title: 'Weekly Report',
+                        value: weeklyReport,
+                        onChanged: (v) =>
                             setState(() => weeklyReport = v),
                       ),
-                    _buildToggleRow(
-                      title: 'Phishing Trend Alerts',
-                      value: phishingTrendAlerts,
-                      onChanged: (v) =>
+                      _buildToggleRow(
+                        title: 'Phishing Trend Alerts',
+                        value: phishingTrendAlerts,
+                        onChanged: (v) =>
                             setState(() => phishingTrendAlerts = v),
                       ),
-                    _buildToggleRow(
-                      title: 'Sound',
-                      value: sound,
-                      onChanged: (v) => setState(() => sound = v),
+                      _buildToggleRow(
+                        title: 'Sound',
+                        value: sound,
+                        onChanged: (v) => setState(() => sound = v),
                         showDivider: false,
                       ),
                     ],
@@ -154,7 +150,6 @@ class _NotificationSettingsScreenState
     bool showDivider = true,
     bool forceEnabled = false,
   }) {
-    // sub toggles are disabled when master toggle is off
     final bool isEnabled = forceEnabled || allowNotifications;
 
     return Column(
@@ -167,13 +162,11 @@ class _NotificationSettingsScreenState
                 style: const TextStyle(
                   color: AppColors.primaryText,
                   fontSize: 14,
-                  fontStyle: FontStyle.italic,
                 ),
               ),
             ),
             Switch(
               value: value,
-              // passing null to onChanged disables switch
               onChanged: isEnabled ? onChanged : null,
               activeThumbColor: Colors.white,
               activeTrackColor: AppColors.primaryPurple,

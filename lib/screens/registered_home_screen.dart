@@ -9,6 +9,7 @@ import 'camera_scanner.dart';
 import 'view_history_screen.dart';
 import 'profile_screen.dart';
 import 'result_screen.dart';
+import 'invalid_url_screen.dart'; // ✅ added
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/scan_history_service.dart';
@@ -60,80 +61,80 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   }
 
   void _showLoginSuccessBanner() {
-  final overlay = Overlay.of(context);
-  if (overlay == null) return;
+    final overlay = Overlay.of(context);
+    if (overlay == null) return;
 
-  late OverlayEntry entry;
+    late OverlayEntry entry;
 
-  entry = OverlayEntry(
-    builder: (context) => Positioned(
-      left: 0,
-      right: 0,
-      bottom: 74,
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          height: 56,
-          color: Colors.green,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: const Text(
-            'Login successful',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+    entry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: 0,
+        right: 0,
+        bottom: 74,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            height: 56,
+            color: Colors.green,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: const Text(
+              'Login successful',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
 
-  overlay.insert(entry);
+    overlay.insert(entry);
 
-  Future.delayed(const Duration(seconds: 2), () {
-    entry.remove();
-  });
-}
+    Future.delayed(const Duration(seconds: 2), () {
+      entry.remove();
+    });
+  }
 
-void _showDeleteHistoryBanner() {
-  final overlay = Overlay.of(context);
-  if (overlay == null) return;
+  void _showDeleteHistoryBanner() {
+    final overlay = Overlay.of(context);
+    if (overlay == null) return;
 
-  late OverlayEntry entry;
+    late OverlayEntry entry;
 
-  entry = OverlayEntry(
-    builder: (context) => Positioned(
-      left: 0,
-      right: 0,
-      bottom: 74,
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          height: 56,
-          color: AppColors.primaryPurple,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: const Text(
-            'Scan history deleted successfully.',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+    entry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: 0,
+        right: 0,
+        bottom: 74,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            height: 56,
+            color: AppColors.primaryPurple,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: const Text(
+              'Scan history deleted successfully.',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
 
-  overlay.insert(entry);
+    overlay.insert(entry);
 
-  Future.delayed(const Duration(seconds: 2), () {
-    entry.remove();
-  });
-}
+    Future.delayed(const Duration(seconds: 2), () {
+      entry.remove();
+    });
+  }
 
   Future<void> _initEngine() async {
     try {
@@ -327,12 +328,67 @@ void _showDeleteHistoryBanner() {
     return url;
   }
 
+  /// Validate URL and return list of reasons if invalid, otherwise null
+  List<String>? _validateUrl(String rawUrl) {
+    final String trimmed = rawUrl.trim();
+    final List<String> reasons = [];
+
+    if (trimmed.isEmpty) {
+      reasons.add('URL is empty');
+      return reasons;
+    }
+
+    // Check for invalid characters (only allow letters, digits, dots, hyphens, slashes, colons, etc.)
+    // Basic sanity: must contain at least one dot in the domain part after scheme
+    String urlForCheck = trimmed;
+    if (!urlForCheck.contains('://')) {
+      urlForCheck = 'https://$urlForCheck';
+    }
+
+    try {
+      final uri = Uri.parse(urlForCheck);
+      if (uri.scheme.isEmpty || (uri.scheme != 'http' && uri.scheme != 'https')) {
+        reasons.add('Missing or invalid protocol (use http:// or https://)');
+      }
+      if (uri.host.isEmpty) {
+        reasons.add('Domain name not recognised');
+      } else if (!uri.host.contains('.')) {
+        reasons.add('Domain must contain a dot (e.g., example.com)');
+      }
+      // Additional: check for spaces (already trimmed)
+      if (trimmed.contains(RegExp(r'\s'))) {
+        reasons.add('URL contains spaces');
+      }
+      // Check for double slashes in wrong place (simple)
+      if (trimmed.contains('//') && !trimmed.startsWith('http')) {
+        reasons.add('Invalid double slash');
+      }
+    } catch (e) {
+      reasons.add('URL format not recognised');
+    }
+
+    return reasons.isEmpty ? null : reasons;
+  }
+
   Future<void> _scanURL(String rawUrl) async {
     if (!_engineReady) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Scanner is still loading, please wait...'),
           backgroundColor: AppColors.primaryPurple,
+        ),
+      );
+      return;
+    }
+
+    // Validate URL first
+    final invalidReasons = _validateUrl(rawUrl);
+    if (invalidReasons != null) {
+      // Navigate to InvalidUrlScreen with the reasons
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InvalidUrlScreen(reasons: invalidReasons),
         ),
       );
       return;
@@ -413,27 +469,27 @@ void _showDeleteHistoryBanner() {
           Padding(
             padding: const EdgeInsets.only(right: 18),
             child: GestureDetector(
-            onTap: () async {
-              final deletedHistory = await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(builder: (context) => const ProfileScreen()),
-              );
+              onTap: () async {
+                final deletedHistory = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                );
 
-              if (!mounted) return;
+                if (!mounted) return;
 
-              if (deletedHistory == true) {
-                setState(() {
-                  _statsFuture = _getScanStats();
-                });
+                if (deletedHistory == true) {
+                  setState(() {
+                    _statsFuture = _getScanStats();
+                  });
 
-                _showDeleteHistoryBanner();
-              }
-            },
-            child: const CircleAvatar(
-              radius: 10,
-              backgroundColor: AppColors.primaryPurple,
+                  _showDeleteHistoryBanner();
+                }
+              },
+              child: const CircleAvatar(
+                radius: 10,
+                backgroundColor: AppColors.primaryPurple,
+              ),
             ),
-          ),
           ),
         ],
         bottom: PreferredSize(
@@ -504,7 +560,7 @@ void _showDeleteHistoryBanner() {
                     fontStyle: FontStyle.italic,
                   ),
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 24),
                 FutureBuilder<Map<String, int>>(
                   future: _statsFuture,
                   builder: (context, statsSnapshot) {
@@ -547,9 +603,9 @@ void _showDeleteHistoryBanner() {
                     );
                   },
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
                 _buildScanCard(isSmall),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
                 _buildRecentsCard(isSmall),
               ],
             ),
@@ -560,7 +616,7 @@ void _showDeleteHistoryBanner() {
     );
   }
 
-  // ======================== IMPROVED STAT CARD (solid background + coloured border/shadow) ========================
+  // ======================== STAT CARD ========================
   Widget _buildStatCard(
     IconData icon,
     String label,
@@ -611,7 +667,7 @@ void _showDeleteHistoryBanner() {
     );
   }
 
-  // ======================== SCAN CARD (ORIGINAL STYLE – NO GLOW) ========================
+  // ======================== SCAN CARD ========================
   Widget _buildScanCard(bool isSmall) {
     return Container(
       width: double.infinity,
@@ -929,7 +985,7 @@ void _showDeleteHistoryBanner() {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.mainBackground,
         borderRadius: BorderRadius.circular(12),
@@ -963,7 +1019,7 @@ void _showDeleteHistoryBanner() {
                   time,
                   style: const TextStyle(
                     color: AppColors.secondaryText,
-                    fontSize: 10.5,
+                    fontSize: 11,
                   ),
                 ),
               ],

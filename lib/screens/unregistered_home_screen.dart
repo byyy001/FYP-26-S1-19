@@ -6,6 +6,7 @@ import 'help_screen.dart';
 import 'scan_settings_screen.dart';
 import 'camera_scanner.dart';
 import 'result_screen.dart';
+import 'invalid_url_screen.dart';
 import '../threat_engine/layer5_facade/threat_engine.dart';
 import '../threat_engine/scan_settings.dart';
 
@@ -20,7 +21,7 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
   final TextEditingController _urlController = TextEditingController();
   bool _isScanning = false;
   bool _engineReady = false;
-  bool _engineLoading = true;      // shows loading indicator
+  bool _engineLoading = true;
   String? _engineError;
   late final ThreatEngine _engine;
 
@@ -122,7 +123,55 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
     );
   }
 
-  Future<void> _scanURL(String url) async {
+  /// Normalize URL: remove spaces, add https:// if missing
+  String _normalizeUrl(String input) {
+    String url = input.trim().replaceAll(RegExp(r'\s+'), '');
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://$url';
+    }
+    return url;
+  }
+
+  /// Validate URL and return list of reasons if invalid, otherwise null
+  List<String>? _validateUrl(String rawUrl) {
+    final String trimmed = rawUrl.trim();
+    final List<String> reasons = [];
+
+    if (trimmed.isEmpty) {
+      reasons.add('URL is empty');
+      return reasons;
+    }
+
+    // Check for invalid characters
+    String urlForCheck = trimmed;
+    if (!urlForCheck.contains('://')) {
+      urlForCheck = 'https://$urlForCheck';
+    }
+
+    try {
+      final uri = Uri.parse(urlForCheck);
+      if (uri.scheme.isEmpty || (uri.scheme != 'http' && uri.scheme != 'https')) {
+        reasons.add('Missing or invalid protocol (use http:// or https://)');
+      }
+      if (uri.host.isEmpty) {
+        reasons.add('Domain name not recognised');
+      } else if (!uri.host.contains('.')) {
+        reasons.add('Domain must contain a dot (e.g., example.com)');
+      }
+      if (trimmed.contains(RegExp(r'\s'))) {
+        reasons.add('URL contains spaces');
+      }
+      if (trimmed.contains('//') && !trimmed.startsWith('http')) {
+        reasons.add('Invalid double slash');
+      }
+    } catch (e) {
+      reasons.add('URL format not recognised');
+    }
+
+    return reasons.isEmpty ? null : reasons;
+  }
+
+  Future<void> _scanURL(String rawUrl) async {
     if (!_engineReady) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -132,6 +181,20 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
       );
       return;
     }
+
+    // Validate URL first
+    final invalidReasons = _validateUrl(rawUrl);
+    if (invalidReasons != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InvalidUrlScreen(reasons: invalidReasons),
+        ),
+      );
+      return;
+    }
+
+    final url = _normalizeUrl(rawUrl);
 
     setState(() => _isScanning = true);
 
@@ -459,7 +522,6 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
   }
 
   Widget _buildScanButton(BuildContext context) {
-    // Disable button while engine is loading or scanning
     final bool isDisabled = _engineLoading || _isScanning || _engineError != null;
     return Container(
       decoration: BoxDecoration(
