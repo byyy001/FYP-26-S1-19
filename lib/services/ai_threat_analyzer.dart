@@ -1,19 +1,21 @@
+import 'dart:math';
+
 // ============================================================================
-// ScanResult Model (included for self‑containment)
+// Data Classes for Scan Result and Insights
 // ============================================================================
 
 /// Represents a single URL scan result.
 class ScanResult {
   final String url;
-  final DateTime timestamp;          // when the scan was performed
-  final String threatType;            // e.g., 'phishing', 'malware', 'ad_tracker', 'benign'
-  final double riskScore;             // 0–100
+  final DateTime timestamp;
+  final String threatType;
+  final double riskScore;
   final String explanation;
   final List<String> detectedThreats;
-  final String mlConfidence;          // 'high', 'medium', 'low'
-  final double behaviorScore;         // 0–1
-  final double aiScore;               // 0–1
-  final String source;                // e.g., 'manual', 'camera', 'email'
+  final String mlConfidence;
+  final double behaviorScore;
+  final double aiScore;
+  final String source;
 
   ScanResult({
     required this.url,
@@ -28,7 +30,6 @@ class ScanResult {
     this.source = 'manual',
   });
 
-  /// Creates a ScanResult from the map returned by the threat engine.
   factory ScanResult.fromJson(Map<String, dynamic> json) {
     double parseRiskScore(dynamic value) {
       if (value == null) return 0;
@@ -43,7 +44,6 @@ class ScanResult {
       return [];
     }
 
-    // Parse timestamp – expecting ISO string or similar
     DateTime parseTimestamp(dynamic value) {
       if (value == null) return DateTime.now();
       if (value is DateTime) return value;
@@ -70,15 +70,11 @@ class ScanResult {
   }
 }
 
-// ============================================================================
-// Data Classes for Insights
-// ============================================================================
-
-/// Represents a count of a specific threat type.
+/// Represents a count of a specific threat type (e.g., 'malware', 'phishing').
 class ThreatCount {
   final String threatType;
   final int count;
-  final double percentage; // of total scans
+  final double percentage;
 
   ThreatCount({required this.threatType, required this.count, required this.percentage});
 }
@@ -86,24 +82,32 @@ class ThreatCount {
 /// Represents a trend for a threat type over time.
 class ThreatTrend {
   final String threatType;
-  final double changePercent; // positive = increase, negative = decrease
+  final double changePercent;
   final String direction; // 'up' or 'down'
+  final int previousCount;
+  final int currentCount;
 
-  ThreatTrend({required this.threatType, required this.changePercent, required this.direction});
+  ThreatTrend({
+    required this.threatType,
+    required this.changePercent,
+    required this.direction,
+    required this.previousCount,
+    required this.currentCount,
+  });
 }
 
 /// A contextual tip for the user.
 class SmartTip {
   final String message;
-  final String? iconAsset; // optional: could be Icons.lightbulb etc.
+  final String? iconAsset; // not used, kept for compatibility
 
   SmartTip({required this.message, this.iconAsset});
 }
 
 /// User's risk profile summary.
 class RiskProfile {
-  final String level; // 'low', 'moderate', 'high'
-  final double score; // 0-100
+  final String level;
+  final double score;
   final String description;
 
   RiskProfile({required this.level, required this.score, required this.description});
@@ -118,6 +122,9 @@ class UserInsights {
   final List<ThreatTrend> trends;
   final List<SmartTip> smartTips;
   final RiskProfile riskProfile;
+  final String? mostDangerousUrl;
+  final String? oldestSafeUrl;
+  final double riskScoreMax;
 
   UserInsights({
     required this.userName,
@@ -127,30 +134,42 @@ class UserInsights {
     required this.trends,
     required this.smartTips,
     required this.riskProfile,
+    this.mostDangerousUrl,
+    this.oldestSafeUrl,
+    required this.riskScoreMax,
   });
 }
 
 // ============================================================================
-// Main AI Threat Analyzer Service
+// AI Threat Analyzer Service (Improved, professional, no emojis)
 // ============================================================================
 
 class AIThreatAnalyzer {
-  /// Analyzes a list of scan results and returns personalized insights.
   static UserInsights analyze(
     String userName,
     List<ScanResult> scans, {
     int periodDays = 30,
+    bool deduplicateUrls = true,
   }) {
     final now = DateTime.now();
     final cutoff = now.subtract(Duration(days: periodDays));
 
-    // Filter scans within the period
-    final recentScans = scans.where((s) => s.timestamp.isAfter(cutoff)).toList();
-    final threatScans = recentScans
-        .where((s) => s.threatType.toLowerCase() != 'benign')
-        .toList();
+    final recentScansRaw = scans.where((s) => s.timestamp.isAfter(cutoff)).toList();
 
-    // If no scans in period, return empty insights
+    List<ScanResult> recentScans;
+    if (deduplicateUrls) {
+      final urlMap = <String, ScanResult>{};
+      for (final scan in recentScansRaw) {
+        final existing = urlMap[scan.url];
+        if (existing == null || scan.timestamp.isAfter(existing.timestamp)) {
+          urlMap[scan.url] = scan;
+        }
+      }
+      recentScans = urlMap.values.toList();
+    } else {
+      recentScans = recentScansRaw;
+    }
+
     if (recentScans.isEmpty) {
       return UserInsights(
         userName: userName,
@@ -166,170 +185,246 @@ class AIThreatAnalyzer {
           score: 0,
           description: 'Insufficient data to determine risk profile.',
         ),
+        mostDangerousUrl: null,
+        oldestSafeUrl: null,
+        riskScoreMax: 0,
       );
     }
 
-    // 1. Aggregate threat types
-    final threatCounts = <String, int>{};
-    for (final scan in threatScans) {
-      final type = scan.threatType.toLowerCase();
-      threatCounts[type] = (threatCounts[type] ?? 0) + 1;
+    // ---- 1. Threat counts with exponential decay ----
+    const double decayDays = 7.0;
+    final threatWeights = <String, double>{};
+    final threatRawCounts = <String, int>{};
+
+    for (final scan in recentScans) {
+      final type = _normalizeThreatTypeForAnalysis(scan.threatType.toLowerCase());
+      final int ageDays = now.difference(scan.timestamp).inDays;
+      double weight = 1.0;
+      if (ageDays > decayDays) {
+        weight = (decayDays / ageDays).clamp(0.2, 1.0);
+      }
+      threatWeights[type] = (threatWeights[type] ?? 0) + weight;
+      threatRawCounts[type] = (threatRawCounts[type] ?? 0) + 1;
     }
 
-    // Sort and take top 3
+    final threatCounts = <String, int>{};
+    for (final entry in threatWeights.entries) {
+      threatCounts[entry.key] = entry.value.round();
+    }
+
     final sortedEntries = threatCounts.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final topEntries = sortedEntries.take(3).toList();
 
+    final double totalWeightedScans = threatWeights.values.fold(0.0, (a, b) => a + b);
     final topThreats = topEntries.map((e) => ThreatCount(
       threatType: e.key,
       count: e.value,
-      percentage: threatScans.isEmpty ? 0 : (e.value / threatScans.length) * 100,
+      percentage: totalWeightedScans == 0 ? 0 : (e.value / totalWeightedScans) * 100,
     )).toList();
 
-    // 2. Trend analysis (compare with previous period)
+    // ---- 2. Trend analysis (exclude 'benign' from trends) ----
     final previousCutoff = cutoff.subtract(Duration(days: periodDays));
-    final previousScans = scans.where((s) =>
+    final previousScansRaw = scans.where((s) =>
         s.timestamp.isAfter(previousCutoff) && s.timestamp.isBefore(cutoff)).toList();
-    final previousThreatScans = previousScans
-        .where((s) => s.threatType.toLowerCase() != 'benign')
-        .toList();
+
+    List<ScanResult> previousScans;
+    if (deduplicateUrls) {
+      final prevUrlMap = <String, ScanResult>{};
+      for (final scan in previousScansRaw) {
+        final existing = prevUrlMap[scan.url];
+        if (existing == null || scan.timestamp.isAfter(existing.timestamp)) {
+          prevUrlMap[scan.url] = scan;
+        }
+      }
+      previousScans = prevUrlMap.values.toList();
+    } else {
+      previousScans = previousScansRaw;
+    }
+
+    final prevThreatCounts = <String, int>{};
+    for (final scan in previousScans) {
+      final type = _normalizeThreatTypeForAnalysis(scan.threatType.toLowerCase());
+      prevThreatCounts[type] = (prevThreatCounts[type] ?? 0) + 1;
+    }
 
     final trends = <ThreatTrend>[];
-    for (final entry in topEntries) {
-      final type = entry.key;
-      final currentCount = entry.value;
-      final previousCount =
-          previousThreatScans.where((s) => s.threatType.toLowerCase() == type).length;
-
-      if (previousCount > 0) {
-        final change = ((currentCount - previousCount) / previousCount) * 100;
-        trends.add(ThreatTrend(
-          threatType: type,
-          changePercent: change,
-          direction: change >= 0 ? 'up' : 'down',
-        ));
-      } else if (currentCount > 0) {
-        // New threat type appeared
-        trends.add(ThreatTrend(
-          threatType: type,
-          changePercent: 100, // infinite increase, but we cap
-          direction: 'up',
-        ));
+    final allThreatTypes = {...threatCounts.keys, ...prevThreatCounts.keys};
+    for (final type in allThreatTypes) {
+      // Skip 'benign' entirely – it's not a threat and shouldn't appear in trends
+      if (type == 'benign') continue;
+      final int current = threatCounts[type] ?? 0;
+      final int previous = prevThreatCounts[type] ?? 0;
+      if (current == 0 && previous == 0) continue;
+      double changePercent;
+      if (previous == 0) {
+        changePercent = 100.0;
+      } else {
+        changePercent = ((current - previous) / previous) * 100;
       }
+      final direction = changePercent >= 0 ? 'up' : 'down';
+      trends.add(ThreatTrend(
+        threatType: type,
+        changePercent: changePercent,
+        direction: direction,
+        previousCount: previous,
+        currentCount: current,
+      ));
     }
+    trends.sort((a, b) => b.changePercent.abs().compareTo(a.changePercent.abs()));
 
-    // 3. Enhanced pattern mining (rule‑based tips)
+    // ---- 3. Smart tips (professional, no emojis, prioritised) ----
     final tips = <SmartTip>[];
-    final safeScanCount = recentScans.length - threatScans.length;
-    final safeScanPercent =
-        recentScans.isEmpty ? 0 : (safeScanCount / recentScans.length) * 100;
+    final dangerScans = recentScans.where((s) => s.riskScore >= 50).toList();
+    final safeScans = recentScans.where((s) => s.threatType.toLowerCase() == 'benign').toList();
+    final maliciousScans = recentScans.where((s) => _isMaliciousThreat(s.threatType)).toList();
+    final suspiciousScans = recentScans.where((s) => _isSuspiciousThreat(s.threatType)).toList();
+    final double safePercent = recentScans.isEmpty ? 0 : (safeScans.length / recentScans.length) * 100;
+    final double maliciousPercent = recentScans.isEmpty ? 0 : (maliciousScans.length / recentScans.length) * 100;
+    final double suspiciousPercent = recentScans.isEmpty ? 0 : (suspiciousScans.length / recentScans.length) * 100;
 
-    // Helper to add tip if not already present
-    void addTip(String message) {
+    void addTip(String message, {int priority = 0}) {
       if (!tips.any((tip) => tip.message == message)) {
-        tips.add(SmartTip(message: message));
+        if (priority > 0) {
+          tips.insert(0, SmartTip(message: message));
+        } else {
+          tips.add(SmartTip(message: message));
+        }
       }
     }
 
-    if (safeScanCount > 0 && threatScans.isEmpty) {
-      addTip('Your recent scans look safe overall. Keep scanning unfamiliar links before opening them.');
-    } else if (safeScanPercent >= 70) {
-      addTip('Most of your recent scans were safe. Your browsing habits look healthy.');
+    // Most dangerous URL (high priority)
+    if (dangerScans.isNotEmpty) {
+      final mostDangerous = dangerScans.reduce((a, b) => a.riskScore > b.riskScore ? a : b);
+      addTip('Most dangerous URL: ${_shortUrl(mostDangerous.url)} (risk ${mostDangerous.riskScore.toStringAsFixed(0)}%). Avoid this site completely.', priority: 3);
     }
 
-    // Tip based on most common threat
+    // Oldest safe URL not rescanned (priority 2)
+    final safeUrls = <String, ScanResult>{};
+    for (final scan in safeScans) {
+      final existing = safeUrls[scan.url];
+      if (existing == null || scan.timestamp.isAfter(existing.timestamp)) {
+        safeUrls[scan.url] = scan;
+      }
+    }
+    final oldestSafe = safeUrls.values.toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    if (oldestSafe.isNotEmpty) {
+      final oldest = oldestSafe.first;
+      final int daysSince = now.difference(oldest.timestamp).inDays;
+      if (daysSince > 14) {
+        addTip('You haven’t rechecked ${_shortUrl(oldest.url)} in $daysSince days. Even safe sites can become compromised – rescan periodically.', priority: 2);
+      }
+    }
+
+    // High-risk behaviour tips
+    if (maliciousPercent > 50 && recentScans.length > 5) {
+      addTip('Over 50% of your scans detected malware or phishing. This is critical – run a full antivirus scan and change your browsing habits.', priority: 3);
+    } else if (suspiciousPercent > 40 && recentScans.length > 5) {
+      addTip('Many of your scans are suspicious (${suspiciousPercent.toStringAsFixed(0)}%). Double‑check URLs before clicking, especially in emails.', priority: 2);
+    }
+
+    // Top threat specific tips
     if (topThreats.isNotEmpty) {
       final top = topThreats.first;
-      if (top.threatType == 'phishing') {
-        if (top.percentage > 50) {
-          addTip('Phishing makes up over 50% of your threats. Be extra cautious with links asking for personal info.');
-        } else {
-          addTip('Phishing is your most common threat. Always verify the sender before clicking links.');
-        }
-      } else if (top.threatType == 'malware') {
-        addTip('Malware is your top threat. Avoid downloading files from untrusted sources.');
+      final total = recentScans.length;
+      final count = top.count;
+      final percent = (count / total * 100).toStringAsFixed(1);
+      if (top.threatType == 'malware') {
+        addTip('Malware is your top threat (${count}/${total} scans, ${percent}%). Never download files from untrusted sources and keep your antivirus updated.', priority: 2);
+      } else if (top.threatType == 'phishing') {
+        addTip('Phishing is your most common risk (${count}/${total} scans, ${percent}%). Always verify the sender before clicking links, even if they look legitimate.', priority: 2);
       } else if (top.threatType == 'ad_tracker') {
-        addTip('Ad trackers are common in your scans. Consider using an ad blocker for more privacy.');
+        addTip('Ad trackers appear frequently. Use an ad blocker and consider privacy‑focused browsers like Brave or Firefox.', priority: 1);
+      } else if (top.threatType == 'benign') {
+        addTip('Most of your scans are safe. Keep up the good habits, but stay vigilant – threats evolve quickly.', priority: 0);
       }
     }
 
-    // Tip based on trends
-    for (final trend in trends) {
-      if (trend.changePercent.abs() > 50) {
+    // Trend‑based tips (only significant changes, exclude benign)
+    for (final trend in trends.take(2)) {
+      if (trend.changePercent.abs() >= 50) {
         if (trend.direction == 'up') {
-          addTip('${trend.threatType} has increased significantly (${trend.changePercent.toStringAsFixed(0)}%). Stay alert!');
+          if (trend.threatType == 'malware') {
+            addTip('Malware detections increased by ${trend.changePercent.toStringAsFixed(0)}%. Run a full system scan immediately.', priority: 2);
+          } else if (trend.threatType == 'phishing') {
+            addTip('Phishing attempts increased by ${trend.changePercent.toStringAsFixed(0)}%. Be extra cautious with email and SMS links.', priority: 2);
+          } else {
+            addTip('${_formatThreatType(trend.threatType)} increased by ${trend.changePercent.toStringAsFixed(0)}% – stay alert.', priority: 1);
+          }
         } else {
-          addTip('Great! ${trend.threatType} is down ${trend.changePercent.abs().toStringAsFixed(0)}% compared to last period.');
+          addTip('Great! ${_formatThreatType(trend.threatType)} decreased by ${trend.changePercent.abs().toStringAsFixed(0)}% compared to last period.', priority: 0);
         }
       }
     }
 
-    // Tip based on email source
-    final emailScans = recentScans.where((s) => s.source == 'email').length;
-    if (emailScans > 0) {
-      final emailPercent = (emailScans / recentScans.length) * 100;
-      if (emailPercent > 50) {
-        addTip('Most of your scans come from emails. Be extra careful with unexpected messages.');
-      } else if (emailPercent > 20) {
-        addTip('You scan many links from emails. Verify sender addresses before clicking.');
-      }
-    }
-
-    // Tip based on streaming sites
-    final streamingScans = recentScans.where((s) =>
-        s.url.contains('stream') || s.url.contains('movie') || s.url.contains('watch')).length;
-    if (streamingScans > 3) {
-      addTip('You frequently visit streaming sites. Stick to official platforms to avoid malware.');
-    }
-
-    // Tip based on risk profile (will be computed later, but we can use avgRisk)
-    final double avgRisk = recentScans.map((s) => s.riskScore).reduce((a, b) => a + b) / recentScans.length;
-    if (avgRisk >= 70) {
-      addTip('Your risk profile is high. Consider enabling auto‑recheck scans for continuous protection.');
-    } else if (avgRisk <= 20 && recentScans.length > 10) {
-      addTip('Your risk profile is low – you’re doing great! Keep up safe browsing habits.');
-    }
-
-    // Tip based on total scans
-    if (recentScans.length > 50) {
-      addTip('You’re an active user! Review your top threats in the chart above to stay informed.');
+    // General safety tips based on scan volume
+    if (recentScans.length > 20) {
+      addTip('You’re a power user! Consider our auto‑scan feature to protect every link automatically.', priority: 0);
     } else if (recentScans.length < 5) {
-      addTip('Scan more URLs to get personalized security insights.');
+      addTip('Scan more URLs to get deeper insights. The more you scan, the better we can protect you.', priority: 0);
     }
 
-    // Fallback tip if none added
+    // Email source tip
+    final emailScans = recentScans.where((s) => s.source == 'email').length;
+    if (emailScans > recentScans.length * 0.5) {
+      addTip('Most of your scans come from emails. Phishing often arrives via email – always check the sender address before clicking.', priority: 1);
+    }
+
+    // Fallback
     if (tips.isEmpty) {
-      addTip('Stay safe online: keep checking unfamiliar links before you open them.');
+      addTip('Stay safe: always scan unfamiliar links before opening them. You’re doing great.', priority: 0);
     }
 
-    // 4. Risk profile calculation
-    double totalRisk = 0;
+    // ---- 4. Risk profile with improved thresholds ----
+    double totalWeight = 0;
+    double weightedRisk = 0;
+    double maxRisk = 0;
     for (final scan in recentScans) {
-      totalRisk += scan.riskScore;
+      final int ageDays = now.difference(scan.timestamp).inDays;
+      double weight = 1.0;
+      if (ageDays > decayDays) {
+        weight = (decayDays / ageDays).clamp(0.2, 1.0);
+      }
+      totalWeight += weight;
+      weightedRisk += scan.riskScore * weight;
+      if (scan.riskScore > maxRisk) maxRisk = scan.riskScore;
     }
-    final avgRiskProfile = totalRisk / recentScans.length;
+    final double avgRisk = totalWeight > 0 ? weightedRisk / totalWeight : 0;
 
     String riskLevel;
     String riskDesc;
-    if (avgRiskProfile >= 70) {
+    if (maxRisk > 75 || avgRisk > 75) {
+      riskLevel = 'critical';
+      riskDesc = 'Critical: Immediate action required. Run a full antivirus scan and review all your recent clicks.';
+    } else if (maxRisk > 50 || avgRisk > 50) {
       riskLevel = 'high';
-      riskDesc = 'Your scan history shows a high proportion of malicious URLs. Stay vigilant!';
-    } else if (avgRiskProfile >= 40) {
+      riskDesc = 'High risk: You have encountered many malicious links. Change your browsing habits and enable auto‑scan.';
+    } else if (maxRisk > 25 || avgRisk > 25) {
       riskLevel = 'moderate';
-      riskDesc = 'You encounter some risky links. Review the tips above to stay safe.';
+      riskDesc = 'Moderate risk: Some suspicious links detected. Stay vigilant and double‑check URLs before clicking.';
     } else {
       riskLevel = 'low';
-      riskDesc = safeScanCount > 0
-          ? 'Most of your recent scans were safe. Keep up the good habits.'
-          : 'You have a low risk profile. Keep up the good habits!';
+      riskDesc = safePercent > 70
+          ? 'Low risk: Most of your scans are safe. Keep up the good habits!'
+          : 'Low risk: Your exposure is minimal. Continue scanning unfamiliar links.';
     }
 
     final riskProfile = RiskProfile(
       level: riskLevel,
-      score: avgRiskProfile,
+      score: avgRisk,
       description: riskDesc,
     );
+
+    String? mostDangerousUrl;
+    if (dangerScans.isNotEmpty) {
+      final mostDangerous = dangerScans.reduce((a, b) => a.riskScore > b.riskScore ? a : b);
+      mostDangerousUrl = mostDangerous.url;
+    }
+    String? oldestSafeUrl;
+    if (oldestSafe.isNotEmpty) {
+      oldestSafeUrl = oldestSafe.first.url;
+    }
 
     return UserInsights(
       userName: userName,
@@ -339,6 +434,59 @@ class AIThreatAnalyzer {
       trends: trends,
       smartTips: tips,
       riskProfile: riskProfile,
+      mostDangerousUrl: mostDangerousUrl,
+      oldestSafeUrl: oldestSafeUrl,
+      riskScoreMax: maxRisk,
     );
+  }
+
+  // --------------------------------------------------------------------------
+  // Helper methods
+  // --------------------------------------------------------------------------
+
+  static String _normalizeThreatTypeForAnalysis(String type) {
+    switch (type) {
+      case 'benign':
+      case 'safe':
+        return 'benign';
+      case 'malware':
+      case 'malicious':
+      case 'unsafe':
+        return 'malware';
+      case 'phishing':
+      case 'suspicious':
+      case 'ad_tracker':
+      case 'defacement':
+        return 'phishing'; // group all suspicious under 'phishing' for trends/top threats
+      default:
+        return type;
+    }
+  }
+
+  static bool _isMaliciousThreat(String type) {
+    final t = type.toLowerCase();
+    return t == 'malware' || t == 'malicious' || t == 'unsafe';
+  }
+
+  static bool _isSuspiciousThreat(String type) {
+    final t = type.toLowerCase();
+    return t == 'phishing' || t == 'suspicious' || t == 'ad_tracker' || t == 'defacement';
+  }
+
+  static String _shortUrl(String url) {
+    final uri = Uri.tryParse(url);
+    String host = uri?.host ?? url;
+    host = host.replaceAll(RegExp(r'^www\.'), '');
+    return host;
+  }
+
+  static String _formatThreatType(String type) {
+    switch (type) {
+      case 'phishing': return 'Phishing';
+      case 'malware': return 'Malware';
+      case 'ad_tracker': return 'Ad trackers';
+      case 'benign': return 'Safe sites';
+      default: return type[0].toUpperCase() + type.substring(1);
+    }
   }
 }

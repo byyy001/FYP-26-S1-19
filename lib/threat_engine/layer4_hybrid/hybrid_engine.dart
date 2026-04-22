@@ -196,11 +196,10 @@ class HybridEngine {
         : (mlScore >= 0.9 ? 'high' : 'medium');
 
     // ========== AMBIGUITY PENALTY ==========
-    // If the top two class probabilities are very close, reduce ML score by 30%
     final sortedProbs = List<double>.from(ensembleProbs)..sort((a,b) => b.compareTo(a));
     if (sortedProbs.length >= 2 && (sortedProbs[0] - sortedProbs[1]) < 0.2) {
       mlScore *= 0.7;
-      mlConfidence = 'low'; // downgrade confidence
+      mlConfidence = 'low';
     }
     // =====================================
 
@@ -211,8 +210,12 @@ class HybridEngine {
     List<String> behaviorPatterns = [];
 
     if (settings.deepScan && settings.scriptAnalysis) {
-      final detailed = await behaviorEngine?.analyzeDetailed(url, features) ??
-          {'behaviorScore': 0.0, 'adDensity': 0.0, 'matchedPatterns': []};
+      // ✅ Pass externalResult to behaviorEngine for external intelligence
+      final detailed = await behaviorEngine?.analyzeDetailed(
+        url,
+        features,
+        externalThreatData: externalResult,
+      ) ?? {'behaviorScore': 0.0, 'adDensity': 0.0, 'matchedPatterns': []};
       behaviorScore = detailed['behaviorScore']!;
       adDensity = detailed['adDensity']!;
       behaviorPatterns = List<String>.from(detailed['matchedPatterns'] as List? ?? []);
@@ -231,27 +234,23 @@ class HybridEngine {
       mlConfidence: mlConfidence,
     );
 
-    // ========== DOMAIN AGE ADJUSTMENT ==========
-    // If WHOIS age is available, adjust risk score
+    // Domain age adjustment
     final whoisDetails = externalResult['details']?['whois'] as Map<String, dynamic>?;
     if (whoisDetails != null && whoisDetails['age_days'] != null) {
       final ageDays = whoisDetails['age_days'] as int;
       if (ageDays < 7) {
-        // Very new domain: add 10% risk (cap at 100)
         hybridScore = (hybridScore + 10).clamp(0, 100);
       } else if (ageDays > 365) {
-        // Established domain: reduce risk by 5% (floor at 0)
         hybridScore = (hybridScore - 5).clamp(0, 100);
       }
     }
-    // ==========================================
 
     if (adjustedClass == 2 && mlConfidence == 'high') {
       hybridScore = math.max(hybridScore, 80.0);
       if (mlScore > 0.98) hybridScore = math.min(100, hybridScore + 15);
     }
 
-    // External override (continuous boost) – keep existing logic
+    // External override (continuous boost)
     if (externalScore >= 0.8) {
       double boost = (externalScore - 0.8) * 100;
       hybridScore = hybridScore + boost;
@@ -264,8 +263,7 @@ class HybridEngine {
       mlConfidence = 'low';
     }
 
-    // ========== 50% CAP WHEN NO EXTERNAL EVIDENCE ==========
-    // If no external source flagged the URL, cap risk at 50% (Medium)
+    // 50% cap when no external evidence
     if (externalScore == 0.0 && hybridScore > 50.0) {
       hybridScore = 50.0;
       if (threatType != 'benign') {
@@ -273,9 +271,8 @@ class HybridEngine {
       }
       mlConfidence = 'low';
     }
-    // ======================================================
 
-    // Improved safety override: only force benign if hybridScore < 25 AND externalScore < 0.5
+    // Safety override
     if (hybridScore < 25.0 && externalScore < 0.5) {
       threatType = 'benign';
     }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -81,11 +82,11 @@ class ResultScreen extends StatefulWidget {
 class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderStateMixin {
   bool _showStaticRules = false;
   bool _showMLDetails = false;
-  bool _showExternalDetails = false;
   bool _showBehaviorAnalysis = false;
   bool _showModelMetrics = false;
   bool _showFusionDetails = false;
   bool _showExternalApiResults = false;
+  bool _showExternalDetails = false;
 
   late final ScrollController _scrollController;
   bool _showScrollTop = false;
@@ -109,8 +110,13 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
     super.dispose();
   }
 
+  // Helper to remove emojis (kept for safety, but actions are now cleaned)
+  String _cleanText(String text) {
+    return text.replaceAll(RegExp(r'[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}]', unicode: true), '');
+  }
+
   List<String> get _safetyTips =>
-      (widget.engineResult?['safety_tips'] as List?)?.cast<String>() ?? [];
+      (widget.engineResult?['safety_tips'] as List?)?.cast<String>()?.map(_cleanText).toList() ?? [];
 
   List<String> get _externalSources =>
       (widget.engineResult?['external_sources'] as List?)?.cast<String>() ?? [];
@@ -163,9 +169,9 @@ URL: ${widget.url}
 Risk Score: ${widget.score}%
 Verdict: ${widget.verdict}
 Threat Type: $threatType
-Detected Issues: ${widget.reasons.isNotEmpty ? widget.reasons.join(', ') : 'None'}
+Detected Issues: ${widget.reasons.isNotEmpty ? widget.reasons.map(_cleanText).join(', ') : 'None'}
 External Sources: ${_externalSources.isNotEmpty ? _externalSources.join(', ') : 'None'}
-Explanation: ${widget.explanation}
+Explanation: ${_cleanText(widget.explanation)}
 ''';
   }
 
@@ -223,12 +229,12 @@ Explanation: ${widget.explanation}
             pw.SizedBox(height: 10),
             pw.Text('Detected Issues:',
                 style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-            ...widget.reasons.map((reason) => pw.Text('• $reason')),
+            ...widget.reasons.map((reason) => pw.Text('• ${_cleanText(reason)}')),
             if (widget.reasons.isEmpty) pw.Text('• None'),
             pw.SizedBox(height: 10),
             pw.Text('Recommended Actions:',
                 style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-            ...widget.recommendedActions.map((action) => pw.Text('• $action')),
+            ...widget.recommendedActions.map((action) => pw.Text('• ${_cleanText(action)}')),
             if (widget.recommendedActions.isEmpty) pw.Text('• None'),
             if (_safetyTips.isNotEmpty) ...[
               pw.SizedBox(height: 10),
@@ -237,7 +243,7 @@ Explanation: ${widget.explanation}
               ..._safetyTips.map((tip) => pw.Text('• $tip')),
             ],
             pw.SizedBox(height: 20),
-            pw.Text('Explanation: ${widget.explanation}'),
+            pw.Text('Explanation: ${_cleanText(widget.explanation)}'),
           ],
         ),
       );
@@ -259,7 +265,6 @@ Explanation: ${widget.explanation}
       }
     }
   }
-  
 
   // ======================== RESCAN ========================
   Future<void> _rescanUrl() async {
@@ -321,13 +326,13 @@ Explanation: ${widget.explanation}
         ),
       ),
     );
-  
+
     try {
       final engine = await ThreatEngine.getInstance();
       final result = await engine.analyze(widget.url, settings: widget.settings!);
 
       if (!mounted) return;
-      Navigator.pop(context); // close loading
+      Navigator.pop(context);
 
       Navigator.pushReplacement(
         context,
@@ -406,6 +411,8 @@ Explanation: ${widget.explanation}
                 children: [
                   _buildTopCard(isSmall),
                   const SizedBox(height: 24),
+                  _buildDivider(),
+                  const SizedBox(height: 24),
                   if (!widget.isRegistered) ...[
                     _buildUnregisteredSection(isSmall),
                   ] else if (widget.scanMode == ScanMode.defaultMode) ...[
@@ -437,180 +444,146 @@ Explanation: ${widget.explanation}
     );
   }
 
-  // ======================== TOP CARD ========================
-  Widget _buildTopCard(bool isSmall) {
-    LinearGradient cardGradient;
-    if (_riskScore >= 76) {
-      cardGradient = LinearGradient(
-        colors: [AppColors.highRisk.withOpacity(0.15), AppColors.cardBackground],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-    } else if (_riskScore >= 51) {
-      cardGradient = LinearGradient(
-        colors: [AppColors.mediumRisk.withOpacity(0.15), AppColors.cardBackground],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-    } else if (_riskScore >= 26) {
-      cardGradient = LinearGradient(
-        colors: [AppColors.mediumRisk.withOpacity(0.1), AppColors.cardBackground],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-    } else {
-      cardGradient = LinearGradient(
-        colors: [AppColors.safe.withOpacity(0.1), AppColors.cardBackground],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-    }
+  Widget _buildDivider() {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: AppColors.divider.withOpacity(0.3),
+    );
+  }
 
+  // ======================== TOP CARD (improved alignment) ========================
+  Widget _buildTopCard(bool isSmall) {
     return Semantics(
       label: 'Risk score ${widget.score} percent, $_riskLevelText',
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: cardGradient,
-          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [_riskColor.withOpacity(0.15), AppColors.cardBackground],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(color: _riskColor.withOpacity(0.3), width: 1),
-          boxShadow: [BoxShadow(color: _riskColor.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 6))],
+          boxShadow: [
+            BoxShadow(
+              color: _riskColor.withOpacity(0.2),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            isSmall
-                ? Column(
+            // Verdict, risk level, and gauge in one row
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         widget.isRegistered ? widget.verdict : _getSimpleVerdict(),
-                        style: TextStyle(
-                          fontSize: 28,
+                        style: const TextStyle(
+                          fontSize: 32,
                           fontWeight: FontWeight.bold,
                           color: AppColors.primaryText,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: _riskColor,
-                          borderRadius: BorderRadius.circular(30),
-                          boxShadow: [BoxShadow(color: _riskColor.withOpacity(0.4), blurRadius: 8)],
-                        ),
-                        child: Text(
-                          '${widget.score}%',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.isRegistered ? widget.verdict : _getSimpleVerdict(),
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primaryText,
-                              ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: _riskColor,
+                              shape: BoxShape.circle,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _riskLevelText,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: _riskColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: _riskColor,
-                          borderRadius: BorderRadius.circular(30),
-                          boxShadow: [BoxShadow(color: _riskColor.withOpacity(0.4), blurRadius: 8)],
-                        ),
-                        child: Text(
-                          '${widget.score}%',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _riskLevelText,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: _riskColor,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-            const SizedBox(height: 24),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Risk Score',
-                        style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-                    Text('${widget.score}%',
-                        style: TextStyle(color: _riskColor, fontWeight: FontWeight.bold)),
-                  ],
                 ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: _riskScore / 100,
-                    backgroundColor: AppColors.divider,
-                    color: _riskColor,
-                    minHeight: 8,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('Safe', style: TextStyle(color: AppColors.safe, fontSize: 11)),
-                    Text('Low', style: TextStyle(color: AppColors.mediumRisk, fontSize: 11)),
-                    Text('Medium', style: TextStyle(color: AppColors.mediumRisk, fontSize: 11)),
-                    Text('High', style: TextStyle(color: AppColors.highRisk, fontSize: 11)),
-                  ],
+                // Circular gauge – fixed size, aligned to top of the row
+                SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: _RiskGauge(score: _riskScore / 100, color: _riskColor),
                 ),
               ],
             ),
             const SizedBox(height: 24),
-            Text(widget.explanation,
-                style: const TextStyle(color: AppColors.secondaryText, fontSize: 14)),
-            const SizedBox(height: 24),
-            Center(
-              child: Container(
-                width: 220,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.mainBackground,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppColors.divider),
-                ),
-                child: Text(
-                  widget.url,
-                  style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w500),
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
+            // Explanation in a card for better readability
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.mainBackground.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.divider.withOpacity(0.2)),
+              ),
+              child: Text(
+                _cleanText(widget.explanation),
+                style: const TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 14,
+                  height: 1.5,
                 ),
               ),
+            ),
+            const SizedBox(height: 24),
+            // URL row with copy button
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.mainBackground,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.divider),
+                    ),
+                    child: Text(
+                      widget.url,
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                        fontSize: 13,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.copy, size: 20, color: AppColors.primaryPurple),
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: widget.url));
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('URL copied'), backgroundColor: AppColors.safe),
+                      );
+                    }
+                  },
+                  tooltip: 'Copy URL',
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             Align(
@@ -635,7 +608,7 @@ Explanation: ${widget.explanation}
     }
   }
 
-  // ---------- UNREGISTERED SECTION ----------
+  // ---------- UNREGISTERED SECTION (unchanged) ----------
   Widget _buildUnregisteredSection(bool isSmall) {
     String externalMsg = '';
     if (_externalSources.isNotEmpty) {
@@ -690,18 +663,18 @@ Explanation: ${widget.explanation}
         ],
         Text('What this means',
             style: TextStyle(
-                fontSize: isSmall ? 17 : 19,
-                fontWeight: FontWeight.w600,
+                fontSize: isSmall ? 18 : 20,
+                fontWeight: FontWeight.w700,
                 color: AppColors.primaryText)),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         _buildInfoCard(whatThisMeans),
         const SizedBox(height: 24),
         Text('What you should do',
             style: TextStyle(
-                fontSize: isSmall ? 17 : 19,
-                fontWeight: FontWeight.w600,
+                fontSize: isSmall ? 18 : 20,
+                fontWeight: FontWeight.w700,
                 color: AppColors.primaryText)),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         _buildInfoCard(whatToDo),
         const SizedBox(height: 24),
         ClipRRect(
@@ -792,64 +765,36 @@ Explanation: ${widget.explanation}
 
   // ---------- REGISTERED DEFAULT SECTION ----------
   Widget _buildRegisteredDefaultSection(bool isSmall) {
-    final engine = widget.engineResult;
-    final threatType = engine?['threat_type'] ?? 'benign';
-    final mlConfidence = engine?['ml_confidence'] ?? 'none';
-    final externalScore = _toDouble(engine?['external_score']);
-
-    final summaryItems = [
-      {'icon': Icons.shield, 'label': 'Risk Score', 'value': '${widget.score}%'},
-      {'icon': Icons.warning_amber, 'label': 'Threat Type', 'value': threatType},
-      {'icon': Icons.psychology_alt, 'label': 'ML Confidence', 'value': mlConfidence},
-      {'icon': Icons.analytics, 'label': 'ML Score',
-          'value': _toDouble(engine?['ml_score']).toStringAsFixed(4)},
-      {'icon': Icons.auto_awesome, 'label': 'AI Score',
-          'value': _toDouble(engine?['ai_score']).toStringAsFixed(2)},
-      {'icon': Icons.trending_up, 'label': 'Behavior Score',
-          'value': _toDouble(engine?['behavior_score']).toStringAsFixed(2)},
-      {'icon': Icons.cloud, 'label': 'External Score',
-          'value': externalScore.toStringAsFixed(2)},
-      {'icon': Icons.list_alt, 'label': 'External Sources',
-          'value': _externalSources.isNotEmpty ? _externalSources.join(', ') : 'None'},
-    ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader('THREAT SUMMARY', Icons.summarize),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          decoration: _cardDecoration(),
-          child: Column(
-            children: summaryItems
-                .map((item) => _buildSummaryRow(
-                    item['icon'] as IconData, item['label'] as String, item['value'] as String))
-                .toList(),
-          ),
-        ),
+        _buildThreatSummaryCard(),
+        const SizedBox(height: 24),
+        _buildDivider(),
         const SizedBox(height: 24),
         _buildSectionHeader('DETECTED ISSUES', Icons.bug_report),
         const SizedBox(height: 12),
         widget.reasons.isNotEmpty
-            ? Column(children: widget.reasons
-                .map((reason) => _buildListItem(reason, Icons.warning, AppColors.mediumRisk))
-                .toList())
+            ? Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: widget.reasons.map((reason) => _buildIssueChip(reason)).toList(),
+              )
             : _buildEmptyMessage('No specific threats detected'),
+        const SizedBox(height: 32),
+        _buildDivider(),
         const SizedBox(height: 24),
         _buildSectionHeader('RECOMMENDED ACTIONS', Icons.gavel),
         const SizedBox(height: 12),
-        widget.recommendedActions.isNotEmpty
-            ? Column(children: widget.recommendedActions
-                .map((action) => _buildListItem(action, Icons.check_circle, AppColors.safe))
-                .toList())
-            : _buildEmptyMessage('No specific actions needed'),
-        const SizedBox(height: 24),
+        _buildActionsCard(),
+        const SizedBox(height: 32),
         if (_safetyTips.isNotEmpty) ...[
+          _buildDivider(),
+          const SizedBox(height: 24),
           _buildSectionHeader('SAFETY TIPS', Icons.lightbulb),
           const SizedBox(height: 12),
-          ..._safetyTips.map((tip) => _buildListItem(tip, Icons.info, AppColors.primaryPurple)),
-          const SizedBox(height: 24),
+          _buildSafetyTipsCard(),
+          const SizedBox(height: 32),
         ],
         Center(
           child: SizedBox(
@@ -874,279 +819,85 @@ Explanation: ${widget.explanation}
     final engine = widget.engineResult;
     final isEngineResult = engine != null;
 
-    final threatType = isEngineResult ? (engine['threat_type'] ?? 'benign') : 'benign';
-    final mlConfidence = isEngineResult ? (engine['ml_confidence'] ?? 'none') : 'none';
-    final externalScore = _toDouble(engine?['external_score']);
-
-    final behaviorPatterns = isEngineResult ? (engine['behavior_matched_patterns'] as List?) ?? [] : [];
-    final behaviorCategories = isEngineResult ? (engine['behavior_categories'] as Map?) : null;
-    final modelCount = isEngineResult ? _toInt(engine['model_count']) : null;
-    final staticScore = isEngineResult ? _toDouble(engine['static_score']) : null;
-    final mlRawScore = isEngineResult ? _toDouble(engine['ml_score_raw']) : null;
-    final fusionWeights = isEngineResult ? (engine['fusion_weights'] as Map<String, dynamic>?) : null;
-
-    final externalDetails = isEngineResult ? (engine['external_details'] as Map?) : null;
-    String virusTotalMsg = '';
-    if (externalDetails != null && externalDetails.containsKey('virustotal')) {
-      final vt = externalDetails['virustotal'];
-      if (vt is Map) {
-        final malicious = vt['malicious'] ?? 0;
-        final suspicious = vt['suspicious'] ?? 0;
-        final total = vt['total'] ?? 0;
-        virusTotalMsg = 'VirusTotal: $malicious engines malicious, $suspicious suspicious (out of $total)';
-      } else if (vt is num) {
-        virusTotalMsg = 'VirusTotal: score ${vt.toStringAsFixed(2)}';
-      }
-    } else {
-      virusTotalMsg = _externalSources.contains('VirusTotal')
-          ? 'VirusTotal: Threat found! (details not available)'
-          : 'VirusTotal: No threat found.';
+    if (isEngineResult) {
+      print('=== Behavior Analysis Debug ===');
+      print('behavior_matched_patterns: ${engine['behavior_matched_patterns']}');
+      print('behavior_categories: ${engine['behavior_categories']}');
+      print('behavior_score: ${engine['behavior_score']}');
+      print('================================');
     }
-
-    String openPhishMsg = 'OpenPhish: URL not found';
-    if (externalDetails != null && externalDetails.containsKey('openphish')) {
-      final op = externalDetails['openphish'];
-      if (op is Map && op['source'] != null) openPhishMsg = 'OpenPhish: URL found in feed';
-    }
-
-    String whoisMsg = 'WhoisAPI: No createdDate for domain';
-    if (externalDetails != null && externalDetails.containsKey('whois')) {
-      final whois = externalDetails['whois'];
-      if (whois is Map && whois['age_days'] != null) {
-        final age = whois['age_days'];
-        whoisMsg = 'WhoisAPI: Domain age $age days (${age < 30 ? 'new' : 'established'})';
-        if (whois['warning'] != null) whoisMsg += ' - ${whois['warning']}';
-      }
-    }
-
-    String ipqsMsg = '';
-    if (externalDetails != null && externalDetails.containsKey('ipqualityscore')) {
-      final ipqs = externalDetails['ipqualityscore'];
-      if (ipqs is Map) {
-        ipqsMsg = 'IPQualityScore: risk_score ${ipqs['risk_score'] ?? 'N/A'}';
-      } else if (ipqs is num) {
-        ipqsMsg = 'IPQualityScore: score ${ipqs.toStringAsFixed(2)}';
-      }
-    }
-
-    String googleSafebrowsingMsg = _externalSources.contains('Google Safe Browsing')
-        ? 'GoogleSafeBrowsing: Threat found!'
-        : 'GoogleSafeBrowsing: No threat found.';
-
-    final summaryItems = [
-      {'icon': Icons.shield, 'label': 'Risk Score', 'value': '${widget.score}%'},
-      {'icon': Icons.warning_amber, 'label': 'Threat Type', 'value': threatType},
-      {'icon': Icons.psychology_alt, 'label': 'ML Confidence', 'value': mlConfidence},
-      {'icon': Icons.analytics, 'label': 'ML Score',
-          'value': _toDouble(engine?['ml_score']).toStringAsFixed(4)},
-      {'icon': Icons.auto_awesome, 'label': 'AI Score',
-          'value': _toDouble(engine?['ai_score']).toStringAsFixed(2)},
-      {'icon': Icons.trending_up, 'label': 'Behavior Score',
-          'value': _toDouble(engine?['behavior_score']).toStringAsFixed(2)},
-      {'icon': Icons.cloud, 'label': 'External Score',
-          'value': externalScore.toStringAsFixed(2)},
-      {'icon': Icons.list_alt, 'label': 'External Sources',
-          'value': _externalSources.isNotEmpty ? _externalSources.join(', ') : 'None'},
-    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader('THREAT SUMMARY', Icons.summarize),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          decoration: _cardDecoration(),
-          child: Column(
-            children: summaryItems
-                .map((item) => _buildSummaryRow(
-                    item['icon'] as IconData, item['label'] as String, item['value'] as String))
-                .toList(),
-          ),
-        ),
+        _buildThreatSummaryCard(),
+        const SizedBox(height: 24),
+        _buildDivider(),
         const SizedBox(height: 24),
         _buildSectionHeader('DETECTED ISSUES', Icons.bug_report),
         const SizedBox(height: 12),
         widget.reasons.isNotEmpty
-            ? Column(children: widget.reasons
-                .map((reason) => _buildListItem(reason, Icons.warning, AppColors.mediumRisk))
-                .toList())
+            ? Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: widget.reasons.map((reason) => _buildIssueChip(reason)).toList(),
+              )
             : _buildEmptyMessage('No specific threats detected'),
+        const SizedBox(height: 32),
+        _buildDivider(),
         const SizedBox(height: 24),
         _buildSectionHeader('RECOMMENDED ACTIONS', Icons.gavel),
         const SizedBox(height: 12),
-        widget.recommendedActions.isNotEmpty
-            ? Column(children: widget.recommendedActions
-                .map((action) => _buildListItem(action, Icons.check_circle, AppColors.safe))
-                .toList())
-            : _buildEmptyMessage('No specific actions needed'),
-        const SizedBox(height: 24),
+        _buildActionsCard(),
+        const SizedBox(height: 32),
         if (_safetyTips.isNotEmpty) ...[
+          _buildDivider(),
+          const SizedBox(height: 24),
           _buildSectionHeader('SAFETY TIPS', Icons.lightbulb),
           const SizedBox(height: 12),
-          ..._safetyTips.map((tip) => _buildListItem(tip, Icons.info, AppColors.primaryPurple)),
-          const SizedBox(height: 24),
+          _buildSafetyTipsCard(),
+          const SizedBox(height: 32),
         ],
-
         if (isEngineResult) ...[
-          const Divider(height: 32, thickness: 1, color: AppColors.divider),
-          _buildSectionHeader('TECHNICAL BREAKDOWN', Icons.code),
+          _buildDivider(),
           const SizedBox(height: 24),
-
-          _buildAnimatedExpandableSection(
-            title: 'External API Results',
-            icon: Icons.api,
-            isExpanded: _showExternalApiResults,
-            onTap: () {
-              HapticFeedback.lightImpact();
-              setState(() => _showExternalApiResults = !_showExternalApiResults);
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildInfoLine(googleSafebrowsingMsg, Icons.security),
-                _buildInfoLine(virusTotalMsg, Icons.bug_report),
-                _buildInfoLine(openPhishMsg, Icons.link),
-                _buildInfoLine(whoisMsg, Icons.date_range),
-                if (ipqsMsg.isNotEmpty) _buildInfoLine(ipqsMsg, Icons.verified),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          _buildAnimatedExpandableSection(
-            title: 'Static Rules Fired',
-            icon: Icons.rule,
-            isExpanded: _showStaticRules,
-            onTap: () {
-              HapticFeedback.lightImpact();
-              setState(() => _showStaticRules = !_showStaticRules);
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: (engine['detailed_detected_threats'] as List? ?? []).isEmpty
-                  ? [_buildEmptyMessage('No static rules fired')]
-                  : (engine['detailed_detected_threats'] as List)
-                      .map<Widget>((threat) => _buildInfoLine(
-                            '[${threat['severity']?.toString().toUpperCase()}] ${threat['description']}',
-                            Icons.circle,
-                            iconColor: AppColors.secondaryText,
-                          ))
-                      .toList(),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          _buildAnimatedExpandableSection(
-            title: 'Machine Learning Probabilities',
-            icon: Icons.show_chart,
-            isExpanded: _showMLDetails,
-            onTap: () {
-              HapticFeedback.lightImpact();
-              setState(() => _showMLDetails = !_showMLDetails);
-            },
-            child: _buildMLProbabilitiesTable(engine),
-          ),
-          const SizedBox(height: 24),
-
-          _buildAnimatedExpandableSection(
-            title: 'External Threat Intelligence (Raw)',
-            icon: Icons.cloud_queue,
-            isExpanded: _showExternalDetails,
-            onTap: () {
-              HapticFeedback.lightImpact();
-              setState(() => _showExternalDetails = !_showExternalDetails);
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_externalSources.isNotEmpty)
-                  _buildInfoLine('Sources: ${_externalSources.join(', ')}', Icons.source),
-                if (externalDetails != null && externalDetails.isNotEmpty)
-                  ...externalDetails.entries.map<Widget>((entry) {
-                    final valueStr = entry.value.toString();
-                    return _buildInfoLine('${entry.key}: $valueStr', Icons.data_usage,
-                        iconColor: AppColors.secondaryText);
-                  }).toList(),
-                if (externalDetails == null || externalDetails.isEmpty)
-                  _buildEmptyMessage('No external intelligence data'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          if (behaviorPatterns.isNotEmpty || behaviorCategories != null) ...[
-            _buildAnimatedExpandableSection(
-              title: 'Behavior Analysis',
-              icon: Icons.insights,
-              isExpanded: _showBehaviorAnalysis,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                setState(() => _showBehaviorAnalysis = !_showBehaviorAnalysis);
-              },
+          _buildSectionHeader('TECHNICAL ANALYSIS', Icons.code),
+          const SizedBox(height: 16),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 600),
+            child: DefaultTabController(
+              length: 2,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (behaviorPatterns.isNotEmpty) ...[
-                    const Text('Matched Patterns:',
-                        style: TextStyle(
-                            color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    ...behaviorPatterns.map((pattern) => _buildInfoLine(pattern, Icons.pattern)),
-                    const SizedBox(height: 12),
-                  ],
-                  if (behaviorCategories != null) ...[
-                    const Text('Categories:',
-                        style: TextStyle(
-                            color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    ...(behaviorCategories['categories'] as Map? ?? {})
-                        .entries
-                        .map((entry) => _buildInfoLine(
-                            '${entry.key}: ${(entry.value as List).join(', ')}', Icons.category)),
-                    const SizedBox(height: 4),
-                    if (behaviorCategories['summary'] != null)
-                      Text(
-                        'Summary: total=${behaviorCategories['summary']['total_patterns']}, categories=${behaviorCategories['summary']['categories_count']}, severity=${behaviorCategories['summary']['severity']}',
-                        style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
-                      ),
-                  ],
+                  const TabBar(
+                    indicatorColor: AppColors.primaryPurple,
+                    labelColor: AppColors.primaryPurple,
+                    unselectedLabelColor: AppColors.secondaryText,
+                    tabs: [
+                      Tab(text: 'Technical Details', icon: Icon(Icons.memory)),
+                      Tab(text: 'External Data', icon: Icon(Icons.cloud_queue)),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        SingleChildScrollView(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: _buildTechnicalDetailsTab(engine),
+                        ),
+                        SingleChildScrollView(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: _buildExternalDataTab(engine),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-          ],
-
-          if (modelCount != null || staticScore != null || mlRawScore != null) ...[
-            _buildAnimatedExpandableSection(
-              title: 'Model Metrics',
-              icon: Icons.memory,
-              isExpanded: _showModelMetrics,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                setState(() => _showModelMetrics = !_showModelMetrics);
-              },
-              child: _buildMetricsTable(modelCount, staticScore, mlRawScore),
-            ),
-            const SizedBox(height: 24),
-          ],
-
-          if (fusionWeights != null && fusionWeights.isNotEmpty) ...[
-            _buildAnimatedExpandableSection(
-              title: 'Fusion Details',
-              icon: Icons.merge_type,
-              isExpanded: _showFusionDetails,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                setState(() => _showFusionDetails = !_showFusionDetails);
-              },
-              child: _buildFusionDetailsTable(fusionWeights),
-            ),
-            const SizedBox(height: 24),
-          ],
+          ),
+          const SizedBox(height: 24),
         ],
-
-        const SizedBox(height: 24),
         Center(
           child: SizedBox(
             width: 160,
@@ -1166,6 +917,82 @@ Explanation: ${widget.explanation}
     );
   }
 
+  // ======================== THREAT SUMMARY CARD ========================
+  Widget _buildThreatSummaryCard() {
+    final engine = widget.engineResult;
+    final threatType = _cleanText(engine?['threat_type'] ?? 'benign');
+    final mlConfidence = _cleanText(engine?['ml_confidence'] ?? 'none');
+    final mlScore = _toDouble(engine?['ml_score']);
+    final aiScore = _toDouble(engine?['ai_score']);
+    final behaviorScore = _toDouble(engine?['behavior_score']);
+    final externalScore = _toDouble(engine?['external_score']);
+    final externalSources = _externalSources.isNotEmpty ? _externalSources.join(', ') : 'None';
+
+    final rows = [
+      {'label': 'Threat Type', 'value': threatType},
+      {'label': 'ML Confidence', 'value': mlConfidence},
+      {'label': 'ML Score', 'value': mlScore.toStringAsFixed(4)},
+      {'label': 'AI Score', 'value': aiScore.toStringAsFixed(2)},
+      {'label': 'Behavior Score', 'value': behaviorScore.toStringAsFixed(2)},
+      {'label': 'External Score', 'value': externalScore.toStringAsFixed(2)},
+      {'label': 'External Sources', 'value': externalSources},
+    ];
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: AppColors.cardBackground,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.summarize, color: AppColors.primaryPurple, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'Threat Summary',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.primaryText),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...rows.map((row) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 120,
+                    child: Text(
+                      row['label']!,
+                      style: const TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      row['value']!,
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                        fontSize: 13,
+                      ),
+                      softWrap: true,
+                    ),
+                  ),
+                ],
+              ),
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ======================== HELPER WIDGETS ========================
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
@@ -1175,13 +1002,149 @@ Explanation: ${widget.explanation}
         Text(
           title,
           style: const TextStyle(
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.w700,
             color: AppColors.primaryText,
             letterSpacing: 0.5,
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildIssueChip(String text) {
+    final cleanText = _cleanText(text);
+    Color chipColor;
+    IconData icon;
+    if (cleanText.toLowerCase().contains('malicious') || cleanText.toLowerCase().contains('phish')) {
+      chipColor = AppColors.highRisk;
+      icon = Icons.warning;
+    } else if (cleanText.toLowerCase().contains('suspicious')) {
+      chipColor = AppColors.mediumRisk;
+      icon = Icons.error_outline;
+    } else {
+      chipColor = AppColors.primaryPurple;
+      icon = Icons.info_outline;
+    }
+    return Chip(
+      backgroundColor: chipColor.withOpacity(0.15),
+      avatar: Icon(icon, size: 16, color: chipColor),
+      label: Text(
+        cleanText,
+        style: TextStyle(color: chipColor, fontSize: 13),
+      ),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+      side: BorderSide.none,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    );
+  }
+
+  // Updated actions card: reorder and change icon for risk action
+  Widget _buildActionsCard() {
+    List<String> actions = List.from(widget.recommendedActions);
+    // Remove emojis from actions
+    actions = actions.map((a) => _cleanText(a)).toList();
+
+    // Find the risk-level action (contains "High risk", "Medium risk", "Low risk", or "Safe")
+    int riskIndex = -1;
+    for (int i = 0; i < actions.length; i++) {
+      final lower = actions[i].toLowerCase();
+      if (lower.contains('high risk') || lower.contains('medium risk') || lower.contains('low risk') || lower.contains('safe – no significant')) {
+        riskIndex = i;
+        break;
+      }
+    }
+
+    // Move risk action to front if found
+    if (riskIndex > 0) {
+      final riskAction = actions.removeAt(riskIndex);
+      actions.insert(0, riskAction);
+    }
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: AppColors.cardBackground,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: actions.asMap().entries.map((entry) {
+            final index = entry.key;
+            final action = entry.value;
+            bool isRiskAction = index == 0 && (action.toLowerCase().contains('high risk') ||
+                action.toLowerCase().contains('medium risk') ||
+                action.toLowerCase().contains('low risk') ||
+                action.toLowerCase().contains('safe – no significant'));
+            IconData icon;
+            Color iconColor;
+            if (isRiskAction) {
+              if (action.toLowerCase().contains('high risk')) {
+                icon = Icons.warning_amber;
+                iconColor = AppColors.highRisk;
+              } else if (action.toLowerCase().contains('medium risk')) {
+                icon = Icons.warning;
+                iconColor = AppColors.mediumRisk;
+              } else if (action.toLowerCase().contains('low risk')) {
+                icon = Icons.info_outline;
+                iconColor = AppColors.mediumRisk;
+              } else {
+                icon = Icons.check_circle;
+                iconColor = AppColors.safe;
+              }
+            } else {
+              icon = Icons.check_circle;
+              iconColor = AppColors.safe;
+            }
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, color: iconColor, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      action,
+                      style: const TextStyle(color: AppColors.primaryText, fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSafetyTipsCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: AppColors.cardBackground,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: _safetyTips.map((tip) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.lightbulb_outline, color: AppColors.primaryPurple, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tip,
+                    style: const TextStyle(color: AppColors.primaryText, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          )).toList(),
+        ),
+      ),
     );
   }
 
@@ -1200,62 +1163,6 @@ Explanation: ${widget.explanation}
           Expanded(
             child: Text(message,
                 style: const TextStyle(color: AppColors.secondaryText, fontStyle: FontStyle.italic)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  BoxDecoration _cardDecoration() {
-    return BoxDecoration(
-      color: AppColors.cardBackground,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.divider.withOpacity(0.3)),
-    );
-  }
-
-  Widget _buildSummaryRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: AppColors.primaryPurple),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w500),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(color: AppColors.primaryText),
-              softWrap: true,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildListItem(String text, IconData icon, Color iconColor) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: _cardDecoration(),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: iconColor),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(color: AppColors.primaryText),
-              softWrap: true,
-            ),
           ),
         ],
       ),
@@ -1294,7 +1201,110 @@ Explanation: ${widget.explanation}
     );
   }
 
-  Widget _buildAnimatedExpandableSection({
+  // Technical Details Tab Content (unchanged)
+  Widget _buildTechnicalDetailsTab(Map<String, dynamic> engine) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildExpandableSection(
+          title: 'Static Rules Fired',
+          icon: Icons.rule,
+          isExpanded: _showStaticRules,
+          onTap: () => setState(() => _showStaticRules = !_showStaticRules),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: (engine['detailed_detected_threats'] as List? ?? []).isEmpty
+                ? [_buildEmptyMessage('No static rules fired')]
+                : (engine['detailed_detected_threats'] as List)
+                    .map<Widget>((threat) => _buildInfoLine(
+                          '[${threat['severity']?.toString().toUpperCase()}] ${_cleanText(threat['description'])}',
+                          Icons.circle,
+                          iconColor: AppColors.secondaryText,
+                        ))
+                    .toList(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildExpandableSection(
+          title: 'Machine Learning Probabilities',
+          icon: Icons.show_chart,
+          isExpanded: _showMLDetails,
+          onTap: () => setState(() => _showMLDetails = !_showMLDetails),
+          child: _buildMLProbabilitiesTable(engine),
+        ),
+        const SizedBox(height: 16),
+        _buildExpandableSection(
+          title: 'Behavior Analysis',
+          icon: Icons.insights,
+          isExpanded: _showBehaviorAnalysis,
+          onTap: () => setState(() => _showBehaviorAnalysis = !_showBehaviorAnalysis),
+          child: _buildBehaviorAnalysis(engine),
+        ),
+        const SizedBox(height: 16),
+        if (engine['model_count'] != null ||
+            engine['static_score'] != null ||
+            engine['ml_score_raw'] != null)
+          _buildExpandableSection(
+            title: 'Model Metrics',
+            icon: Icons.memory,
+            isExpanded: _showModelMetrics,
+            onTap: () => setState(() => _showModelMetrics = !_showModelMetrics),
+            child: _buildMetricsTable(engine),
+          ),
+        const SizedBox(height: 16),
+        if (engine['fusion_weights'] != null)
+          _buildExpandableSection(
+            title: 'Fusion Details',
+            icon: Icons.merge_type,
+            isExpanded: _showFusionDetails,
+            onTap: () => setState(() => _showFusionDetails = !_showFusionDetails),
+            child: _buildFusionDetailsTable(engine['fusion_weights']),
+          ),
+      ],
+    );
+  }
+
+  // External Data Tab Content (unchanged)
+  Widget _buildExternalDataTab(Map<String, dynamic> engine) {
+    final externalDetails = engine['external_details'] as Map?;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildExpandableSection(
+          title: 'External API Results',
+          icon: Icons.api,
+          isExpanded: _showExternalApiResults,
+          onTap: () => setState(() => _showExternalApiResults = !_showExternalApiResults),
+          child: _buildExternalApiResults(engine),
+        ),
+        const SizedBox(height: 16),
+        _buildExpandableSection(
+          title: 'Raw Threat Intelligence',
+          icon: Icons.cloud_queue,
+          isExpanded: _showExternalDetails,
+          onTap: () => setState(() => _showExternalDetails = !_showExternalDetails),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_externalSources.isNotEmpty)
+                _buildInfoLine('Sources: ${_externalSources.join(', ')}', Icons.source),
+              if (externalDetails != null && externalDetails.isNotEmpty)
+                ...externalDetails.entries.map<Widget>((entry) {
+                  final valueStr = entry.value.toString();
+                  return _buildInfoLine('${entry.key}: $valueStr', Icons.data_usage,
+                      iconColor: AppColors.secondaryText);
+                }).toList(),
+              if (externalDetails == null || externalDetails.isEmpty)
+                _buildEmptyMessage('No external intelligence data'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper for expandable sections
+  Widget _buildExpandableSection({
     required String title,
     required IconData icon,
     required bool isExpanded,
@@ -1302,7 +1312,11 @@ Explanation: ${widget.explanation}
     required Widget child,
   }) {
     return Container(
-      decoration: _cardDecoration(),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+      ),
       child: Column(
         children: [
           InkWell(
@@ -1344,52 +1358,71 @@ Explanation: ${widget.explanation}
     );
   }
 
-  // Improved table: using Column of Rows to avoid overflow
-  Widget _buildMLProbabilitiesTable(Map<String, dynamic>? engine) {
-    final children = <Widget>[];
+  // ML probabilities table (unchanged)
+  Widget _buildMLProbabilitiesTable(Map<String, dynamic> engine) {
+    final probsMap = engine['individual_model_probabilities'] as Map<dynamic, dynamic>?;
+    final ensembleProbs = engine['ensemble_probabilities'];
 
-    // Header
-    children.add(
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.divider.withOpacity(0.5))),
-        ),
-        child: Row(
-          children: const [
-            Expanded(
-              flex: 1,
-              child: Text('Model',
-                  style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text('Probabilities [benign, defacement, phishing, malware]',
-                  style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
-            ),
-          ],
-        ),
-      ),
-    );
+    if ((probsMap == null || probsMap.isEmpty) && ensembleProbs == null) {
+      return _buildEmptyMessage('No probability data available.');
+    }
 
-    if (engine?['individual_model_probabilities'] != null) {
-      final probs = engine!['individual_model_probabilities'] as Map<dynamic, dynamic>;
-      probs.forEach((modelName, values) {
-        final formatted = _formatProbList(values);
-        children.add(
-          Padding(
-            padding: const EdgeInsets.all(12),
+    final List<Widget> rows = [];
+
+    Widget _probBar(double value, Color color) {
+      return Expanded(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: value,
+            backgroundColor: AppColors.divider,
+            color: color,
+            minHeight: 8,
+          ),
+        ),
+      );
+    }
+
+    Widget _probRow(List<double> probs) {
+      const labels = ['Benign', 'Deface', 'Phish', 'Malware'];
+      const colors = [Colors.green, Colors.orange, Colors.orange, Colors.red];
+      return Column(
+        children: List.generate(probs.length, (i) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
             child: Row(
+              children: [
+                SizedBox(
+                  width: 60,
+                  child: Text(labels[i], style: const TextStyle(fontSize: 12, color: AppColors.secondaryText)),
+                ),
+                _probBar(probs[i], colors[i]),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 40,
+                  child: Text('${(probs[i] * 100).toStringAsFixed(1)}%',
+                      style: const TextStyle(fontSize: 12, color: AppColors.primaryText)),
+                ),
+              ],
+            ),
+          );
+        }),
+      );
+    }
+
+    if (probsMap != null) {
+      probsMap.forEach((modelName, values) {
+        final probsList = (values as List).map((v) => _toDouble(v)).toList();
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  flex: 1,
-                  child: Text(modelName.toString(), style: const TextStyle(color: AppColors.primaryText)),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(formatted, style: const TextStyle(color: AppColors.primaryText)),
-                ),
+                Text(modelName.toString(),
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.primaryText)),
+                const SizedBox(height: 8),
+                _probRow(probsList),
               ],
             ),
           ),
@@ -1397,57 +1430,42 @@ Explanation: ${widget.explanation}
       });
     }
 
-    if (engine?['ensemble_probabilities'] != null) {
-      final ensembleFormatted = _formatProbList(engine!['ensemble_probabilities']);
-      children.add(
+    if (ensembleProbs != null) {
+      final ensembleList = (ensembleProbs as List).map((v) => _toDouble(v)).toList();
+      rows.add(
         Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Expanded(
-                flex: 1,
-                child: Text('Ensemble',
-                    style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w500)),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(ensembleFormatted, style: const TextStyle(color: AppColors.primaryText)),
-              ),
+              const Text('Ensemble',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.primaryPurple)),
+              const SizedBox(height: 8),
+              _probRow(ensembleList),
             ],
           ),
         ),
       );
     }
 
-    if (children.length == 1) {
-      return _buildEmptyMessage('No probability data available.');
-    }
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Container(
-        width: MediaQuery.of(context).size.width - 56, // account for card padding
-        decoration: BoxDecoration(
-          color: AppColors.mainBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: children,
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.mainBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
       ),
+      padding: const EdgeInsets.all(12),
+      child: Column(children: rows),
     );
   }
 
-  Widget _buildFusionDetailsTable(Map<String, dynamic> fusionWeights) {
+  Widget _buildFusionDetailsTable(Map<String, dynamic>? fusionWeights) {
+    if (fusionWeights == null || fusionWeights.isEmpty) {
+      return _buildEmptyMessage('No fusion weights available');
+    }
     final children = <Widget>[
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.divider.withOpacity(0.5))),
-        ),
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
         child: Row(
           children: const [
             Expanded(
@@ -1462,12 +1480,11 @@ Explanation: ${widget.explanation}
         ),
       ),
     ];
-
     fusionWeights.forEach((key, value) {
       final val = _toDouble(value).toStringAsFixed(3);
       children.add(
         Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.only(bottom: 6),
           child: Row(
             children: [
               Expanded(child: Text(key, style: const TextStyle(color: AppColors.primaryText))),
@@ -1477,110 +1494,221 @@ Explanation: ${widget.explanation}
         ),
       );
     });
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Container(
-        width: MediaQuery.of(context).size.width - 56,
-        decoration: BoxDecoration(
-          color: AppColors.mainBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: children,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMetricsTable(int? modelCount, double? staticScore, double? mlRawScore) {
-    final children = <Widget>[];
-
-    if (modelCount != null) {
-      children.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 120,
-                child: Text('Model Count',
-                    style: const TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w500)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(modelCount.toString(),
-                    style: const TextStyle(color: AppColors.primaryText)),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    if (staticScore != null) {
-      children.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 120,
-                child: Text('Static Score',
-                    style: const TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w500)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(staticScore.toStringAsFixed(2),
-                    style: const TextStyle(color: AppColors.primaryText)),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    if (mlRawScore != null) {
-      children.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 120,
-                child: Text('ML Raw Score',
-                    style: const TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w500)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(mlRawScore.toStringAsFixed(6),
-                    style: const TextStyle(color: AppColors.primaryText)),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (children.isEmpty) {
-      return _buildEmptyMessage('No metrics available');
-    }
-
     return Container(
       decoration: BoxDecoration(
         color: AppColors.mainBackground,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.divider),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+      padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+    );
+  }
+
+  Widget _buildMetricsTable(Map<String, dynamic> engine) {
+    final children = <Widget>[];
+    if (engine['model_count'] != null) {
+      children.add(_buildMetricRow('Model Count', engine['model_count'].toString()));
+    }
+    if (engine['static_score'] != null) {
+      children.add(_buildMetricRow('Static Score', _toDouble(engine['static_score']).toStringAsFixed(2)));
+    }
+    if (engine['ml_score_raw'] != null) {
+      children.add(_buildMetricRow('ML Raw Score', _toDouble(engine['ml_score_raw']).toStringAsFixed(6)));
+    }
+    if (children.isEmpty) return _buildEmptyMessage('No metrics available');
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.mainBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildMetricRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(label, style: const TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w500)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(value, style: const TextStyle(color: AppColors.primaryText))),
+        ],
       ),
     );
   }
 
-  String _formatProbList(dynamic probs) {
-    if (probs is List) return probs.map((p) => _toDouble(p).toStringAsFixed(3)).join(', ');
-    return probs.toString();
+  Widget _buildBehaviorAnalysis(Map<String, dynamic> engine) {
+    final behaviorPatterns = (engine['behavior_matched_patterns'] as List?) ?? [];
+    final behaviorCategories = engine['behavior_categories'] as Map?;
+
+    if (behaviorPatterns.isEmpty && behaviorCategories == null) {
+      return _buildEmptyMessage('No suspicious behavior patterns were identified for this URL.');
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (behaviorPatterns.isNotEmpty) ...[
+          const Text('Matched Patterns:',
+              style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          ...behaviorPatterns.map((pattern) => _buildInfoLine(_cleanText(pattern.toString()), Icons.pattern)),
+          const SizedBox(height: 12),
+        ],
+        if (behaviorCategories != null) ...[
+          const Text('Categories:',
+              style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          ...(behaviorCategories['categories'] as Map? ?? {})
+              .entries
+              .map((entry) => _buildInfoLine(
+                  '${entry.key}: ${(entry.value as List).join(', ')}', Icons.category)),
+          const SizedBox(height: 4),
+          if (behaviorCategories['summary'] != null)
+            Text(
+              'Summary: total=${behaviorCategories['summary']['total_patterns']}, categories=${behaviorCategories['summary']['categories_count']}, severity=${behaviorCategories['summary']['severity']}',
+              style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+            ),
+        ],
+      ],
+    );
   }
+
+  Widget _buildExternalApiResults(Map<String, dynamic> engine) {
+    final externalDetails = engine['external_details'] as Map?;
+    String googleMsg = _externalSources.contains('Google Safe Browsing')
+        ? 'Google Safe Browsing: Threat found!'
+        : 'Google Safe Browsing: No threat found.';
+    String vtMsg = '';
+    if (externalDetails != null && externalDetails.containsKey('virustotal')) {
+      final vt = externalDetails['virustotal'];
+      if (vt is Map) {
+        final malicious = vt['malicious'] ?? 0;
+        final suspicious = vt['suspicious'] ?? 0;
+        final total = vt['total'] ?? 0;
+        vtMsg = 'VirusTotal: $malicious engines malicious, $suspicious suspicious (out of $total)';
+      } else if (vt is num) {
+        vtMsg = 'VirusTotal: score ${vt.toStringAsFixed(2)}';
+      }
+    } else {
+      vtMsg = _externalSources.contains('VirusTotal')
+          ? 'VirusTotal: Threat found! (details not available)'
+          : 'VirusTotal: No threat found.';
+    }
+    String openPhishMsg = 'OpenPhish: URL not found';
+    if (externalDetails != null && externalDetails.containsKey('openphish')) {
+      final op = externalDetails['openphish'];
+      if (op is Map && op['source'] != null) openPhishMsg = 'OpenPhish: URL found in feed';
+    }
+    String whoisMsg = 'WhoisAPI: No createdDate for domain';
+    if (externalDetails != null && externalDetails.containsKey('whois')) {
+      final whois = externalDetails['whois'];
+      if (whois is Map && whois['age_days'] != null) {
+        final age = whois['age_days'];
+        whoisMsg = 'WhoisAPI: Domain age $age days (${age < 30 ? 'new' : 'established'})';
+        if (whois['warning'] != null) whoisMsg += ' - ${whois['warning']}';
+      }
+    }
+    String ipqsMsg = '';
+    if (externalDetails != null && externalDetails.containsKey('ipqualityscore')) {
+      final ipqs = externalDetails['ipqualityscore'];
+      if (ipqs is Map) {
+        ipqsMsg = 'IPQualityScore: risk_score ${ipqs['risk_score'] ?? 'N/A'}';
+      } else if (ipqs is num) {
+        ipqsMsg = 'IPQualityScore: score ${ipqs.toStringAsFixed(2)}';
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildInfoLine(googleMsg, Icons.security),
+        _buildInfoLine(vtMsg, Icons.bug_report),
+        _buildInfoLine(openPhishMsg, Icons.link),
+        _buildInfoLine(whoisMsg, Icons.date_range),
+        if (ipqsMsg.isNotEmpty) _buildInfoLine(ipqsMsg, Icons.verified),
+      ],
+    );
+  }
+}
+
+// ======================== CIRCULAR GAUGE CUSTOM PAINTER ========================
+class _RiskGauge extends StatelessWidget {
+  final double score;
+  final Color color;
+
+  const _RiskGauge({required this.score, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _SemiCircularGaugePainter(score: score, color: color),
+      child: const Center(child: Text('')),
+    );
+  }
+}
+
+class _SemiCircularGaugePainter extends CustomPainter {
+  final double score;
+  final Color color;
+
+  _SemiCircularGaugePainter({required this.score, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height);
+    final radius = size.width / 2;
+    final startAngle = -pi;
+    final sweepAngle = pi;
+    final backgroundPaint = Paint()
+      ..color = AppColors.divider.withOpacity(0.5)
+      ..strokeWidth = 12
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - 6),
+      startAngle,
+      sweepAngle,
+      false,
+      backgroundPaint,
+    );
+
+    final progressAngle = sweepAngle * score;
+    final progressPaint = Paint()
+      ..color = color
+      ..strokeWidth = 12
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - 6),
+      startAngle,
+      progressAngle,
+      false,
+      progressPaint,
+    );
+
+    final textSpan = TextSpan(
+      text: '${(score * 100).toInt()}%',
+      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+    );
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    final textOffset = Offset(
+      center.dx - textPainter.width / 2,
+      center.dy - textPainter.height - 4,
+    );
+    textPainter.paint(canvas, textOffset);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

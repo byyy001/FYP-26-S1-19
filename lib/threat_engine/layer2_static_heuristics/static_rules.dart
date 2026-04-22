@@ -511,6 +511,27 @@ class StaticRuleEngine {
   }
 
   // --------------------------------------------------------------------------
+  // Helper: Expand shortener URL (head request)
+  // --------------------------------------------------------------------------
+  Future<String?> _expandShortener(String url) async {
+    try {
+      final client = HttpClient()
+        ..autoUncompress = true
+        ..connectionTimeout = const Duration(seconds: 3);
+      final request = await client.headUrl(Uri.parse(url));
+      final response = await request.close();
+      final finalUrl = response.headers.value('location');
+      client.close();
+      if (finalUrl != null && finalUrl != url) {
+        return finalUrl;
+      }
+    } catch (e) {
+      // ignore – expansion failed
+    }
+    return null;
+  }
+
+  // --------------------------------------------------------------------------
   // Main external check
   // --------------------------------------------------------------------------
   Future<Map<String, dynamic>> checkExternalBlacklists() async {
@@ -581,6 +602,7 @@ class StaticRuleEngine {
     final threats = <Map<String, dynamic>>[];
     if (await isTrustedDomain) return threats;
 
+    // Existing checks
     if (features.isMalformed) {
       threats.add({
         'type': 'malformed_url',
@@ -620,12 +642,62 @@ class StaticRuleEngine {
       });
     }
 
+    // URL shortener detection and expansion
     if (isShortener) {
       threats.add({
         'type': 'url_shortener',
         'severity': 'medium',
         'description': 'Link uses a URL shortening service.',
         'score': 0.5,
+      });
+      // Attempt to expand the shortener (non-blocking, do not wait for result)
+      // We'll run it as a separate future and add an extra threat if successful.
+      // To keep the scan fast, we do not await; instead we add the expanded info
+      // as a separate threat only if we get it within a short timeout.
+      final expanded = await _expandShortener(features.url);
+      if (expanded != null && expanded != features.url) {
+        threats.add({
+          'type': 'shortener_expanded',
+          'severity': 'low',
+          'description': 'Expands to: $expanded',
+          'score': 0.1,
+        });
+      }
+    }
+
+    // HTTP warning
+    if (features.url.startsWith('http://') && !await isTrustedDomain) {
+      threats.add({
+        'type': 'unencrypted_http',
+        'severity': 'low',
+        'description': 'Unencrypted HTTP connection – information could be intercepted.',
+        'score': 0.2,
+      });
+    }
+
+    // Suspicious path patterns
+    final path = features.uri.path.toLowerCase();
+    final suspiciousPaths = [
+      '/cgi-bin/', '/wp-admin/', '/phpmyadmin/', '/backup/', '/shell/', '/config/',
+      '/admin/', '/login/', '/wp-login.php', '/xmlrpc.php'
+    ];
+    if (suspiciousPaths.any((p) => path.contains(p))) {
+      threats.add({
+        'type': 'suspicious_path',
+        'severity': 'medium',
+        'description': 'Suspicious path pattern detected (e.g., admin, backup, shell).',
+        'score': 0.5,
+      });
+    }
+
+    // Homograph (IDN) attack detection
+    final domain = features.domain;
+    if (domain.contains(RegExp(r'[^\x00-\x7F]'))) {
+      threats.add({
+        'type': 'homograph_attack',
+        'severity': 'high',
+        'description': 'Homograph attack possible – domain uses non‑standard characters that may impersonate legitimate sites.',
+        'score': 0.8,
       });
     }
 

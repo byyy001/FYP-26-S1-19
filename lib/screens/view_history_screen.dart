@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
+import 'scan_result_details_screen.dart';
+import '../threat_engine/scan_settings.dart';
+import '../threat_engine/layer5_facade/threat_engine.dart';
+import 'result_screen.dart';
 
 class ViewHistoryScreen extends StatefulWidget {
   const ViewHistoryScreen({super.key});
@@ -14,6 +18,7 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
   String _selectedFilter = 'All';
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _isRescanning = false;
 
   final List<String> _filters = ['All', 'Safe', 'Suspicious', 'Malicious'];
 
@@ -66,6 +71,80 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
     return grouped;
   }
 
+  ScanResult _convertToScanResult(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final Timestamp? scannedAt = data['scannedAt'] as Timestamp?;
+    final scanDate = scannedAt != null
+        ? _formatDateLabel(scannedAt.toDate()) +
+            ' at ' +
+            _formatTime(scannedAt.toDate())
+        : 'Unknown date';
+
+    final Map<String, dynamic> scanMap = {
+      'url': data['url'] ?? '',
+      'scan_date': scanDate,
+      'threat_type': data['threat_type'] ?? data['threatType'] ?? 'unknown',
+      'risk_score': data['risk_score'] ?? data['riskScore'] ?? 0,
+      'explanation': data['explanation'] ?? '',
+      'detected_threats': data['detected_threats'] ?? data['detectedThreats'] ?? [],
+      'ml_confidence': data['ml_confidence'] ?? data['mlConfidence'] ?? 'low',
+      'ml_score': data['ml_score'] ?? data['mlScore'] ?? 0.0,
+      'ai_score': data['ai_score'] ?? data['aiScore'] ?? 0.0,
+      'behavior_score': data['behavior_score'] ?? data['behaviorScore'] ?? 0.0,
+      'external_score': data['external_score'] ?? data['externalScore'] ?? 0.0,
+      'external_sources': data['external_sources'] ?? data['externalSources'] ?? [],
+      'actions': data['actions'] ?? data['recommendedActions'] ?? [],
+      'safety_tips': data['safety_tips'] ?? data['safetyTips'] ?? [],
+    };
+    return ScanResult.fromJson(scanMap);
+  }
+
+  Future<void> _deleteScan(DocumentSnapshot doc) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      await doc.reference.delete();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Scan deleted'), backgroundColor: AppColors.safe),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete: $e'), backgroundColor: AppColors.highRisk),
+        );
+      }
+    }
+  }
+
+  Future<void> _rescanUrl(String url) async {
+    setState(() => _isRescanning = true);
+    try {
+      final settings = ScanSettings.defaultSettings(); // or load user settings
+      final engine = await ThreatEngine.getInstance();
+      final result = await engine.analyze(url, settings: settings);
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ResultScreen.fromEngineResult(
+            engineResult: result['scan_result'],
+            settings: settings,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Rescan failed: $e'), backgroundColor: AppColors.highRisk),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRescanning = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -97,212 +176,237 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                 style: TextStyle(color: AppColors.secondaryText, fontSize: 14),
               ),
             )
-          : Column(
-              children: [
-                // Search field
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (value) =>
-                        setState(() => _searchQuery = value.trim().toLowerCase()),
-                    decoration: InputDecoration(
-                      hintText: 'Search by URL...',
-                      hintStyle: const TextStyle(
-                        color: AppColors.disabledText,
-                        fontSize: 13,
-                      ),
-
-
-                      filled: true,
-                      fillColor: AppColors.cardBackground,
-                      prefixIcon: const Icon(Icons.search_rounded,
-                          color: AppColors.secondaryText, size: 20),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.close_rounded,
-                                  color: AppColors.secondaryText, size: 18),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() => _searchQuery = '');
-                              },
-                            )
-                          : null,
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    style: const TextStyle(color: AppColors.primaryText),
-                  ),
-                ),
-                // Filter chips
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 36,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: _filters.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 10),
-                    itemBuilder: (context, index) {
-                      final filter = _filters[index];
-                      final isSelected = _selectedFilter == filter;
-                      return GestureDetector(
-                        onTap: () => setState(() => _selectedFilter = filter),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppColors.primaryPurple
-                                : AppColors.cardBackground,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppColors.primaryPurple
-                                  : AppColors.divider,
-                              width: 1,
-                            ),
+          : _isRescanning
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  children: [
+                    // Search field
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (value) =>
+                            setState(() => _searchQuery = value.trim().toLowerCase()),
+                        decoration: InputDecoration(
+                          hintText: 'Search by URL...',
+                          hintStyle: const TextStyle(
+                            color: AppColors.disabledText,
+                            fontSize: 13,
                           ),
-                          child: Text(
-                            filter,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : AppColors.secondaryText,
-                              fontSize: 12.5,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            ),
+                          filled: true,
+                          fillColor: AppColors.cardBackground,
+                          prefixIcon: const Icon(Icons.search_rounded,
+                              color: AppColors.secondaryText, size: 20),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close_rounded,
+                                      color: AppColors.secondaryText, size: 18),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                )
+                              : null,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 13),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // History list
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user.uid)
-                        .collection('scans')
-                        .orderBy('scannedAt', descending: true)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.primaryPurple,
-                          ),
-                        );
-                      }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return _buildEmptyState('No scans yet.\nStart scanning a link!');
-                      }
-
-                      // Apply search + filter
-                      final filteredDocs = snapshot.data!.docs.where((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final url = (data['url'] ?? '').toString().toLowerCase();
-                        final status = _normalizeStatus(
-                          (data['verdict'] ?? data['result'] ?? 'safe')
-                              .toString(),
-                        );
-                        final matchesFilter = _selectedFilter == 'All' ||
-                            status == _selectedFilter;
-                        final matchesSearch = _searchQuery.isEmpty ||
-                            url.contains(_searchQuery);
-                        return matchesFilter && matchesSearch;
-                      }).toList();
-
-                      if (filteredDocs.isEmpty) {
-                        return _buildEmptyState(
-                          _searchQuery.isEmpty
-                              ? 'No results for this filter.'
-                              : 'No results for "$_searchQuery"',
-                        );
-                      }
-
-                      final grouped = _groupByDate(filteredDocs);
-
-                      return ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
-                        itemCount: grouped.length,
-                        itemBuilder: (context, groupIndex) {
-                          final dateLabel = grouped.keys.elementAt(groupIndex);
-                          final docsInGroup = grouped[dateLabel]!;
-
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Date header with count badge
-                              Padding(
-                                padding: const EdgeInsets.only(top: 16, bottom: 10),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      dateLabel,
-                                      style: const TextStyle(
-                                        color: AppColors.secondaryText,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 7, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color:
-                                            AppColors.primaryPurple.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(
-                                        '${docsInGroup.length}',
-                                        style: const TextStyle(
-                                          color: AppColors.primaryPurple,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                        style: const TextStyle(color: AppColors.primaryText),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Filter chips
+                    SizedBox(
+                      height: 36,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: _filters.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (context, index) {
+                          final filter = _filters[index];
+                          final isSelected = _selectedFilter == filter;
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedFilter = filter),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? AppColors.primaryPurple
+                                    : AppColors.cardBackground,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? AppColors.primaryPurple
+                                      : AppColors.divider,
+                                  width: 1,
                                 ),
                               ),
-                              // Cards for this date
-                              ...docsInGroup.map((doc) {
-                                final data = doc.data() as Map<String, dynamic>;
-                                final url = data['url']?.toString() ?? 'No URL found';
-                                final status = _normalizeStatus(
-                                  (data['verdict'] ?? data['result'] ?? 'safe')
-                                      .toString(),
-                                );
-                                final double riskScore =
-                                    (data['riskScore'] as num?)?.toDouble() ?? 0.0;
-                                final Timestamp? ts = data['scannedAt'] as Timestamp?;
-                                final String timeStr =
-                                    ts != null ? _formatTime(ts.toDate()) : '';
-                                return _ScanHistoryCard(
-                                  url: url,
-                                  status: status,
-                                  riskScore: riskScore,
-                                  time: timeStr,
-                                );
-                              }).toList(),
-                            ],
+                              child: Text(
+                                filter,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppColors.secondaryText,
+                                  fontSize: 12.5,
+                                  fontWeight:
+                                      isSelected ? FontWeight.w700 : FontWeight.w500,
+                                ),
+                              ),
+                            ),
                           );
                         },
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // History list
+                    Expanded(
+                      child: StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(user.uid)
+                            .collection('scans')
+                            .orderBy('scannedAt', descending: true)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: AppColors.primaryPurple,
+                              ),
+                            );
+                          }
+                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                            return _buildEmptyState(
+                                'No scans yet.\nStart scanning a link!');
+                          }
+
+                          // Apply search + filter
+                          final filteredDocs = snapshot.data!.docs.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final url = (data['url'] ?? '').toString().toLowerCase();
+                            final status = _normalizeStatus(
+                              (data['verdict'] ?? data['result'] ?? 'safe')
+                                  .toString(),
+                            );
+                            final matchesFilter = _selectedFilter == 'All' ||
+                                status == _selectedFilter;
+                            final matchesSearch = _searchQuery.isEmpty ||
+                                url.contains(_searchQuery);
+                            return matchesFilter && matchesSearch;
+                          }).toList();
+
+                          if (filteredDocs.isEmpty) {
+                            return _buildEmptyState(
+                              _searchQuery.isEmpty
+                                  ? 'No results for this filter.'
+                                  : 'No results for "$_searchQuery"',
+                            );
+                          }
+
+                          final grouped = _groupByDate(filteredDocs);
+
+                          return ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
+                            itemCount: grouped.length,
+                            itemBuilder: (context, groupIndex) {
+                              final dateLabel = grouped.keys.elementAt(groupIndex);
+                              final docsInGroup = grouped[dateLabel]!;
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Date header with count badge
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets.only(top: 16, bottom: 10),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          dateLabel,
+                                          style: const TextStyle(
+                                            color: AppColors.secondaryText,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 7, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primaryPurple
+                                                .withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: Text(
+                                            '${docsInGroup.length}',
+                                            style: const TextStyle(
+                                              color: AppColors.primaryPurple,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Cards for this date
+                                  ...docsInGroup.map((doc) {
+                                    final data = doc.data() as Map<String, dynamic>;
+                                    final url = data['url']?.toString() ??
+                                        'No URL found';
+                                    final status = _normalizeStatus(
+                                      (data['verdict'] ?? data['result'] ?? 'safe')
+                                          .toString(),
+                                    );
+                                    final double riskScore = (data['riskScore']
+                                            as num?)
+                                        ?.toDouble() ??
+                                        0.0;
+                                    final Timestamp? ts =
+                                        data['scannedAt'] as Timestamp?;
+                                    final String timeStr = ts != null
+                                        ? _formatTime(ts.toDate())
+                                        : '';
+                                    return _ScanHistoryCard(
+                                      url: url,
+                                      status: status,
+                                      riskScore: riskScore,
+                                      time: timeStr,
+                                      onTap: () {
+                                        final scanResult = _convertToScanResult(doc);
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                ScanResultDetailsScreen(
+                                              scanResult: scanResult,
+                                              onDelete: () => _deleteScan(doc),
+                                              onRescan: () => _rescanUrl(url),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      onDelete: () => _deleteScan(doc),
+                                      onRescan: () => _rescanUrl(url),
+                                    );
+                                  }).toList(),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
     );
   }
 
@@ -331,18 +435,24 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
   }
 }
 
-// Individual scan card
+// Individual scan card with popup menu
 class _ScanHistoryCard extends StatelessWidget {
   final String url;
   final String status;
   final double riskScore;
   final String time;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+  final VoidCallback onRescan;
 
   const _ScanHistoryCard({
     required this.url,
     required this.status,
     required this.riskScore,
     required this.time,
+    required this.onTap,
+    required this.onDelete,
+    required this.onRescan,
   });
 
   Color get _statusColor {
@@ -373,93 +483,161 @@ class _ScanHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Icon container
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: _statusColor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
-            child: Icon(_statusIcon, color: _statusColor, size: 24),
-          ),
-          const SizedBox(width: 14),
-          // URL + time
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        ),
+        child: Row(
+          children: [
+            // Icon container
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _statusColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(_statusIcon, color: _statusColor, size: 24),
+            ),
+            const SizedBox(width: 14),
+            // URL + time
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    url,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.primaryText,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    time,
+                    style: const TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Risk score + status badge + popup menu
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  url,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _statusColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _statusColor.withOpacity(0.5)),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      color: _statusColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  time,
-                  style: const TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 12,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Risk: ${riskScore.toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        color: _statusColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert, color: _statusColor, size: 18),
+                      onSelected: (value) {
+                        if (value == 'rescan') {
+                          onRescan();
+                        } else if (value == 'delete') {
+                          showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              backgroundColor: AppColors.cardBackground,
+                              title: const Text('Delete Scan',
+                                  style: TextStyle(color: AppColors.primaryText)),
+                              content: const Text(
+                                  'Are you sure you want to delete this scan?',
+                                  style: TextStyle(color: AppColors.secondaryText)),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Cancel',
+                                      style:
+                                          TextStyle(color: AppColors.secondaryText)),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    onDelete();
+                                  },
+                                  child: const Text('Delete',
+                                      style: TextStyle(color: AppColors.highRisk)),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'rescan',
+                          child: Row(
+                            children: [
+                              Icon(Icons.refresh, size: 18),
+                              SizedBox(width: 8),
+                              Text('Rescan URL'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, size: 18, color: AppColors.highRisk),
+                              SizedBox(width: 8),
+                              Text('Delete from History',
+                                  style: TextStyle(color: AppColors.highRisk)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 10),
-          // Risk score + status badge
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _statusColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _statusColor.withOpacity(0.5)),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    color: _statusColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Risk: ${riskScore.toStringAsFixed(0)}%',
-                style: TextStyle(
-                  color: _statusColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

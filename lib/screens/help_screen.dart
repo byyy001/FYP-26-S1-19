@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_colors.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_screen.dart';
+import 'about_screen.dart';  // added import
 
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
@@ -180,6 +181,59 @@ class HelpScreen extends StatelessWidget {
                       color: AppColors.secondaryText,
                       fontSize: 13,
                       height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Divider(color: AppColors.divider, thickness: 0.5, height: 1),
+            const SizedBox(height: 28),
+
+            // ================= ABOUT LINKSENTRY =================
+            _buildSectionHeader('About LinkSentry', Icons.info_outline),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Learn more about the app, our team, and open source licenses.',
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AboutScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.help_outline, size: 18),
+                      label: const Text('Open About Screen'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryPurple,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
                 ],

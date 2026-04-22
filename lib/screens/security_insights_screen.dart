@@ -6,9 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../services/ai_threat_analyzer.dart';
 
-// ============================================================================
-// Security Insights Screen (Stateful)
-// ============================================================================
 class SecurityInsightsScreen extends StatefulWidget {
   const SecurityInsightsScreen({super.key});
 
@@ -16,19 +13,44 @@ class SecurityInsightsScreen extends StatefulWidget {
   State<SecurityInsightsScreen> createState() => _SecurityInsightsScreenState();
 }
 
-class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
+class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
+    with SingleTickerProviderStateMixin {
   UserInsights? _insights;
-  List<ScanResult> _scans = const [];
+  List<ScanResult> _scans = [];
   bool _isLoading = true;
   String? _error;
+  int _periodDays = 30;
+  late AnimationController _animationController;
+
+  final List<int> _periodOptions = [7, 30, 90, 0];
+  final Map<int, String> _periodLabels = {
+    7: 'Last 7 days',
+    30: 'Last 30 days',
+    90: 'Last 90 days',
+    0: 'All time',
+  };
 
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
     _loadInsights();
   }
 
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadInsights() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -39,28 +61,33 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
           .collection('users')
           .doc(user.uid)
           .get();
-      final userName = (userDoc.data()?['firstName']?.toString().trim().isNotEmpty ??
-              false)
+      final userName = (userDoc.data()?['firstName']?.toString().trim().isNotEmpty ?? false)
           ? userDoc.data()!['firstName'].toString().trim()
           : (user.displayName?.trim().isNotEmpty ?? false)
               ? user.displayName!.trim()
               : 'User';
 
-      final scansSnapshot = await FirebaseFirestore.instance
+      Query query = FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('scans')
-          .orderBy('scannedAt', descending: true)
-          .get();
+          .orderBy('scannedAt', descending: true);
+
+      if (_periodDays > 0) {
+        final cutoff = DateTime.now().subtract(Duration(days: _periodDays));
+        query = query.where('scannedAt', isGreaterThanOrEqualTo: cutoff);
+      }
+
+      final scansSnapshot = await query.get();
 
       final scans = scansSnapshot.docs
-          .map((doc) => _scanResultFromFirestore(doc.data()))
+          .map((doc) => _scanResultFromFirestore(doc.data() as Map<String, dynamic>))
           .toList();
 
       final insights = AIThreatAnalyzer.analyze(
         userName,
         scans,
-        periodDays: 30,
+        periodDays: _periodDays,
       );
 
       if (!mounted) return;
@@ -69,6 +96,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
         _scans = scans;
         _isLoading = false;
       });
+      _animationController.forward(from: 0);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -121,9 +149,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
   }
 
   double _toDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
+    if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 
@@ -152,166 +178,517 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'Security Insights',
-          style: TextStyle(color: AppColors.primaryText),
-        ),
+        title: const Text('Security Insights', style: TextStyle(color: AppColors.primaryText)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          PopupMenuButton<int>(
+            icon: const Icon(Icons.date_range, color: AppColors.primaryText),
+            onSelected: (value) {
+              setState(() {
+                _periodDays = value;
+                _loadInsights();
+              });
+            },
+            itemBuilder: (context) => _periodOptions.map((days) {
+              return PopupMenuItem(value: days, child: Text(_periodLabels[days]!));
+            }).toList(),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error_outline, color: AppColors.highRisk, size: 48),
-                        const SizedBox(height: 16),
-                        Text(
-                          _error!,
-                          style: const TextStyle(color: AppColors.secondaryText),
-                          textAlign: TextAlign.center,
+              ? _buildErrorState()
+              : _scans.isEmpty
+                  ? _buildEmptyState()
+                  : RefreshIndicator(
+                      onRefresh: _loadInsights,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildGreeting(),
+                            const SizedBox(height: 16),
+                            _buildStatsCard(),
+                            const SizedBox(height: 24),
+                            _buildRiskProfileCard(),
+                            const SizedBox(height: 24),
+                            _buildThreatPieSection(),
+                            const SizedBox(height: 24),
+                            _buildOldestSafeLinksSection(),
+                            const SizedBox(height: 24),
+                            _buildTopThreatsSection(),
+                            const SizedBox(height: 24),
+                            _buildTrendsSection(),
+                            const SizedBox(height: 24),
+                            _buildSmartTipsSection(),
+                            const SizedBox(height: 30),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _loadInsights,
-                          child: const Text('Retry'),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                )
-              : _buildContent(),
     );
   }
 
-  Widget _buildContent() {
-    final insights = _insights!;
-    final topThreats = insights.topThreats;
-    final trends = insights.trends;
-    final tips = insights.smartTips;
-    final threatPercentages = _buildThreatPie(_scans);
-    final oldestSafeLinks = _oldestSafeLinksNotRescanned(_scans);
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Greeting
-          Text(
-            'Your Security Insights',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryText,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Hi ${insights.userName}! Based on your last ${insights.periodDays} days',
-            style: const TextStyle(
-              fontSize: 16,
-              color: AppColors.secondaryText,
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildRiskProfileCard(insights),
-          const SizedBox(height: 24),
-
-          if (threatPercentages.isNotEmpty) ...[
-            _buildThreatPieChart(threatPercentages),
-            const SizedBox(height: 24),
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, color: AppColors.highRisk, size: 48),
+            const SizedBox(height: 16),
+            Text(_error!, style: const TextStyle(color: AppColors.secondaryText), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: _loadInsights, child: const Text('Retry')),
           ],
+        ),
+      ),
+    );
+  }
 
-          if (oldestSafeLinks.isNotEmpty) ...[
-            _buildOldestSafeLinksChart(oldestSafeLinks),
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 80, color: AppColors.secondaryText),
+            const SizedBox(height: 16),
+            const Text('No scans yet', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryText)),
+            const SizedBox(height: 8),
+            const Text('Scan your first link to see security insights.', style: TextStyle(color: AppColors.secondaryText), textAlign: TextAlign.center),
             const SizedBox(height: 24),
-          ],
-
-          // Top Threats
-          const Text(
-            'TOP THREATS',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.secondaryText,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildThreatList(topThreats),
-          const SizedBox(height: 24),
-
-          // Sentry Insights (Trends)
-          if (trends.isNotEmpty) ...[
-            const Text(
-              'SENTRY INSIGHTS',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.secondaryText,
-                letterSpacing: 0.5,
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Start Scanning'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryPurple,
+                foregroundColor: Colors.white,
               ),
             ),
-            const SizedBox(height: 12),
-            _buildSentryInsights(trends),
-            const SizedBox(height: 24),
           ],
+        ),
+      ),
+    );
+  }
 
-          // Smart Tips
-          const Text(
-            'SMART TIPS',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.secondaryText,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildSmartTips(tips),
-          const SizedBox(height: 30),
+  Widget _buildGreeting() {
+    final userName = _insights?.userName ?? 'User';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Your Security Insights', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.primaryText)),
+        const SizedBox(height: 4),
+        Text('Hi $userName! Based on your last ${_periodDays == 0 ? 'all scans' : '$_periodDays days'}', style: const TextStyle(fontSize: 16, color: AppColors.secondaryText)),
+      ],
+    );
+  }
+
+  Widget _buildStatsCard() {
+    final totalScans = _insights?.totalScans ?? 0;
+    double avgRisk = 0;
+    if (_scans.isNotEmpty) {
+      double sum = 0;
+      for (final scan in _scans) sum += scan.riskScore;
+      avgRisk = sum / _scans.length;
+    }
+    final maxRisk = _insights?.riskScoreMax ?? 0;
+    return _buildCard(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _statItem('Total Scans', totalScans.toString()),
+          Container(width: 1, height: 40, color: AppColors.divider),
+          _statItem('Avg Risk', '${avgRisk.toStringAsFixed(0)}%'),
+          Container(width: 1, height: 40, color: AppColors.divider),
+          _statItem('Highest Risk', '${maxRisk.toStringAsFixed(0)}%'),
         ],
       ),
     );
   }
 
-  List<ThreatCount> _buildThreatPie(List<ScanResult> scans) {
-    if (scans.isEmpty) {
-      return [];
-    }
+  Widget _statItem(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryText)),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+      ],
+    );
+  }
 
-    final counts = <String, int>{
-      'safe': 0,
-      'suspicious': 0,
-      'malicious': 0,
+  Widget _buildRiskProfileCard() {
+    final insights = _insights!;
+    final profile = insights.riskProfile;
+    final Color accentColor = switch (profile.level) {
+      'critical' => AppColors.highRisk,
+      'high' => AppColors.highRisk,
+      'moderate' => AppColors.mediumRisk,
+      _ => AppColors.safe,
     };
+    return _buildCard(
+      borderColor: accentColor.withOpacity(0.5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.shield_outlined, color: accentColor),
+              const SizedBox(width: 8),
+              Text('Risk Profile', style: TextStyle(color: accentColor, fontSize: 16, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              Text('${profile.score.toStringAsFixed(0)}%', style: TextStyle(color: accentColor, fontSize: 22, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text('Level: ${profile.level.toUpperCase()}', style: const TextStyle(color: AppColors.primaryText, fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Text(profile.description, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14, height: 1.4)),
+          const SizedBox(height: 12),
+          Text('Scans analyzed: ${insights.totalScans}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
+        ],
+      ),
+    );
+  }
 
+  Widget _buildThreatPieSection() {
+    final threatPercentages = _buildThreatPie(_scans);
+    if (threatPercentages.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('THREAT DISTRIBUTION', Icons.pie_chart),
+        const SizedBox(height: 12),
+        _buildCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Semantics(
+                label: 'Pie chart showing threat type distribution. ${threatPercentages.map((t) => '${_formatThreatLabel(t.threatType)}: ${t.percentage.toStringAsFixed(0)} percent').join(', ')}',
+                child: SizedBox(
+                  height: 220,
+                  child: FadeTransition(
+                    opacity: _animationController,
+                    child: PieChart(
+                      PieChartData(
+                        sectionsSpace: 3,
+                        centerSpaceRadius: 38,
+                        sections: threatPercentages.map((threat) => PieChartSectionData(
+                          color: _threatColor(threat.threatType),
+                          value: threat.percentage,
+                          radius: 54,
+                          title: '${threat.percentage.toStringAsFixed(0)}%',
+                          titleStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                        )).toList(),
+                        pieTouchData: PieTouchData(
+                          touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                            if (event is FlTapUpEvent && pieTouchResponse != null) {
+                              final touchedIndex = pieTouchResponse.touchedSection?.touchedSectionIndex;
+                              if (touchedIndex != null && touchedIndex != -1) {
+                                final threat = threatPercentages[touchedIndex];
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('${_formatThreatLabel(threat.threatType)}: ${threat.count} scans (${threat.percentage.toStringAsFixed(1)}%)'),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...threatPercentages.map((threat) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Container(width: 12, height: 12, decoration: BoxDecoration(color: _threatColor(threat.threatType), shape: BoxShape.circle)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(_formatThreatLabel(threat.threatType), style: const TextStyle(color: AppColors.primaryText, fontSize: 14))),
+                    Text('${threat.count} scans • ${threat.percentage.toStringAsFixed(1)}%', style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
+                  ],
+                ),
+              )),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOldestSafeLinksSection() {
+    final safeLinks = _oldestSafeLinksNotRescanned(_scans);
+    if (safeLinks.isEmpty) return const SizedBox.shrink();
+    final maxDays = safeLinks.map((scan) => DateTime.now().difference(scan.timestamp).inDays).reduce((a, b) => a > b ? a : b).toDouble() + 1;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('OLDEST SAFE LINKS', Icons.history),
+        const SizedBox(height: 12),
+        _buildCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Safe links that have not been rescanned', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+              const SizedBox(height: 16),
+              Semantics(
+                label: 'Bar chart showing days since last scan for each safe link.',
+                child: SizedBox(
+                  height: 220,
+                  child: BarChart(
+                    BarChartData(
+                      alignment: BarChartAlignment.spaceAround,
+                      maxY: maxDays,
+                      gridData: const FlGridData(show: false),
+                      borderData: FlBorderData(show: false),
+                      barTouchData: BarTouchData(
+                        enabled: true,
+                        touchTooltipData: BarTouchTooltipData(
+                          getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                            final days = rod.toY.toInt();
+                            return BarTooltipItem('$days days\n${_shortUrlLabel(safeLinks[groupIndex].url)}', const TextStyle(color: Colors.white));
+                          },
+                        ),
+                      ),
+                      titlesData: FlTitlesData(
+                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 36,
+                            getTitlesWidget: (value, meta) => Text(value.toInt().toString(), style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            getTitlesWidget: (value, meta) {
+                              final index = value.toInt();
+                              if (index < 0 || index >= safeLinks.length) return const SizedBox.shrink();
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: SizedBox(
+                                  width: 90,
+                                  child: Text(_shortUrlLabel(safeLinks[index].url), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      barGroups: List.generate(safeLinks.length, (index) {
+                        final days = DateTime.now().difference(safeLinks[index].timestamp).inDays;
+                        return BarChartGroupData(
+                          x: index,
+                          barRods: [BarChartRodData(toY: days.toDouble(), width: 24, borderRadius: BorderRadius.circular(6), gradient: const LinearGradient(colors: [AppColors.safe, AppColors.primaryBlue]))],
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...safeLinks.map((scan) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('${_shortUrlLabel(scan.url)} • ${DateTime.now().difference(scan.timestamp).inDays} days ago', style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
+              )),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopThreatsSection() {
+    final topThreats = _insights?.topThreats ?? [];
+    if (topThreats.isEmpty) return const SizedBox.shrink();
+    final totalScans = _insights?.totalScans ?? _scans.length;
+    final threatColors = {
+      'phishing': AppColors.highRisk,
+      'malware': AppColors.highRisk,
+      'ad_tracker': AppColors.primaryBlue,
+      'benign': AppColors.safe,
+      'suspicious': AppColors.mediumRisk,
+      'defacement': AppColors.primaryPurple,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('TOP THREATS', Icons.warning),
+        const SizedBox(height: 12),
+        _buildCard(
+          child: Column(
+            children: [
+              ...topThreats.map((threat) => _buildThreatItem(_formatThreatLabel(threat.threatType), threat.count, threatColors[threat.threatType] ?? AppColors.primaryPurple)),
+              const SizedBox(height: 16),
+              // Fixed: proper string interpolation (no "Instance of 'ThreatCount'")
+              Text(_getDynamicTopThreatSummary(topThreats.first, totalScans), style: const TextStyle(color: AppColors.secondaryText, fontSize: 14, height: 1.5)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getDynamicTopThreatSummary(ThreatCount top, int totalScans) {
+    final percentage = (top.count / totalScans * 100).toStringAsFixed(1);
+    final count = top.count;
+    final threat = _formatThreatLabel(top.threatType);
+    return '$threat appears $count time${count == 1 ? '' : 's'} (${percentage}% of scans). ${_getThreatAdvice(top.threatType)}';
+  }
+
+  String _getThreatAdvice(String threatType) {
+    switch (threatType) {
+      case 'phishing':
+        return 'Always verify the sender before clicking links, even if they look legitimate.';
+      case 'malware':
+        return 'Avoid downloading files from untrusted sources and keep your antivirus updated.';
+      case 'ad_tracker':
+        return 'Consider using a privacy-focused browser or an ad-blocker extension.';
+      case 'benign':
+        return 'Keep up the good habits, but stay vigilant – threats evolve quickly.';
+      case 'suspicious':
+        return 'Double-check URLs before clicking and avoid entering personal info on unfamiliar sites.';
+      default:
+        return 'Stay cautious and verify links before interacting.';
+    }
+  }
+
+  Widget _buildTrendsSection() {
+    final trends = _insights?.trends ?? [];
+    if (trends.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('SENTRY INSIGHTS', Icons.trending_up),
+        const SizedBox(height: 12),
+        _buildCard(
+          child: Column(
+            children: trends.map((trend) {
+              // Skip benign trends (should not happen, but safe check)
+              if (trend.threatType == 'benign') return const SizedBox.shrink();
+              final icon = trend.direction == 'up' ? Icons.arrow_upward : Icons.arrow_downward;
+              final color = trend.direction == 'up' ? AppColors.highRisk : AppColors.safe;
+              final change = trend.changePercent.toStringAsFixed(0);
+              final threatLabel = _formatThreatLabel(trend.threatType);
+              final text = trend.direction == 'up'
+                  ? '$threatLabel increased by $change% compared to last period'
+                  : '$threatLabel decreased by $change% compared to last period';
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildInsightItem(icon: icon, iconColor: color, text: text),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSmartTipsSection() {
+    final tips = _insights?.smartTips ?? [];
+    if (tips.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('SMART TIPS', Icons.lightbulb),
+        const SizedBox(height: 12),
+        _buildCard(
+          child: Column(
+            children: tips.map((tip) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildTipItem(text: tip.message),
+            )).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: AppColors.primaryPurple, size: 20),
+        const SizedBox(width: 8),
+        Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.secondaryText, letterSpacing: 0.5)),
+      ],
+    );
+  }
+
+  Widget _buildCard({required Widget child, Color? borderColor}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor ?? AppColors.divider.withOpacity(0.3), width: 1),
+        boxShadow: [BoxShadow(color: AppColors.primaryPurple.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildThreatItem(String label, int count, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label, style: const TextStyle(color: AppColors.primaryText, fontSize: 16))),
+          Text('· $count time${count == 1 ? '' : 's'}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 16)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsightItem({required IconData icon, required Color iconColor, required String text}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: iconColor, size: 20),
+        const SizedBox(width: 12),
+        Expanded(child: Text(text, style: const TextStyle(color: AppColors.primaryText, fontSize: 14, height: 1.4))),
+      ],
+    );
+  }
+
+  Widget _buildTipItem({required String text}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.lightbulb_outline, color: AppColors.primaryPurple, size: 20),
+        const SizedBox(width: 12),
+        Expanded(child: Text(text, style: const TextStyle(color: AppColors.primaryText, fontSize: 14, height: 1.4))),
+      ],
+    );
+  }
+
+  List<ThreatCount> _buildThreatPie(List<ScanResult> scans) {
+    if (scans.isEmpty) return [];
+    final counts = <String, int>{'safe': 0, 'suspicious': 0, 'malicious': 0};
     for (final scan in scans) {
       final key = _pieChartCategory(scan.threatType);
       counts[key] = (counts[key] ?? 0) + 1;
     }
-
     final total = scans.length;
-    final entries = counts.entries.toList()
-      ..removeWhere((entry) => entry.value == 0)
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    return entries
-        .map(
-          (entry) => ThreatCount(
-            threatType: entry.key,
-            count: entry.value,
-            percentage: (entry.value / total) * 100,
-          ),
-        )
-        .toList();
+    final entries = counts.entries.toList()..removeWhere((entry) => entry.value == 0)..sort((a, b) => b.value.compareTo(a.value));
+    return entries.map((entry) => ThreatCount(threatType: entry.key, count: entry.value, percentage: (entry.value / total) * 100)).toList();
   }
 
   List<ScanResult> _oldestSafeLinksNotRescanned(List<ScanResult> scans) {
@@ -321,38 +698,27 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
       if (url.isEmpty) continue;
       occurrences[url] = (occurrences[url] ?? 0) + 1;
     }
-
-    final safeLinks = scans
-        .where(
-          (scan) =>
-              scan.threatType == 'benign' &&
-              scan.url.trim().isNotEmpty &&
-              occurrences[scan.url.trim()] == 1,
-        )
-        .toList()
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-
+    final safeLinks = scans.where((scan) => scan.threatType == 'benign' && scan.url.trim().isNotEmpty && occurrences[scan.url.trim()] == 1).toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     return safeLinks.take(3).toList();
+  }
+
+  String _shortUrlLabel(String url) {
+    final uri = Uri.tryParse(url);
+    String host = uri?.host ?? url;
+    host = host.replaceAll(RegExp(r'^www\.'), '');
+    return host;
   }
 
   Color _threatColor(String threatType) {
     switch (threatType) {
-      case 'safe':
-        return AppColors.safe;
-      case 'suspicious':
-        return AppColors.mediumRisk;
-      case 'malicious':
-        return AppColors.highRisk;
-      case 'phishing':
-        return AppColors.highRisk;
-      case 'malware':
-        return AppColors.mediumRisk;
-      case 'ad_tracker':
-        return AppColors.primaryBlue;
-      case 'benign':
-        return AppColors.safe;
-      default:
-        return AppColors.primaryPurple;
+      case 'safe': return AppColors.safe;
+      case 'suspicious': return AppColors.mediumRisk;
+      case 'malicious': return AppColors.highRisk;
+      case 'phishing': return AppColors.highRisk;
+      case 'malware': return AppColors.highRisk;
+      case 'ad_tracker': return AppColors.primaryBlue;
+      case 'benign': return AppColors.safe;
+      default: return AppColors.primaryPurple;
     }
   }
 
@@ -368,513 +734,22 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen> {
       case 'phishing':
       case 'suspicious':
       case 'ad_tracker':
+      case 'defacement':
       default:
         return 'suspicious';
     }
   }
 
-  Widget _buildThreatPieChart(List<ThreatCount> threatPercentages) {
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'THREAT TYPE PERCENTAGE',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.secondaryText,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 220,
-            child: PieChart(
-              PieChartData(
-                sectionsSpace: 3,
-                centerSpaceRadius: 38,
-                sections: threatPercentages
-                    .map(
-                      (threat) => PieChartSectionData(
-                        color: _threatColor(threat.threatType),
-                        value: threat.percentage,
-                        radius: 54,
-                        title: '${threat.percentage.toStringAsFixed(0)}%',
-                        titleStyle: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          ...threatPercentages.map(
-            (threat) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: _threatColor(threat.threatType),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _formatThreatLabel(threat.threatType),
-                      style: const TextStyle(
-                        color: AppColors.primaryText,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '${threat.count} scans • ${threat.percentage.toStringAsFixed(1)}%',
-                    style: const TextStyle(
-                      color: AppColors.secondaryText,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOldestSafeLinksChart(List<ScanResult> safeLinks) {
-    final maxDays = safeLinks
-            .map((scan) => DateTime.now().difference(scan.timestamp).inDays)
-            .reduce((a, b) => a > b ? a : b)
-            .toDouble() +
-        1;
-
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'OLDEST SAFE LINKS NOT RESCANNED',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.secondaryText,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Based on safe links with only one recorded scan.',
-            style: TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 220,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: maxDays,
-                gridData: const FlGridData(show: false),
-                borderData: FlBorderData(show: false),
-                barTouchData: BarTouchData(enabled: false),
-                titlesData: FlTitlesData(
-                  topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 36,
-                      getTitlesWidget: (value, meta) => Text(
-                        value.toInt().toString(),
-                        style: const TextStyle(
-                          color: AppColors.secondaryText,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        final index = value.toInt();
-                        if (index < 0 || index >= safeLinks.length) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: SizedBox(
-                            width: 90,
-                            child: Text(
-                              _shortUrlLabel(safeLinks[index].url),
-                              textAlign: TextAlign.center,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.secondaryText,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                barGroups: List.generate(safeLinks.length, (index) {
-                  final days =
-                      DateTime.now().difference(safeLinks[index].timestamp).inDays;
-                  return BarChartGroupData(
-                    x: index,
-                    barRods: [
-                      BarChartRodData(
-                        toY: days.toDouble(),
-                        width: 24,
-                        borderRadius: BorderRadius.circular(6),
-                        gradient: const LinearGradient(
-                          colors: [AppColors.safe, AppColors.primaryBlue],
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                        ),
-                      ),
-                    ],
-                  );
-                }),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          ...safeLinks.map(
-            (scan) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                '${_shortUrlLabel(scan.url)} • ${DateTime.now().difference(scan.timestamp).inDays} days since last safe scan',
-                style: const TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _shortUrlLabel(String url) {
-    final uri = Uri.tryParse(url);
-    final host = uri?.host;
-    if (host != null && host.isNotEmpty) {
-      return host;
-    }
-    return url;
-  }
-
-  Widget _buildRiskProfileCard(UserInsights insights) {
-    final profile = insights.riskProfile;
-    final Color accentColor = switch (profile.level) {
-      'high' => AppColors.highRisk,
-      'moderate' => AppColors.mediumRisk,
-      _ => AppColors.safe,
-    };
-
-    return _buildCard(
-      borderColor: accentColor.withOpacity(0.5),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.shield_outlined, color: accentColor),
-              const SizedBox(width: 8),
-              Text(
-                'Risk Profile',
-                style: TextStyle(
-                  color: accentColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${profile.score.toStringAsFixed(0)}%',
-                style: TextStyle(
-                  color: accentColor,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Level: ${profile.level.toUpperCase()}',
-            style: const TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            profile.description,
-            style: const TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 14,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Scans analyzed: ${insights.totalScans}',
-            style: const TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildThreatList(List<ThreatCount> topThreats) {
-    if (topThreats.isEmpty) {
-      return _buildCard(
-        child: const Text(
-          'No threat patterns detected in this period. Most recent scans look safe.',
-          style: TextStyle(color: AppColors.secondaryText),
-        ),
-      );
-    }
-
-    final threatColors = {
-      'phishing': AppColors.highRisk,
-      'malware': AppColors.mediumRisk,
-      'ad_tracker': AppColors.primaryBlue,
-      'benign': AppColors.safe,
-      'defacement': AppColors.primaryPurple,
-    };
-
-    return _buildCard(
-      child: Column(
-        children: [
-          ...topThreats.map((threat) => _buildThreatItem(
-            _formatThreatLabel(threat.threatType),
-            threat.count,
-            threatColors[threat.threatType] ?? AppColors.primaryPurple,
-          )),
-          if (topThreats.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              _getTopThreatSummary(topThreats.first),
-              style: const TextStyle(
-                color: AppColors.secondaryText,
-                fontSize: 14,
-                height: 1.5,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  String _getTopThreatSummary(ThreatCount top) {
-    if (top.threatType == 'phishing') {
-      return 'Phishing is your most common risk. Most of these URLs are fake login pages.';
-    } else if (top.threatType == 'malware') {
-      return 'Malware is your top threat. Avoid downloading files from untrusted sources.';
-    } else if (top.threatType == 'benign') {
-      return 'Most of your recent scans were safe. Keep up those careful browsing habits.';
-    } else if (top.threatType == 'ad_tracker') {
-      return 'Ad trackers are frequent. Consider using a privacy-focused browser.';
-    } else {
-      return '${_formatThreatLabel(top.threatType)} is your most common threat. Stay cautious.';
-    }
-  }
-
   String _formatThreatLabel(String threatType) {
     switch (threatType) {
-      case 'safe':
-        return 'Safe';
-      case 'suspicious':
-        return 'Suspicious';
-      case 'malicious':
-        return 'Malicious';
-      case 'ad_tracker':
-        return 'Ad Tracker';
-      case 'benign':
-        return 'Safe';
-      default:
-        if (threatType.isEmpty) {
-          return 'Unknown';
-        }
-        return threatType[0].toUpperCase() + threatType.substring(1);
+      case 'safe': return 'Safe';
+      case 'suspicious': return 'Suspicious';
+      case 'malicious': return 'Malicious';
+      case 'phishing': return 'Phishing';
+      case 'malware': return 'Malware';
+      case 'ad_tracker': return 'Ad Tracker';
+      case 'benign': return 'Safe';
+      default: return threatType.isEmpty ? 'Unknown' : threatType[0].toUpperCase() + threatType.substring(1);
     }
-  }
-
-  Widget _buildThreatItem(String label, int count, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.primaryText,
-                fontSize: 16,
-              ),
-            ),
-          ),
-          Text(
-            '· $count times',
-            style: const TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 16,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSentryInsights(List<ThreatTrend> trends) {
-    if (trends.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return _buildCard(
-      child: Column(
-        children: trends.map((trend) {
-          final icon = trend.direction == 'up' ? Icons.arrow_upward : Icons.arrow_downward;
-          final color = trend.direction == 'up' ? AppColors.highRisk : AppColors.safe;
-          final change = trend.changePercent.toStringAsFixed(0);
-          final text = trend.direction == 'up'
-              ? '${trend.threatType} is up $change% compared to last period'
-              : '${trend.threatType} is down $change% compared to last period';
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildInsightItem(icon: icon, iconColor: color, text: text),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildInsightItem({
-    required IconData icon,
-    required Color iconColor,
-    required String text,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: iconColor, size: 20),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 14,
-              height: 1.4,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSmartTips(List<SmartTip> tips) {
-    if (tips.isEmpty) {
-      return _buildCard(
-        child: const Text(
-          'No tips available.',
-          style: TextStyle(color: AppColors.secondaryText),
-        ),
-      );
-    }
-
-    return _buildCard(
-      child: Column(
-        children: tips.map((tip) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildTipItem(text: tip.message),
-        )).toList(),
-      ),
-    );
-  }
-
-  Widget _buildTipItem({required String text}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(Icons.lightbulb_outline, color: AppColors.primaryPurple, size: 20),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 14,
-              height: 1.4,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Helper to build consistent cards with border and shadow
-  Widget _buildCard({
-    required Widget child,
-    Color? borderColor,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: borderColor ?? AppColors.divider.withOpacity(0.3),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: child,
-    );
   }
 }
