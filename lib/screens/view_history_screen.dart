@@ -77,7 +77,6 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
         ? '${_formatDateLabel(scannedAt.toDate())} at ${_formatTime(scannedAt.toDate())}'
         : 'Unknown date';
 
-    // Helper to get double from various possible field names
     double _getDouble(String snakeKey, String camelKey) {
       final value = data[snakeKey] ?? data[camelKey];
       if (value is num) return value.toDouble();
@@ -185,7 +184,6 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
               ? const Center(child: CircularProgressIndicator())
               : Column(
                   children: [
-                    // Search field
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
                       child: TextField(
@@ -213,7 +211,6 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // Filter chips
                     SizedBox(
                       height: 36,
                       child: ListView.separated(
@@ -249,7 +246,6 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    // History list
                     Expanded(
                       child: StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
@@ -461,7 +457,8 @@ class _ScanHistoryCard extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Risk: ${riskScore.toStringAsFixed(0)}%', style: TextStyle(color: _statusColor, fontSize: 11, fontWeight: FontWeight.w600)),
+                    // ✅ FIXED: use floor() to match the gauge's truncation
+                    Text('Risk: ${riskScore.floor()}%', style: TextStyle(color: _statusColor, fontSize: 11, fontWeight: FontWeight.w600)),
                     const SizedBox(width: 8),
                     PopupMenuButton<String>(
                       icon: Icon(Icons.more_vert, color: _statusColor, size: 18),
