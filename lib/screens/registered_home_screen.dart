@@ -9,11 +9,10 @@ import 'camera_scanner.dart';
 import 'view_history_screen.dart';
 import 'profile_screen.dart';
 import 'result_screen.dart';
-import 'invalid_url_screen.dart'; // ✅ added
+import 'invalid_url_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/scan_history_service.dart';
-import '../services/scan_settings_service.dart';
 import '../threat_engine/layer5_facade/threat_engine.dart';
 import '../threat_engine/scan_settings.dart';
 
@@ -37,7 +36,6 @@ class RegisteredHomeScreen extends StatefulWidget {
 class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   final TextEditingController _urlController = TextEditingController();
   final ScanHistoryService _scanHistoryService = ScanHistoryService();
-  final ScanSettingsService _scanSettingsService = ScanSettingsService();
   bool _isScanning = false;
   bool _engineReady = false;
   bool _settingsLoaded = false;
@@ -61,9 +59,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   }
 
   void _showLoginSuccessBanner() {
-    final overlay = Overlay.of(context);
-    if (overlay == null) return;
-
+    final overlay = Overlay.of(context, rootOverlay: true);
     late OverlayEntry entry;
 
     entry = OverlayEntry(
@@ -99,9 +95,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   }
 
   void _showDeleteHistoryBanner() {
-    final overlay = Overlay.of(context);
-    if (overlay == null) return;
-
+    final overlay = Overlay.of(context, rootOverlay: true);
     late OverlayEntry entry;
 
     entry = OverlayEntry(
@@ -224,7 +218,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         }
       }
     } catch (e) {
-      print('Error loading scan settings: $e');
+      debugPrint('Error loading scan settings: $e');
     } finally {
       if (mounted) setState(() => _settingsLoaded = true);
     }
@@ -319,7 +313,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     }
   }
 
-  /// Normalize URL: remove spaces, add https:// if missing
   String _normalizeUrl(String input) {
     String url = input.trim().replaceAll(RegExp(r'\s+'), '');
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -328,7 +321,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     return url;
   }
 
-  /// Validate URL and return list of reasons if invalid, otherwise null
   List<String>? _validateUrl(String rawUrl) {
     final String trimmed = rawUrl.trim();
     final List<String> reasons = [];
@@ -338,8 +330,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       return reasons;
     }
 
-    // Check for invalid characters (only allow letters, digits, dots, hyphens, slashes, colons, etc.)
-    // Basic sanity: must contain at least one dot in the domain part after scheme
     String urlForCheck = trimmed;
     if (!urlForCheck.contains('://')) {
       urlForCheck = 'https://$urlForCheck';
@@ -355,11 +345,9 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       } else if (!uri.host.contains('.')) {
         reasons.add('Domain must contain a dot (e.g., example.com)');
       }
-      // Additional: check for spaces (already trimmed)
       if (trimmed.contains(RegExp(r'\s'))) {
         reasons.add('URL contains spaces');
       }
-      // Check for double slashes in wrong place (simple)
       if (trimmed.contains('//') && !trimmed.startsWith('http')) {
         reasons.add('Invalid double slash');
       }
@@ -372,6 +360,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
   Future<void> _scanURL(String rawUrl) async {
     if (!_engineReady) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Scanner is still loading, please wait...'),
@@ -381,10 +370,9 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       return;
     }
 
-    // Validate URL first
     final invalidReasons = _validateUrl(rawUrl);
     if (invalidReasons != null) {
-      // Navigate to InvalidUrlScreen with the reasons
+      if (!mounted) return;
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -405,6 +393,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
       await _saveScanToFirestore(url: url, scanResult: result['scan_result']);
 
+      if (!mounted) return;
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -616,7 +605,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
-  // ======================== STAT CARD ========================
   Widget _buildStatCard(
     IconData icon,
     String label,
@@ -631,10 +619,10 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: themeColor.withOpacity(0.4), width: 1.2),
+          border: Border.all(color: themeColor.withValues(alpha: 0.4), width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: themeColor.withOpacity(0.25),
+              color: themeColor.withValues(alpha: 0.25),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -667,7 +655,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
-  // ======================== SCAN CARD ========================
   Widget _buildScanCard(bool isSmall) {
     return Container(
       width: double.infinity,
@@ -748,7 +735,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
-  // ======================== RECENTS CARD ========================
   Widget _buildRecentsCard(bool isSmall) {
     return Container(
       width: double.infinity,
@@ -756,10 +742,10 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider.withOpacity(0.3), width: 1),
+        border: Border.all(color: AppColors.divider.withValues(alpha: 0.3), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -989,7 +975,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       decoration: BoxDecoration(
         color: AppColors.mainBackground,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider.withOpacity(0.2), width: 0.5),
+        border: Border.all(color: AppColors.divider.withValues(alpha: 0.2), width: 0.5),
       ),
       child: Row(
         children: [
