@@ -110,16 +110,19 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
     super.dispose();
   }
 
-  // Helper to remove emojis (kept for safety, but actions are now cleaned)
   String _cleanText(String text) {
     return text.replaceAll(RegExp(r'[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}]', unicode: true), '');
   }
 
-  List<String> get _safetyTips =>
-      (widget.engineResult?['safety_tips'] as List?)?.cast<String>()?.map(_cleanText).toList() ?? [];
+  List<String> get _safetyTips {
+    final raw = widget.engineResult?['safety_tips'] as List?;
+    return raw?.cast<String>().map(_cleanText).toList() ?? [];
+  }
 
-  List<String> get _externalSources =>
-      (widget.engineResult?['external_sources'] as List?)?.cast<String>() ?? [];
+  List<String> get _externalSources {
+    final raw = widget.engineResult?['external_sources'] as List?;
+    return raw?.cast<String>() ?? [];
+  }
 
   double get _riskScore => widget.score.toDouble();
 
@@ -150,14 +153,6 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
     if (value is int) return value.toDouble();
     if (value is String) return double.tryParse(value) ?? 0.0;
     return 0.0;
-  }
-
-  int _toInt(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    if (value is double) return value.toInt();
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
   }
 
   // ======================== EXPORT METHODS ========================
@@ -448,11 +443,11 @@ Explanation: ${_cleanText(widget.explanation)}
     return Divider(
       height: 1,
       thickness: 1,
-      color: AppColors.divider.withOpacity(0.3),
+      color: AppColors.divider.withValues(alpha: 0.3),
     );
   }
 
-  // ======================== TOP CARD (improved alignment) ========================
+  // ======================== TOP CARD ========================
   Widget _buildTopCard(bool isSmall) {
     return Semantics(
       label: 'Risk score ${widget.score} percent, $_riskLevelText',
@@ -461,15 +456,15 @@ Explanation: ${_cleanText(widget.explanation)}
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [_riskColor.withOpacity(0.15), AppColors.cardBackground],
+            colors: [_riskColor.withValues(alpha: 0.15), AppColors.cardBackground],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: _riskColor.withOpacity(0.3), width: 1),
+          border: Border.all(color: _riskColor.withValues(alpha: 0.3), width: 1),
           boxShadow: [
             BoxShadow(
-              color: _riskColor.withOpacity(0.2),
+              color: _riskColor.withValues(alpha: 0.2),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
@@ -478,7 +473,6 @@ Explanation: ${_cleanText(widget.explanation)}
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Verdict, risk level, and gauge in one row
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -520,7 +514,6 @@ Explanation: ${_cleanText(widget.explanation)}
                     ],
                   ),
                 ),
-                // Circular gauge – fixed size, aligned to top of the row
                 SizedBox(
                   width: 100,
                   height: 100,
@@ -529,13 +522,12 @@ Explanation: ${_cleanText(widget.explanation)}
               ],
             ),
             const SizedBox(height: 24),
-            // Explanation in a card for better readability
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.mainBackground.withOpacity(0.5),
+                color: AppColors.mainBackground.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.divider.withOpacity(0.2)),
+                border: Border.all(color: AppColors.divider.withValues(alpha: 0.2)),
               ),
               child: Text(
                 _cleanText(widget.explanation),
@@ -547,7 +539,6 @@ Explanation: ${_cleanText(widget.explanation)}
               ),
             ),
             const SizedBox(height: 24),
-            // URL row with copy button
             Row(
               children: [
                 Expanded(
@@ -608,7 +599,7 @@ Explanation: ${_cleanText(widget.explanation)}
     }
   }
 
-  // ---------- UNREGISTERED SECTION (unchanged) ----------
+  // ---------- UNREGISTERED SECTION ----------
   Widget _buildUnregisteredSection(bool isSmall) {
     String externalMsg = '';
     if (_externalSources.isNotEmpty) {
@@ -647,7 +638,7 @@ Explanation: ${_cleanText(widget.explanation)}
             decoration: BoxDecoration(
               color: AppColors.cardBackground,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _riskColor.withOpacity(0.3)),
+              border: Border.all(color: _riskColor.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -820,11 +811,11 @@ Explanation: ${_cleanText(widget.explanation)}
     final isEngineResult = engine != null;
 
     if (isEngineResult) {
-      print('=== Behavior Analysis Debug ===');
-      print('behavior_matched_patterns: ${engine['behavior_matched_patterns']}');
-      print('behavior_categories: ${engine['behavior_categories']}');
-      print('behavior_score: ${engine['behavior_score']}');
-      print('================================');
+      debugPrint('=== Behavior Analysis Debug ===');
+      debugPrint('behavior_matched_patterns: ${engine['behavior_matched_patterns']}');
+      debugPrint('behavior_categories: ${engine['behavior_categories']}');
+      debugPrint('behavior_score: ${engine['behavior_score']}');
+      debugPrint('================================');
     }
 
     return Column(
@@ -883,7 +874,7 @@ Explanation: ${_cleanText(widget.explanation)}
                       children: [
                         SingleChildScrollView(
                           padding: const EdgeInsets.only(top: 16),
-                          child: _buildTechnicalDetailsTab(engine),
+                          child: _buildTechnicalDetailsTab(engine!),
                         ),
                         SingleChildScrollView(
                           padding: const EdgeInsets.only(top: 16),
@@ -920,8 +911,8 @@ Explanation: ${_cleanText(widget.explanation)}
   // ======================== THREAT SUMMARY CARD ========================
   Widget _buildThreatSummaryCard() {
     final engine = widget.engineResult;
-    final threatType = _cleanText(engine?['threat_type'] ?? 'benign');
-    final mlConfidence = _cleanText(engine?['ml_confidence'] ?? 'none');
+    final threatType = engine != null ? _cleanText(engine['threat_type'] ?? 'benign') : 'benign';
+    final mlConfidence = engine != null ? _cleanText(engine['ml_confidence'] ?? 'none') : 'none';
     final mlScore = _toDouble(engine?['ml_score']);
     final aiScore = _toDouble(engine?['ai_score']);
     final behaviorScore = _toDouble(engine?['behavior_score']);
@@ -1027,7 +1018,7 @@ Explanation: ${_cleanText(widget.explanation)}
       icon = Icons.info_outline;
     }
     return Chip(
-      backgroundColor: chipColor.withOpacity(0.15),
+      backgroundColor: chipColor.withValues(alpha: 0.15),
       avatar: Icon(icon, size: 16, color: chipColor),
       label: Text(
         cleanText,
@@ -1039,13 +1030,10 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // Updated actions card: reorder and change icon for risk action
   Widget _buildActionsCard() {
     List<String> actions = List.from(widget.recommendedActions);
-    // Remove emojis from actions
     actions = actions.map((a) => _cleanText(a)).toList();
 
-    // Find the risk-level action (contains "High risk", "Medium risk", "Low risk", or "Safe")
     int riskIndex = -1;
     for (int i = 0; i < actions.length; i++) {
       final lower = actions[i].toLowerCase();
@@ -1055,7 +1043,6 @@ Explanation: ${_cleanText(widget.explanation)}
       }
     }
 
-    // Move risk action to front if found
     if (riskIndex > 0) {
       final riskAction = actions.removeAt(riskIndex);
       actions.insert(0, riskAction);
@@ -1072,7 +1059,7 @@ Explanation: ${_cleanText(widget.explanation)}
           children: actions.asMap().entries.map((entry) {
             final index = entry.key;
             final action = entry.value;
-            bool isRiskAction = index == 0 && (action.toLowerCase().contains('high risk') ||
+            final bool isRiskAction = index == 0 && (action.toLowerCase().contains('high risk') ||
                 action.toLowerCase().contains('medium risk') ||
                 action.toLowerCase().contains('low risk') ||
                 action.toLowerCase().contains('safe – no significant'));
@@ -1154,7 +1141,7 @@ Explanation: ${_cleanText(widget.explanation)}
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+        border: Border.all(color: AppColors.divider.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -1201,7 +1188,7 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // Technical Details Tab Content (unchanged)
+  // Technical Details Tab Content
   Widget _buildTechnicalDetailsTab(Map<String, dynamic> engine) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1264,7 +1251,7 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // External Data Tab Content (unchanged)
+  // External Data Tab Content
   Widget _buildExternalDataTab(Map<String, dynamic> engine) {
     final externalDetails = engine['external_details'] as Map?;
     return Column(
@@ -1315,7 +1302,7 @@ Explanation: ${_cleanText(widget.explanation)}
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+        border: Border.all(color: AppColors.divider.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -1358,7 +1345,7 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // ML probabilities table (unchanged)
+  // ML probabilities table
   Widget _buildMLProbabilitiesTable(Map<String, dynamic> engine) {
     final probsMap = engine['individual_model_probabilities'] as Map<dynamic, dynamic>?;
     final ensembleProbs = engine['ensemble_probabilities'];
@@ -1369,7 +1356,7 @@ Explanation: ${_cleanText(widget.explanation)}
 
     final List<Widget> rows = [];
 
-    Widget _probBar(double value, Color color) {
+    Widget probBar(double value, Color color) {
       return Expanded(
         child: ClipRRect(
           borderRadius: BorderRadius.circular(4),
@@ -1383,7 +1370,7 @@ Explanation: ${_cleanText(widget.explanation)}
       );
     }
 
-    Widget _probRow(List<double> probs) {
+    Widget probRow(List<double> probs) {
       const labels = ['Benign', 'Deface', 'Phish', 'Malware'];
       const colors = [Colors.green, Colors.orange, Colors.orange, Colors.red];
       return Column(
@@ -1396,7 +1383,7 @@ Explanation: ${_cleanText(widget.explanation)}
                   width: 60,
                   child: Text(labels[i], style: const TextStyle(fontSize: 12, color: AppColors.secondaryText)),
                 ),
-                _probBar(probs[i], colors[i]),
+                probBar(probs[i], colors[i]),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 40,
@@ -1422,7 +1409,7 @@ Explanation: ${_cleanText(widget.explanation)}
                 Text(modelName.toString(),
                     style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.primaryText)),
                 const SizedBox(height: 8),
-                _probRow(probsList),
+                probRow(probsList),
               ],
             ),
           ),
@@ -1441,7 +1428,7 @@ Explanation: ${_cleanText(widget.explanation)}
               const Text('Ensemble',
                   style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.primaryPurple)),
               const SizedBox(height: 8),
-              _probRow(ensembleList),
+              probRow(ensembleList),
             ],
           ),
         ),
@@ -1667,7 +1654,7 @@ class _SemiCircularGaugePainter extends CustomPainter {
     final startAngle = -pi;
     final sweepAngle = pi;
     final backgroundPaint = Paint()
-      ..color = AppColors.divider.withOpacity(0.5)
+      ..color = AppColors.divider.withValues(alpha: 0.5)
       ..strokeWidth = 12
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
