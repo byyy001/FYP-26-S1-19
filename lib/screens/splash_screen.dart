@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:linksentry/screens/login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -29,7 +30,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (kIsWeb) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => AdminDashboardScreen())
+        MaterialPageRoute(builder: (context) => LoginScreen()),
       );
     } else {
       User? user = FirebaseAuth.instance.currentUser;
@@ -38,7 +39,7 @@ class _SplashScreenState extends State<SplashScreen> {
         // If no user is logged in, navigate to onboarding screen
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => OnboardingScreen()), 
+          MaterialPageRoute(builder: (context) => OnboardingScreen()),
         );
       } else {
         // If user is registered, navigate to the registered home screen
@@ -58,7 +59,8 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
     }
-  } 
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;

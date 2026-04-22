@@ -17,20 +17,16 @@ import 'screens/admin/security_management_screen.dart';
 import 'screens/admin/scan_statistics_screen.dart';
 import 'screens/admin/flagged_reviews_screen.dart';
 import 'screens/admin/admin_system_settings_screen.dart';
+import 'screens/engineer/engineer_dashboard_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/unregistered_home_screen.dart';
 import 'screens/registered_home_screen.dart';
 import 'screens/about_screen.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (!kIsWeb) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  }
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(const MyApp());
 }
@@ -46,7 +42,10 @@ class MyApp extends StatelessWidget {
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: AppColors.mainBackground,
       ),
+
       home: const SplashScreen(),
+      //home: EngineerDashboardScreen(),
+      //home: AdminDashboardScreen(),
     );
   }
 }

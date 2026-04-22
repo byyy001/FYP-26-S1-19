@@ -5,6 +5,10 @@ import '../services/auth_service.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 import 'registered_home_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'admin/dashboard_screen.dart';
+import 'engineer/engineer_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -64,6 +68,24 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text.trim(),
       );
 
+      // Get current user UID
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+
+      // Get user role from Firestore
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      final data = doc.data();
+      final role = data?['role'] ?? 'User';
+      final isActive = data?['isActive'] ?? true;
+
+      // Block inactive users
+      if (!isActive) {
+        throw Exception('Account is deactivated');
+      }
+
       // Clear guest mode flag if it exists
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('isGuestMode');
@@ -77,13 +99,28 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const RegisteredHomeScreen(showLoginSuccess: true),
-        ),
-        (route) => false,
-      );
+
+      if (role == 'Admin') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+          (route) => false,
+        );
+      } else if (role == 'Engineer') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const EngineerDashboardScreen()),
+          (route) => false,
+        );
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const RegisteredHomeScreen(showLoginSuccess: true),
+          ),
+          (route) => false,
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -200,10 +237,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         children: [
                           TextFormField(
                             controller: _emailController,
-                            style: const TextStyle(color: AppColors.primaryText),
+                            style: const TextStyle(
+                              color: AppColors.primaryText,
+                            ),
                             decoration: InputDecoration(
                               labelText: 'Email',
-                              labelStyle: const TextStyle(color: AppColors.secondaryText),
+                              labelStyle: const TextStyle(
+                                color: AppColors.secondaryText,
+                              ),
                               filled: true,
                               fillColor: AppColors.cardBackground,
                               border: OutlineInputBorder(
@@ -219,7 +260,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your email';
                               }
-                              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                              if (!RegExp(
+                                r'^[^@]+@[^@]+\.[^@]+',
+                              ).hasMatch(value)) {
                                 return 'Enter a valid email';
                               }
                               return null;
@@ -229,10 +272,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
-                            style: const TextStyle(color: AppColors.primaryText),
+                            style: const TextStyle(
+                              color: AppColors.primaryText,
+                            ),
                             decoration: InputDecoration(
                               labelText: 'Password',
-                              labelStyle: const TextStyle(color: AppColors.secondaryText),
+                              labelStyle: const TextStyle(
+                                color: AppColors.secondaryText,
+                              ),
                               filled: true,
                               fillColor: AppColors.cardBackground,
                               border: OutlineInputBorder(
@@ -251,7 +298,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: AppColors.secondaryText,
                                 ),
                                 onPressed: () {
-                                  setState(() => _obscurePassword = !_obscurePassword);
+                                  setState(
+                                    () => _obscurePassword = !_obscurePassword,
+                                  );
                                 },
                               ),
                             ),
@@ -281,11 +330,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             onChanged: _isLoading
                                 ? null
                                 : (value) {
-                                    setState(() => _rememberMe = value ?? false);
+                                    setState(
+                                      () => _rememberMe = value ?? false,
+                                    );
                                   },
                             activeColor: AppColors.primaryBlue,
                             checkColor: Colors.white,
-                            side: const BorderSide(color: AppColors.secondaryText),
+                            side: const BorderSide(
+                              color: AppColors.secondaryText,
+                            ),
                           ),
                           const Text(
                             'Remember me',
@@ -300,7 +353,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (context) => const ForgotPasswordScreen()),
+                                    builder: (context) =>
+                                        const ForgotPasswordScreen(),
+                                  ),
                                 );
                               },
                         style: TextButton.styleFrom(padding: EdgeInsets.zero),
@@ -355,7 +410,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
                             : const Text(
                                 'Login',
                                 style: TextStyle(
@@ -376,7 +433,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (context) => const SignUpScreen()),
+                                  builder: (context) => const SignUpScreen(),
+                                ),
                               );
                             },
                       style: TextButton.styleFrom(padding: EdgeInsets.zero),
@@ -419,10 +477,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         label: const Text(
                           'Sign in with Google',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
+                          style: TextStyle(color: Colors.white, fontSize: 16),
                         ),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Colors.transparent),
