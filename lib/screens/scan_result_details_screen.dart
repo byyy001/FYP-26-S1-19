@@ -75,31 +75,6 @@ class ScanResult {
 }
 
 // ============================================================================
-// Threat Category Helper (aligned with result screen thresholds)
-// ============================================================================
-class ThreatCategory {
-  final String label;
-  final IconData icon;
-  final Color color;
-
-  const ThreatCategory._(this.label, this.icon, this.color);
-
-  static ThreatCategory fromScanResult(ScanResult result) {
-    final score = result.riskScore;
-
-    if (score >= 76) {
-      return const ThreatCategory._('MALICIOUS', Icons.warning, AppColors.highRisk);
-    } else if (score >= 51) {
-      return const ThreatCategory._('WARNING', Icons.warning_amber, AppColors.mediumRisk);
-    } else if (score >= 26) {
-      return const ThreatCategory._('LOW RISK', Icons.info_outline, AppColors.mediumRisk);
-    } else {
-      return const ThreatCategory._('SAFE', Icons.check_circle, AppColors.safe);
-    }
-  }
-}
-
-// ============================================================================
 // Scan Result Details Screen (with delete & rescan)
 // ============================================================================
 class ScanResultDetailsScreen extends StatefulWidget {
@@ -121,6 +96,14 @@ class ScanResultDetailsScreen extends StatefulWidget {
 class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
   bool _isRescanning = false;
 
+  // Get verdict from risk score (same as result screen)
+  String _getVerdict(double score) {
+    if (score >= 76) return 'Malicious';
+    if (score >= 51) return 'Suspicious';
+    if (score >= 26) return 'Low Risk';
+    return 'Safe';
+  }
+
   Color _getRiskColor(double score) {
     if (score >= 76) return AppColors.highRisk;
     if (score >= 51) return AppColors.mediumRisk;
@@ -138,8 +121,10 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final scan = widget.scanResult;
-    final riskColor = _getRiskColor(scan.riskScore);
-    final riskLevel = _getRiskLevel(scan.riskScore);
+    final riskScore = scan.riskScore;
+    final verdict = _getVerdict(riskScore);
+    final riskColor = _getRiskColor(riskScore);
+    final riskLevel = _getRiskLevel(riskScore);
 
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
@@ -162,7 +147,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildTopCard(scan, riskColor, riskLevel),
+                  _buildTopCard(scan, verdict, riskColor, riskLevel),
                   const SizedBox(height: 24),
                   _buildDivider(),
                   const SizedBox(height: 24),
@@ -183,7 +168,6 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                     const SizedBox(height: 24),
                   ],
                   const SizedBox(height: 16),
-                  // ✅ TWO BUTTONS ONLY (Delete + Rescan)
                   Row(
                     children: [
                       Expanded(
@@ -236,9 +220,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
   }
 
   // ================= TOP CARD (with circular gauge) =================
-  Widget _buildTopCard(ScanResult scan, Color riskColor, String riskLevel) {
-    final category = ThreatCategory.fromScanResult(scan);
-
+  Widget _buildTopCard(ScanResult scan, String verdict, Color riskColor, String riskLevel) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -270,7 +252,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      category.label,
+                      verdict,
                       style: const TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
@@ -503,7 +485,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
               children: actions.asMap().entries.map((entry) {
                 final index = entry.key;
                 final action = entry.value;
-                final isRiskAction = index == 0 &&
+                final bool isRiskAction = index == 0 &&
                     (action.toLowerCase().contains('high risk') ||
                         action.toLowerCase().contains('medium risk') ||
                         action.toLowerCase().contains('low risk') ||

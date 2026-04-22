@@ -48,8 +48,8 @@ class ResultScreen extends StatefulWidget {
     required Map<String, dynamic> engineResult,
     required ScanSettings settings,
   }) {
-    final String verdict = _mapVerdict(engineResult['severity'] ?? 'SAFE');
     final int score = (double.tryParse(engineResult['risk_score']?.toString() ?? '0') ?? 0).toInt();
+    final String verdict = _getVerdictFromScore(score);
     final List<String> reasons = List<String>.from(engineResult['detected_threats'] ?? []);
     final List<String> actions = List<String>.from(engineResult['actions'] ?? []);
 
@@ -68,10 +68,10 @@ class ResultScreen extends StatefulWidget {
     );
   }
 
-  static String _mapVerdict(String severity) {
-    if (severity.contains('HIGH')) return 'Unsafe';
-    if (severity.contains('MEDIUM')) return 'Suspicious';
-    if (severity.contains('LOW')) return 'Suspicious';
+  static String _getVerdictFromScore(int score) {
+    if (score >= 76) return 'Malicious';
+    if (score >= 51) return 'Suspicious';
+    if (score >= 26) return 'Low Risk';
     return 'Safe';
   }
 
@@ -141,7 +141,7 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
   }
 
   String _getSimpleVerdict() {
-    if (_riskScore >= 76) return 'Unsafe';
+    if (_riskScore >= 76) return 'Malicious';
     if (_riskScore >= 51) return 'Suspicious';
     if (_riskScore >= 26) return 'Low Risk';
     return 'Safe';
@@ -599,7 +599,7 @@ Explanation: ${_cleanText(widget.explanation)}
     }
   }
 
-  // ---------- UNREGISTERED SECTION ----------
+  // ---------- UNREGISTERED SECTION (unchanged) ----------
   Widget _buildUnregisteredSection(bool isSmall) {
     String externalMsg = '';
     if (_externalSources.isNotEmpty) {
@@ -911,7 +911,8 @@ Explanation: ${_cleanText(widget.explanation)}
   // ======================== THREAT SUMMARY CARD ========================
   Widget _buildThreatSummaryCard() {
     final engine = widget.engineResult;
-    final threatType = engine != null ? _cleanText(engine['threat_type'] ?? 'benign') : 'benign';
+    final rawThreatType = engine?['threat_type'] ?? 'benign';
+    final threatType = _formatThreatType(rawThreatType);
     final mlConfidence = engine != null ? _cleanText(engine['ml_confidence'] ?? 'none') : 'none';
     final mlScore = _toDouble(engine?['ml_score']);
     final aiScore = _toDouble(engine?['ai_score']);
@@ -982,6 +983,21 @@ Explanation: ${_cleanText(widget.explanation)}
         ),
       ),
     );
+  }
+
+  String _formatThreatType(String type) {
+    switch (type.toLowerCase()) {
+      case 'benign':
+        return 'Benign';
+      case 'defacement':
+        return 'Defacement';
+      case 'phishing':
+        return 'Phishing';
+      case 'malware':
+        return 'Malware';
+      default:
+        return type[0].toUpperCase() + type.substring(1);
+    }
   }
 
   // ======================== HELPER WIDGETS ========================

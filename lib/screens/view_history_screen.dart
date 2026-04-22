@@ -30,8 +30,9 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
 
   String _normalizeStatus(String value) {
     final status = value.toLowerCase().trim();
-    if (status == 'unsafe' || status == 'malicious') return 'Malicious';
-    if (status == 'suspicious' || status == 'warning') return 'Suspicious';
+    if (status == 'malicious') return 'Malicious';
+    if (status == 'suspicious') return 'Suspicious';
+    if (status == 'low risk') return 'Low Risk';
     if (status == 'safe') return 'Safe';
     return 'Safe';
   }
@@ -75,11 +76,10 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
     final data = doc.data() as Map<String, dynamic>;
     final Timestamp? scannedAt = data['scannedAt'] as Timestamp?;
     final scanDate = scannedAt != null
-        ? _formatDateLabel(scannedAt.toDate()) +
-            ' at ' +
-            _formatTime(scannedAt.toDate())
+        ? '${_formatDateLabel(scannedAt.toDate())} at ${_formatTime(scannedAt.toDate())}'
         : 'Unknown date';
 
+    // Map all fields exactly as they are stored (including both camelCase and snake_case for compatibility)
     final Map<String, dynamic> scanMap = {
       'url': data['url'] ?? '',
       'scan_date': scanDate,
@@ -121,7 +121,7 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
   Future<void> _rescanUrl(String url) async {
     setState(() => _isRescanning = true);
     try {
-      final settings = ScanSettings.defaultSettings(); // or load user settings
+      final settings = ScanSettings.defaultSettings();
       final engine = await ThreatEngine.getInstance();
       final result = await engine.analyze(url, settings: settings);
       if (!mounted) return;
@@ -461,6 +461,8 @@ class _ScanHistoryCard extends StatelessWidget {
         return AppColors.safe;
       case 'Suspicious':
         return AppColors.mediumRisk;
+      case 'Low Risk':
+        return AppColors.mediumRisk;
       case 'Malicious':
         return AppColors.highRisk;
       default:
@@ -473,6 +475,7 @@ class _ScanHistoryCard extends StatelessWidget {
       case 'Safe':
         return Icons.check_circle_rounded;
       case 'Suspicious':
+      case 'Low Risk':
         return Icons.warning_amber_rounded;
       case 'Malicious':
         return Icons.cancel_rounded;

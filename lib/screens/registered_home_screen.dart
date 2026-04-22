@@ -247,7 +247,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       final verdict = (doc.data()['verdict'] ?? '').toString().toLowerCase();
       if (verdict == 'safe') {
         safeLinks++;
-      } else if (verdict == 'unsafe' || verdict == 'suspicious') {
+      } else if (verdict == 'malicious' || verdict == 'suspicious' || verdict == 'low risk') {
         threats++;
       }
     }
@@ -286,8 +286,30 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     if (user == null) return;
 
     final riskScore = double.tryParse(scanResult['risk_score'] ?? '0') ?? 0.0;
-    final verdict = riskScore >= 50 ? 'Unsafe' : (riskScore >= 25 ? 'Suspicious' : 'Safe');
+    String verdict;
+    if (riskScore >= 76) {
+      verdict = 'Malicious';
+    } else if (riskScore >= 51) {
+      verdict = 'Suspicious';
+    } else if (riskScore >= 26) {
+      verdict = 'Low Risk';
+    } else {
+      verdict = 'Safe';
+    }
     final threatType = scanResult['threat_type'] ?? 'unknown';
+
+    // Extract all fields needed for detailed view
+    final mlConfidence = scanResult['ml_confidence'] ?? 'none';
+    final mlScore = double.tryParse(scanResult['ml_score']?.toString() ?? '0') ?? 0.0;
+    final aiScore = double.tryParse(scanResult['ai_score']?.toString() ?? '0') ?? 0.0;
+    final behaviorScore = double.tryParse(scanResult['behavior_score']?.toString() ?? '0') ?? 0.0;
+    final externalScore = double.tryParse(scanResult['external_score']?.toString() ?? '0') ?? 0.0;
+    final actions = scanResult['actions'] is List ? List<String>.from(scanResult['actions']) : [];
+    final safetyTips = scanResult['safety_tips'] is List ? List<String>.from(scanResult['safety_tips']) : [];
+    final detailedThreats = scanResult['detailed_detected_threats'] ?? [];
+    final behaviorPatterns = scanResult['behavior_matched_patterns'] ?? [];
+    final behaviorCategories = scanResult['behavior_categories'];
+    final ensembleProbs = scanResult['ensemble_probabilities'];
 
     await FirebaseFirestore.instance
         .collection('users')
@@ -304,6 +326,18 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       'detectedThreats': scanResult['detected_threats'] ?? [],
       'externalSources': scanResult['external_sources'] ?? [],
       'scannedAt': FieldValue.serverTimestamp(),
+      // Additional fields for full details
+      'mlConfidence': mlConfidence,
+      'mlScore': mlScore,
+      'aiScore': aiScore,
+      'behaviorScore': behaviorScore,
+      'externalScore': externalScore,
+      'actions': actions,
+      'safetyTips': safetyTips,
+      'detailedDetectedThreats': detailedThreats,
+      'behaviorMatchedPatterns': behaviorPatterns,
+      'behaviorCategories': behaviorCategories,
+      'ensembleProbabilities': ensembleProbs,
     });
 
     if (mounted) {
@@ -817,8 +851,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final data = docs[index].data() as Map<String, dynamic>;
-                  final statusText = (data['result'] ?? data['verdict'] ?? 'Unknown')
-                      .toString();
+                  final statusText = (data['verdict'] ?? data['result'] ?? 'Unknown').toString();
                   final timestamp = data['scannedAt'];
                   final formattedTime = timestamp is Timestamp
                       ? formatFirestoreTimestamp(timestamp)
@@ -826,8 +859,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
                   return _buildRecentItem(
                     domain: data['url']?.toString() ?? 'Unknown URL',
-                    time:
-                        '${data['source']?.toString() ?? 'URL scan'} • $formattedTime',
+                    time: '${data['source']?.toString() ?? 'URL scan'} • $formattedTime',
                     statusText: statusText,
                     statusColor: _statusColor(statusText),
                     leadingColor: _statusColor(statusText),
@@ -880,9 +912,10 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       case 'safe':
         return AppColors.safe;
       case 'suspicious':
-        return Colors.orange;
-      case 'unsafe':
-      case 'threat':
+        return AppColors.mediumRisk;
+      case 'low risk':
+        return AppColors.mediumRisk;
+      case 'malicious':
         return AppColors.highRisk;
       default:
         return AppColors.secondaryText;
@@ -894,10 +927,10 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       case 'safe':
         return Icons.check_rounded;
       case 'suspicious':
+      case 'low risk':
         return Icons.warning_amber_rounded;
-      case 'unsafe':
-      case 'threat':
-        return Icons.close_rounded;
+      case 'malicious':
+        return Icons.cancel_rounded;
       default:
         return Icons.info_outline_rounded;
     }
