@@ -28,13 +28,19 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
     super.dispose();
   }
 
-  String _normalizeStatus(String value) {
-    final status = value.toLowerCase().trim();
-    if (status == 'malicious') return 'Malicious';
-    if (status == 'suspicious') return 'Suspicious';
-    if (status == 'low risk') return 'Low Risk';
-    if (status == 'safe') return 'Safe';
+  // Convert risk score to display status (same as result screen)
+  String _getStatusFromRiskScore(double riskScore) {
+    if (riskScore >= 76) return 'Malicious';
+    if (riskScore >= 51) return 'Suspicious';
+    if (riskScore >= 26) return 'Low Risk';
     return 'Safe';
+  }
+
+  // For filter matching – we need to compare filter with riskScore-based status
+  bool _matchesFilter(String filter, double riskScore) {
+    if (filter == 'All') return true;
+    final status = _getStatusFromRiskScore(riskScore);
+    return status == filter;
   }
 
   String _formatDateLabel(DateTime dt) {
@@ -79,7 +85,6 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
         ? '${_formatDateLabel(scannedAt.toDate())} at ${_formatTime(scannedAt.toDate())}'
         : 'Unknown date';
 
-    // Map all fields exactly as they are stored (including both camelCase and snake_case for compatibility)
     final Map<String, dynamic> scanMap = {
       'url': data['url'] ?? '',
       'scan_date': scanDate,
@@ -286,16 +291,12 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                                 'No scans yet.\nStart scanning a link!');
                           }
 
-                          // Apply search + filter
+                          // Apply search + filter (using riskScore)
                           final filteredDocs = snapshot.data!.docs.where((doc) {
                             final data = doc.data() as Map<String, dynamic>;
                             final url = (data['url'] ?? '').toString().toLowerCase();
-                            final status = _normalizeStatus(
-                              (data['verdict'] ?? data['result'] ?? 'safe')
-                                  .toString(),
-                            );
-                            final matchesFilter = _selectedFilter == 'All' ||
-                                status == _selectedFilter;
+                            final riskScore = (data['riskScore'] as num?)?.toDouble() ?? 0.0;
+                            final matchesFilter = _matchesFilter(_selectedFilter, riskScore);
                             final matchesSearch = _searchQuery.isEmpty ||
                                 url.contains(_searchQuery);
                             return matchesFilter && matchesSearch;
@@ -362,14 +363,11 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                                     final data = doc.data() as Map<String, dynamic>;
                                     final url = data['url']?.toString() ??
                                         'No URL found';
-                                    final status = _normalizeStatus(
-                                      (data['verdict'] ?? data['result'] ?? 'safe')
-                                          .toString(),
-                                    );
                                     final double riskScore = (data['riskScore']
                                             as num?)
                                         ?.toDouble() ??
                                         0.0;
+                                    final status = _getStatusFromRiskScore(riskScore);
                                     final Timestamp? ts =
                                         data['scannedAt'] as Timestamp?;
                                     final String timeStr = ts != null

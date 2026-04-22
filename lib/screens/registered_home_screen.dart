@@ -769,6 +769,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
+  // ======================== RECENTS CARD (FIXED: compute status from riskScore) ========================
   Widget _buildRecentsCard(bool isSmall) {
     return Container(
       width: double.infinity,
@@ -851,15 +852,19 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final data = docs[index].data() as Map<String, dynamic>;
-                  final statusText = (data['verdict'] ?? data['result'] ?? 'Unknown').toString();
+                  final riskScore = (data['riskScore'] as num?)?.toDouble() ?? 0.0;
+                  // Compute status from riskScore (same as result screen)
+                  final statusText = _getStatusFromRiskScore(riskScore);
                   final timestamp = data['scannedAt'];
                   final formattedTime = timestamp is Timestamp
                       ? formatFirestoreTimestamp(timestamp)
                       : 'Just now';
+                  final domain = data['url']?.toString() ?? 'Unknown URL';
+                  final source = data['source']?.toString() ?? 'URL scan';
 
                   return _buildRecentItem(
-                    domain: data['url']?.toString() ?? 'Unknown URL',
-                    time: '${data['source']?.toString() ?? 'URL scan'} • $formattedTime',
+                    domain: domain,
+                    time: '$source • $formattedTime',
                     statusText: statusText,
                     statusColor: _statusColor(statusText),
                     leadingColor: _statusColor(statusText),
@@ -872,6 +877,13 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         ],
       ),
     );
+  }
+
+  String _getStatusFromRiskScore(double riskScore) {
+    if (riskScore >= 76) return 'Malicious';
+    if (riskScore >= 51) return 'Suspicious';
+    if (riskScore >= 26) return 'Low Risk';
+    return 'Safe';
   }
 
   Widget _buildEmptyState() {
