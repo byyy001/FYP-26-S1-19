@@ -284,7 +284,7 @@ Explanation: ${_cleanText(widget.explanation)}
             width: MediaQuery.of(context).size.width * 0.7,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.75),
+              color: Colors.black.withValues(alpha: 0.75),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -599,7 +599,7 @@ Explanation: ${_cleanText(widget.explanation)}
     }
   }
 
-  // ---------- UNREGISTERED SECTION (unchanged) ----------
+  // ---------- UNREGISTERED SECTION (FULLY CORRECTED) ----------
   Widget _buildUnregisteredSection(bool isSmall) {
     String externalMsg = '';
     if (_externalSources.isNotEmpty) {
@@ -611,6 +611,49 @@ Explanation: ${_cleanText(widget.explanation)}
       }).join(', ');
       externalMsg = '✓ Flagged by $sources';
     }
+
+    // Threat type display
+    String? threatTypeRaw = widget.engineResult?['threat_type'];
+    String threatDisplay = '';
+    IconData? threatIcon;
+    Color? threatColor;
+    if (threatTypeRaw != null && threatTypeRaw != 'benign') {
+      switch (threatTypeRaw) {
+        case 'phishing':
+          threatDisplay = '⚠️ Phishing site detected';
+          threatIcon = Icons.phishing;
+          threatColor = AppColors.highRisk;
+          break;
+        case 'malware':
+          threatDisplay = '⚠️ Malware risk detected';
+          threatIcon = Icons.bug_report;
+          threatColor = AppColors.highRisk;
+          break;
+        case 'defacement':
+          threatDisplay = '⚠️ Website may have been defaced';
+          threatIcon = Icons.flag;
+          threatColor = AppColors.mediumRisk;
+          break;
+        default:
+          threatDisplay = '⚠️ Suspicious: $threatTypeRaw';
+          threatIcon = Icons.warning;
+          threatColor = AppColors.mediumRisk;
+      }
+    }
+
+    // Ad‑intensive warning
+    final adDensity = widget.engineResult?['ad_density'];
+    bool isAdIntensive = false;
+    if (adDensity is double && adDensity > 0.3) {
+      isAdIntensive = true;
+    }
+
+    // Insecure scripts hint
+    final behaviorPatterns = (widget.engineResult?['behavior_matched_patterns'] as List?) ?? [];
+    bool hasInsecureScripts = behaviorPatterns.any((pattern) =>
+        pattern.toString().toLowerCase().contains('eval') ||
+        pattern.toString().toLowerCase().contains('document.write') ||
+        pattern.toString().toLowerCase().contains('javascript:'));
 
     String whatThisMeans;
     String whatToDo;
@@ -631,10 +674,80 @@ Explanation: ${_cleanText(widget.explanation)}
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (threatDisplay.isNotEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: (threatColor ?? _riskColor).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: (threatColor ?? _riskColor).withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(threatIcon ?? Icons.warning, color: threatColor ?? _riskColor, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    threatDisplay,
+                    style: const TextStyle(color: AppColors.primaryText, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (isAdIntensive)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.ad_units, color: Colors.orange, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '⚠️ This site may contain excessive ads or intrusive pop-ups.',
+                    style: TextStyle(color: AppColors.primaryText, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (hasInsecureScripts)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: AppColors.mediumRisk.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.mediumRisk.withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.code, color: AppColors.mediumRisk, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '⚠️ Insecure or obfuscated scripts detected.',
+                    style: TextStyle(color: AppColors.primaryText, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (externalMsg.isNotEmpty) ...[
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
               color: AppColors.cardBackground,
               borderRadius: BorderRadius.circular(12),
@@ -650,8 +763,9 @@ Explanation: ${_cleanText(widget.explanation)}
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
         ],
+        const SizedBox(height: 12),
         Text('What this means',
             style: TextStyle(
                 fontSize: isSmall ? 18 : 20,
@@ -754,7 +868,7 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // ---------- REGISTERED DEFAULT SECTION ----------
+  // ---------- REGISTERED DEFAULT SECTION (unchanged) ----------
   Widget _buildRegisteredDefaultSection(bool isSmall) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -805,7 +919,7 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // ---------- ADVANCED REGISTERED SECTION ----------
+  // ---------- ADVANCED REGISTERED SECTION (unchanged) ----------
   Widget _buildRegisteredAdvancedSection(bool isSmall) {
     final engine = widget.engineResult;
     final isEngineResult = engine != null;
