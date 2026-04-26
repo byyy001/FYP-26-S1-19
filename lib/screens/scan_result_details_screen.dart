@@ -9,7 +9,7 @@ import '../threat_engine/layer5_facade/threat_engine.dart';
 import 'result_screen.dart';
 
 // ============================================================================
-// Extended ScanResult Model (matches ResultScreen output)
+// Extended ScanResult Model
 // ============================================================================
 class ScanResult {
   final String url;
@@ -77,7 +77,7 @@ class ScanResult {
 }
 
 // ============================================================================
-// Scan Result Details Screen (with delete, rescan, and report)
+// Scan Result Details Screen (with improved report dialog)
 // ============================================================================
 class ScanResultDetailsScreen extends StatefulWidget {
   final ScanResult scanResult;
@@ -119,7 +119,11 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
     return 'Safe';
   }
 
-  // ======================== REPORT FALSE POSITIVE ========================
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  // ======================== IMPROVED REPORT FALSE POSITIVE ========================
   Future<void> _reportFalsePositive() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -129,49 +133,129 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
       return;
     }
 
-    final reasonController = TextEditingController();
+    bool wrongCategory = false;
+    bool wrongAnalysis = false;
+    bool others = false;
+    final additionalController = TextEditingController();
+
     final shouldSubmit = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        title: const Text('Report False Positive', style: TextStyle(color: AppColors.primaryText)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Why do you think this result is incorrect?',
-              style: TextStyle(color: AppColors.secondaryText),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) {
+          return AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text(
+              'Report False Positive Detection',
+              style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                hintText: 'Optional: explain why...',
-                hintStyle: TextStyle(color: AppColors.disabledText),
-                filled: true,
-                fillColor: AppColors.mainBackground,
-                border: OutlineInputBorder(),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Scan summary
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.mainBackground,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.scanResult.url, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        Text('Scanned: ${widget.scanResult.scanDate}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                        Text('Detected as: ${widget.scanResult.threatType}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                        Text('Risk Score: ${widget.scanResult.riskScore}%', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('What did we get wrong?', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Wrong risk category', style: TextStyle(color: AppColors.primaryText)),
+                    value: wrongCategory,
+                    onChanged: (val) => setStateDialog(() => wrongCategory = val ?? false),
+                    activeColor: AppColors.primaryPurple,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Wrong risk analysis result', style: TextStyle(color: AppColors.primaryText)),
+                    value: wrongAnalysis,
+                    onChanged: (val) => setStateDialog(() => wrongAnalysis = val ?? false),
+                    activeColor: AppColors.primaryPurple,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Others', style: TextStyle(color: AppColors.primaryText)),
+                    value: others,
+                    onChanged: (val) => setStateDialog(() => others = val ?? false),
+                    activeColor: AppColors.primaryPurple,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Additional details (Optional)', style: TextStyle(color: AppColors.primaryText)),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: additionalController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: 'Please fill in this text box....',
+                      hintStyle: const TextStyle(color: AppColors.disabledText),
+                      filled: true,
+                      fillColor: AppColors.mainBackground,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                    style: const TextStyle(color: AppColors.primaryText),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('Screenshot attachment coming soon')),
+                      );
+                    },
+                    icon: const Icon(Icons.camera_alt, size: 18),
+                    label: const Text('Attach Screenshot'),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.primaryPurple),
+                  ),
+                ],
               ),
-              style: const TextStyle(color: AppColors.primaryText),
-              maxLines: 3,
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple),
-            child: const Text('Submit Report'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('CANCEL', style: TextStyle(color: AppColors.secondaryText)),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple),
+                child: const Text('SAVE CHANGES'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
     if (shouldSubmit != true) return;
+
+    final List<String> reasonsList = [];
+    if (wrongCategory) reasonsList.add('Wrong risk category');
+    if (wrongAnalysis) reasonsList.add('Wrong risk analysis result');
+    if (others) reasonsList.add('Others');
+    String finalReason = reasonsList.join(', ');
+    if (additionalController.text.trim().isNotEmpty) {
+      finalReason = finalReason.isEmpty
+          ? additionalController.text.trim()
+          : '$finalReason - ${additionalController.text.trim()}';
+    }
 
     try {
       await FirebaseFirestore.instance.collection('false_reports').add({
@@ -185,7 +269,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
           'explanation': widget.scanResult.explanation,
           'detected_threats': widget.scanResult.detectedThreats,
         },
-        'reason': reasonController.text.trim(),
+        'reason': finalReason,
         'submittedAt': FieldValue.serverTimestamp(),
         'status': 'pending',
       });
