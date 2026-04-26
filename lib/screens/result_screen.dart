@@ -7,6 +7,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../threat_engine/scan_settings.dart';
 import '../threat_engine/layer5_facade/threat_engine.dart';
@@ -91,7 +93,6 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
   late final ScrollController _scrollController;
   bool _showScrollTop = false;
 
-  // Ad‑intensity threshold (could be moved to ScanSettings for premium users)
   static const double adIntensityThreshold = 0.3;
 
   @override
@@ -158,7 +159,6 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
     return 0.0;
   }
 
-  // Helper: build ad‑intensity warning widget (reused)
   Widget _buildAdIntensityWarning() {
     final adDensity = widget.engineResult?['ad_density'];
     final bool isAdIntensive = (adDensity is double && adDensity > adIntensityThreshold);
@@ -390,6 +390,91 @@ Explanation: ${_cleanText(widget.explanation)}
           content: Text('Re-scan failed: $e'),
           backgroundColor: AppColors.highRisk,
         ),
+      );
+    }
+  }
+
+  // ======================== REPORT FALSE POSITIVE ========================
+  Future<void> _showReportDialog(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to report.')),
+      );
+      return;
+    }
+
+    final reasonController = TextEditingController();
+    final shouldSubmit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: const Text('Report False Positive', style: TextStyle(color: AppColors.primaryText)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Why do you think this result is incorrect?',
+              style: TextStyle(color: AppColors.secondaryText),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                hintText: 'Optional: explain why...',
+                hintStyle: TextStyle(color: AppColors.disabledText),
+                filled: true,
+                fillColor: AppColors.mainBackground,
+                border: OutlineInputBorder(),
+              ),
+              style: const TextStyle(color: AppColors.primaryText),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple),
+            child: const Text('Submit Report'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSubmit != true) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('false_reports').add({
+        'userId': user.uid,
+        'userEmail': user.email,
+        'url': widget.url,
+        'scanResult': {
+          'risk_score': widget.score,
+          'verdict': widget.verdict,
+          'threat_type': widget.engineResult?['threat_type'],
+          'explanation': widget.explanation,
+          'detected_threats': widget.reasons,
+        },
+        'reason': reasonController.text.trim(),
+        'submittedAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Thank you! Report submitted for review.'),
+          backgroundColor: AppColors.safe,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit report: $e'), backgroundColor: AppColors.highRisk),
       );
     }
   }
@@ -642,7 +727,7 @@ Explanation: ${_cleanText(widget.explanation)}
     }
   }
 
-  // ---------- UNREGISTERED SECTION (with ad warning) ----------
+  // ---------- UNREGISTERED SECTION ----------
   Widget _buildUnregisteredSection(bool isSmall) {
     String externalMsg = '';
     if (_externalSources.isNotEmpty) {
@@ -882,7 +967,7 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // ---------- REGISTERED DEFAULT SECTION (with ad warning) ----------
+  // ---------- REGISTERED DEFAULT SECTION (with report button) ----------
   Widget _buildRegisteredDefaultSection(bool isSmall) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -917,6 +1002,22 @@ Explanation: ${_cleanText(widget.explanation)}
           _buildSafetyTipsCard(),
           const SizedBox(height: 32),
         ],
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _showReportDialog(context),
+            icon: const Icon(Icons.flag_outlined, size: 18),
+            label: const Text('Report as False Positive'),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: AppColors.secondaryText),
+              foregroundColor: AppColors.secondaryText,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         Center(
           child: SizedBox(
             width: 160,
@@ -935,7 +1036,7 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // ---------- ADVANCED REGISTERED SECTION (same as before, unchanged) ----------
+  // ---------- ADVANCED REGISTERED SECTION (with report button) ----------
   Widget _buildRegisteredAdvancedSection(bool isSmall) {
     final engine = widget.engineResult;
     final isEngineResult = engine != null;
@@ -1021,6 +1122,22 @@ Explanation: ${_cleanText(widget.explanation)}
           ),
           const SizedBox(height: 24),
         ],
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _showReportDialog(context),
+            icon: const Icon(Icons.flag_outlined, size: 18),
+            label: const Text('Report as False Positive'),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: AppColors.secondaryText),
+              foregroundColor: AppColors.secondaryText,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         Center(
           child: SizedBox(
             width: 160,
@@ -1132,7 +1249,7 @@ Explanation: ${_cleanText(widget.explanation)}
     }
   }
 
-  // ======================== HELPER WIDGETS (unchanged from earlier, just kept) ========================
+  // ======================== HELPER WIDGETS ========================
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
@@ -1336,7 +1453,7 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // Technical Details Tab Content
+  // Technical Details Tab Content (unchanged from earlier working version)
   Widget _buildTechnicalDetailsTab(Map<String, dynamic> engine) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1777,24 +1894,15 @@ Explanation: ${_cleanText(widget.explanation)}
 class _RiskGauge extends StatelessWidget {
   final double score;
   final Color color;
-
   const _RiskGauge({required this.score, required this.color});
-
   @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _SemiCircularGaugePainter(score: score, color: color),
-      child: const Center(child: Text('')),
-    );
-  }
+  Widget build(BuildContext context) => CustomPaint(painter: _SemiCircularGaugePainter(score: score, color: color), child: const Center(child: Text('')));
 }
 
 class _SemiCircularGaugePainter extends CustomPainter {
   final double score;
   final Color color;
-
   _SemiCircularGaugePainter({required this.score, required this.color});
-
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height);
@@ -1806,44 +1914,20 @@ class _SemiCircularGaugePainter extends CustomPainter {
       ..strokeWidth = 12
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius - 6),
-      startAngle,
-      sweepAngle,
-      false,
-      backgroundPaint,
-    );
-
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius - 6), startAngle, sweepAngle, false, backgroundPaint);
     final progressAngle = sweepAngle * score;
     final progressPaint = Paint()
       ..color = color
       ..strokeWidth = 12
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius - 6),
-      startAngle,
-      progressAngle,
-      false,
-      progressPaint,
-    );
-
-    final textSpan = TextSpan(
-      text: '${(score * 100).toInt()}%',
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-    );
-    final textPainter = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-    );
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius - 6), startAngle, progressAngle, false, progressPaint);
+    final textSpan = TextSpan(text: '${(score * 100).toInt()}%', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white));
+    final textPainter = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
     textPainter.layout();
-    final textOffset = Offset(
-      center.dx - textPainter.width / 2,
-      center.dy - textPainter.height - 4,
-    );
+    final textOffset = Offset(center.dx - textPainter.width / 2, center.dy - textPainter.height - 4);
     textPainter.paint(canvas, textOffset);
   }
-
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

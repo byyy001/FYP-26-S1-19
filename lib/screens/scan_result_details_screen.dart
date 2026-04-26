@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../threat_engine/scan_settings.dart';
 import '../threat_engine/layer5_facade/threat_engine.dart';
@@ -75,7 +77,7 @@ class ScanResult {
 }
 
 // ============================================================================
-// Scan Result Details Screen (with delete & rescan)
+// Scan Result Details Screen (with delete, rescan, and report)
 // ============================================================================
 class ScanResultDetailsScreen extends StatefulWidget {
   final ScanResult scanResult;
@@ -115,6 +117,91 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
     if (score >= 51) return 'Medium Risk';
     if (score >= 26) return 'Low Risk';
     return 'Safe';
+  }
+
+  // ======================== REPORT FALSE POSITIVE ========================
+  Future<void> _reportFalsePositive() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to report.')),
+      );
+      return;
+    }
+
+    final reasonController = TextEditingController();
+    final shouldSubmit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: const Text('Report False Positive', style: TextStyle(color: AppColors.primaryText)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Why do you think this result is incorrect?',
+              style: TextStyle(color: AppColors.secondaryText),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                hintText: 'Optional: explain why...',
+                hintStyle: TextStyle(color: AppColors.disabledText),
+                filled: true,
+                fillColor: AppColors.mainBackground,
+                border: OutlineInputBorder(),
+              ),
+              style: const TextStyle(color: AppColors.primaryText),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple),
+            child: const Text('Submit Report'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSubmit != true) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('false_reports').add({
+        'userId': user.uid,
+        'userEmail': user.email,
+        'url': widget.scanResult.url,
+        'scanResult': {
+          'risk_score': widget.scanResult.riskScore,
+          'verdict': _getVerdict(widget.scanResult.riskScore),
+          'threat_type': widget.scanResult.threatType,
+          'explanation': widget.scanResult.explanation,
+          'detected_threats': widget.scanResult.detectedThreats,
+        },
+        'reason': reasonController.text.trim(),
+        'submittedAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Thank you! Report submitted for review.'),
+          backgroundColor: AppColors.safe,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit report: $e'), backgroundColor: AppColors.highRisk),
+      );
+    }
   }
 
   @override
@@ -200,6 +287,21 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _reportFalsePositive,
+                      icon: const Icon(Icons.flag_outlined, size: 18),
+                      label: const Text('Report as False Positive'),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.secondaryText),
+                        foregroundColor: AppColors.secondaryText,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -207,7 +309,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
     );
   }
 
-  // ================= TOP CARD (with circular gauge) =================
+  // ================= TOP CARD =================
   Widget _buildTopCard(ScanResult scan, String verdict, Color riskColor, String riskLevel) {
     return Container(
       width: double.infinity,
@@ -282,7 +384,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
     );
   }
 
-  // ================= THREAT SUMMARY CARD (with proper formatting) =================
+  // ================= THREAT SUMMARY CARD =================
   Widget _buildThreatSummaryCard(ScanResult scan) {
     String _formatScore(double value) {
       if (value == 0.0) return '—';
@@ -326,7 +428,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
     );
   }
 
-  // ================= DETECTED ISSUES (chips) =================
+  // ================= DETECTED ISSUES =================
   Widget _buildDetectedIssues(ScanResult scan) {
     if (scan.detectedThreats.isEmpty) return _buildEmptyMessage('No specific threats detected.');
     return Column(

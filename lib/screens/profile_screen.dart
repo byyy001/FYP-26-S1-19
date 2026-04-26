@@ -7,6 +7,7 @@ import 'notification_settings_screen.dart';
 import 'help_screen.dart';
 import 'about_screen.dart';
 import 'unregistered_home_screen.dart';
+import 'report_history_screen.dart';   // <-- added
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -287,8 +288,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.help_outline,
                       children: [
                         _ProfileSettingTile(
-                          label: 'Report Issues',
-                          onTap: () => _showComingSoon('Report Issues'),
+                          label: 'Report History',   // <-- changed from "Report Issues"
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ReportHistoryScreen(),
+                              ),
+                            );
+                          },
                         ),
                         _ProfileSettingTile(
                           label: 'Help',
@@ -318,7 +326,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                     const SizedBox(height: 30),
 
-                    // Sign Out button (solid red)
+                    // Sign Out button
                     Center(
                       child: SizedBox(
                         width: screenWidth * 0.52,
