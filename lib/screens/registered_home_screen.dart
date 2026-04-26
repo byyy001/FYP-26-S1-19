@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:linksentry/screens/notification_settings_screen.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart'; // ADDED for share intent
 import '../constants/app_colors.dart';
 import 'help_screen.dart';
 import 'scan_settings_screen.dart';
@@ -47,6 +48,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   @override
   void initState() {
     super.initState();
+    _handleSharedIntent();          // ADDED – listen for shared URLs
     _initEngine();
     _loadUserSettings();
     _statsFuture = _getScanStats();
@@ -58,6 +60,43 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     });
   }
 
+  // ======================== SHARE INTENT HANDLING ========================
+  void _handleSharedIntent() {
+    // When app is already open and receives a share
+    ReceiveSharingIntent.getTextStream().listen((List<String> value) {
+      if (value.isNotEmpty) {
+        _onSharedUrl(value.first);
+      }
+    });
+    // When app is opened directly by a share (cold start)
+    ReceiveSharingIntent.getInitialText().then((String? value) {
+      if (value != null && value.isNotEmpty) {
+        _onSharedUrl(value);
+      }
+    });
+  }
+
+  void _onSharedUrl(String sharedText) {
+    String? extractedUrl;
+    try {
+      final uri = Uri.parse(sharedText);
+      if (uri.isAbsolute && (uri.scheme == 'http' || uri.scheme == 'https')) {
+        extractedUrl = sharedText;
+      } else {
+        // Try to extract a URL from the text (in case user shared plain text with a link)
+        final pattern = RegExp(r'(https?://[^\s]+)');
+        final match = pattern.firstMatch(sharedText);
+        if (match != null) extractedUrl = match.group(0);
+      }
+    } catch (_) {}
+    if (extractedUrl != null) {
+      // Set the text field and trigger scan
+      _urlController.text = extractedUrl;
+      _scanURL(extractedUrl);
+    }
+  }
+
+  // ======================== EXISTING METHODS (unchanged) ========================
   void _showLoginSuccessBanner() {
     final overlay = Overlay.of(context, rootOverlay: true);
     late OverlayEntry entry;
@@ -769,7 +808,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     );
   }
 
-  // ======================== RECENTS CARD (FIXED: compute status from riskScore) ========================
+  // ======================== RECENTS CARD ========================
   Widget _buildRecentsCard(bool isSmall) {
     return Container(
       width: double.infinity,
@@ -853,7 +892,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                 itemBuilder: (context, index) {
                   final data = docs[index].data() as Map<String, dynamic>;
                   final riskScore = (data['riskScore'] as num?)?.toDouble() ?? 0.0;
-                  // Compute status from riskScore (same as result screen)
                   final statusText = _getStatusFromRiskScore(riskScore);
                   final timestamp = data['scannedAt'];
                   final formattedTime = timestamp is Timestamp
