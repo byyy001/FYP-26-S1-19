@@ -91,6 +91,9 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
   late final ScrollController _scrollController;
   bool _showScrollTop = false;
 
+  // Ad‑intensity threshold (could be moved to ScanSettings for premium users)
+  static const double adIntensityThreshold = 0.3;
+
   @override
   void initState() {
     super.initState();
@@ -153,6 +156,46 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
     if (value is int) return value.toDouble();
     if (value is String) return double.tryParse(value) ?? 0.0;
     return 0.0;
+  }
+
+  // Helper: build ad‑intensity warning widget (reused)
+  Widget _buildAdIntensityWarning() {
+    final adDensity = widget.engineResult?['ad_density'];
+    final bool isAdIntensive = (adDensity is double && adDensity > adIntensityThreshold);
+    if (!isAdIntensive) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.ad_units, color: Colors.orange, size: 20),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '⚠️ This site may contain excessive ads or intrusive pop-ups.',
+                  style: TextStyle(color: AppColors.primaryText, fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Consider using an ad blocker or avoid clicking on pop-ups.',
+            style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+          ),
+        ],
+      ),
+    );
   }
 
   // ======================== EXPORT METHODS ========================
@@ -599,7 +642,7 @@ Explanation: ${_cleanText(widget.explanation)}
     }
   }
 
-  // ---------- UNREGISTERED SECTION (FULLY CORRECTED) ----------
+  // ---------- UNREGISTERED SECTION (with ad warning) ----------
   Widget _buildUnregisteredSection(bool isSmall) {
     String externalMsg = '';
     if (_externalSources.isNotEmpty) {
@@ -639,13 +682,6 @@ Explanation: ${_cleanText(widget.explanation)}
           threatIcon = Icons.warning;
           threatColor = AppColors.mediumRisk;
       }
-    }
-
-    // Ad‑intensive warning
-    final adDensity = widget.engineResult?['ad_density'];
-    bool isAdIntensive = false;
-    if (adDensity is double && adDensity > 0.3) {
-      isAdIntensive = true;
     }
 
     // Insecure scripts hint
@@ -697,29 +733,7 @@ Explanation: ${_cleanText(widget.explanation)}
               ],
             ),
           ),
-        if (isAdIntensive)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.ad_units, color: Colors.orange, size: 20),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    '⚠️ This site may contain excessive ads or intrusive pop-ups.',
-                    style: TextStyle(color: AppColors.primaryText, fontSize: 14),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        _buildAdIntensityWarning(),
         if (hasInsecureScripts)
           Container(
             width: double.infinity,
@@ -868,12 +882,14 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // ---------- REGISTERED DEFAULT SECTION (unchanged) ----------
+  // ---------- REGISTERED DEFAULT SECTION (with ad warning) ----------
   Widget _buildRegisteredDefaultSection(bool isSmall) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildThreatSummaryCard(),
+        const SizedBox(height: 16),
+        _buildAdIntensityWarning(),
         const SizedBox(height: 24),
         _buildDivider(),
         const SizedBox(height: 24),
@@ -919,7 +935,7 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // ---------- ADVANCED REGISTERED SECTION (unchanged) ----------
+  // ---------- ADVANCED REGISTERED SECTION (same as before, unchanged) ----------
   Widget _buildRegisteredAdvancedSection(bool isSmall) {
     final engine = widget.engineResult;
     final isEngineResult = engine != null;
@@ -936,6 +952,8 @@ Explanation: ${_cleanText(widget.explanation)}
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildThreatSummaryCard(),
+        const SizedBox(height: 16),
+        _buildAdIntensityWarning(),
         const SizedBox(height: 24),
         _buildDivider(),
         const SizedBox(height: 24),
@@ -1114,7 +1132,7 @@ Explanation: ${_cleanText(widget.explanation)}
     }
   }
 
-  // ======================== HELPER WIDGETS ========================
+  // ======================== HELPER WIDGETS (unchanged from earlier, just kept) ========================
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
