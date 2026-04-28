@@ -1,13 +1,15 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../threat_engine/scan_settings.dart';
 import '../threat_engine/layer5_facade/threat_engine.dart';
 import 'result_screen.dart';
 
 // ============================================================================
-// Extended ScanResult Model (matches ResultScreen output)
+// Extended ScanResult Model
 // ============================================================================
 class ScanResult {
   final String url;
@@ -75,7 +77,7 @@ class ScanResult {
 }
 
 // ============================================================================
-// Scan Result Details Screen (with delete & rescan)
+// Scan Result Details Screen (with improved report dialog)
 // ============================================================================
 class ScanResultDetailsScreen extends StatefulWidget {
   final ScanResult scanResult;
@@ -115,6 +117,175 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
     if (score >= 51) return 'Medium Risk';
     if (score >= 26) return 'Low Risk';
     return 'Safe';
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  // ======================== IMPROVED REPORT FALSE POSITIVE ========================
+  Future<void> _reportFalsePositive() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to report.')),
+      );
+      return;
+    }
+
+    bool wrongCategory = false;
+    bool wrongAnalysis = false;
+    bool others = false;
+    final additionalController = TextEditingController();
+
+    final shouldSubmit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) {
+          return AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text(
+              'Report False Positive Detection',
+              style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Scan summary
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.mainBackground,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.scanResult.url, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        Text('Scanned: ${widget.scanResult.scanDate}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                        Text('Detected as: ${widget.scanResult.threatType}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                        Text('Risk Score: ${widget.scanResult.riskScore}%', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('What did we get wrong?', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Wrong risk category', style: TextStyle(color: AppColors.primaryText)),
+                    value: wrongCategory,
+                    onChanged: (val) => setStateDialog(() => wrongCategory = val ?? false),
+                    activeColor: AppColors.primaryPurple,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Wrong risk analysis result', style: TextStyle(color: AppColors.primaryText)),
+                    value: wrongAnalysis,
+                    onChanged: (val) => setStateDialog(() => wrongAnalysis = val ?? false),
+                    activeColor: AppColors.primaryPurple,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Others', style: TextStyle(color: AppColors.primaryText)),
+                    value: others,
+                    onChanged: (val) => setStateDialog(() => others = val ?? false),
+                    activeColor: AppColors.primaryPurple,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Additional details (Optional)', style: TextStyle(color: AppColors.primaryText)),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: additionalController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: 'Please fill in this text box....',
+                      hintStyle: const TextStyle(color: AppColors.disabledText),
+                      filled: true,
+                      fillColor: AppColors.mainBackground,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                    style: const TextStyle(color: AppColors.primaryText),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('Screenshot attachment coming soon')),
+                      );
+                    },
+                    icon: const Icon(Icons.camera_alt, size: 18),
+                    label: const Text('Attach Screenshot'),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.primaryPurple),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('CANCEL', style: TextStyle(color: AppColors.secondaryText)),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple),
+                child: const Text('SAVE CHANGES'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (shouldSubmit != true) return;
+
+    final List<String> reasonsList = [];
+    if (wrongCategory) reasonsList.add('Wrong risk category');
+    if (wrongAnalysis) reasonsList.add('Wrong risk analysis result');
+    if (others) reasonsList.add('Others');
+    String finalReason = reasonsList.join(', ');
+    if (additionalController.text.trim().isNotEmpty) {
+      finalReason = finalReason.isEmpty
+          ? additionalController.text.trim()
+          : '$finalReason - ${additionalController.text.trim()}';
+    }
+
+    try {
+      await FirebaseFirestore.instance.collection('false_reports').add({
+        'userId': user.uid,
+        'userEmail': user.email,
+        'url': widget.scanResult.url,
+        'scanResult': {
+          'risk_score': widget.scanResult.riskScore,
+          'verdict': _getVerdict(widget.scanResult.riskScore),
+          'threat_type': widget.scanResult.threatType,
+          'explanation': widget.scanResult.explanation,
+          'detected_threats': widget.scanResult.detectedThreats,
+        },
+        'reason': finalReason,
+        'submittedAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Thank you! Report submitted for review.'),
+          backgroundColor: AppColors.safe,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit report: $e'), backgroundColor: AppColors.highRisk),
+      );
+    }
   }
 
   @override
@@ -200,6 +371,21 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _reportFalsePositive,
+                      icon: const Icon(Icons.flag_outlined, size: 18),
+                      label: const Text('Report as False Positive'),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.secondaryText),
+                        foregroundColor: AppColors.secondaryText,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -207,7 +393,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
     );
   }
 
-  // ================= TOP CARD (with circular gauge) =================
+  // ================= TOP CARD =================
   Widget _buildTopCard(ScanResult scan, String verdict, Color riskColor, String riskLevel) {
     return Container(
       width: double.infinity,
@@ -282,7 +468,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
     );
   }
 
-  // ================= THREAT SUMMARY CARD (with proper formatting) =================
+  // ================= THREAT SUMMARY CARD =================
   Widget _buildThreatSummaryCard(ScanResult scan) {
     String _formatScore(double value) {
       if (value == 0.0) return '—';
@@ -326,7 +512,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
     );
   }
 
-  // ================= DETECTED ISSUES (chips) =================
+  // ================= DETECTED ISSUES =================
   Widget _buildDetectedIssues(ScanResult scan) {
     if (scan.detectedThreats.isEmpty) return _buildEmptyMessage('No specific threats detected.');
     return Column(

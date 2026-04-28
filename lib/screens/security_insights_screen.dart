@@ -171,6 +171,184 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
     }
   }
 
+  // ================= NEW: PREDICTION CARD =================
+  Widget _buildPredictionCard() {
+    if (_scans.isEmpty) return const SizedBox.shrink();
+
+    // Group scans by threat type and compute average gap between occurrences
+    final Map<String, List<DateTime>> threatDates = {};
+    for (final scan in _scans) {
+      if (scan.threatType == 'benign') continue;
+      threatDates.putIfAbsent(scan.threatType, () => []);
+      threatDates[scan.threatType]!.add(scan.timestamp);
+    }
+    if (threatDates.isEmpty) return const SizedBox.shrink();
+
+    // Find most frequent (or most recent) threat type
+    String? mostCommonThreat;
+    int maxCount = 0;
+    for (final entry in threatDates.entries) {
+      if (entry.value.length > maxCount) {
+        maxCount = entry.value.length;
+        mostCommonThreat = entry.key;
+      }
+    }
+    if (mostCommonThreat == null) return const SizedBox.shrink();
+
+    final dates = threatDates[mostCommonThreat]!..sort();
+    if (dates.length < 2) return const SizedBox.shrink();
+
+    // Calculate average days between occurrences
+    int totalGap = 0;
+    for (int i = 1; i < dates.length; i++) {
+      totalGap += dates[i].difference(dates[i - 1]).inDays;
+    }
+    final avgGap = totalGap / (dates.length - 1);
+    final lastDate = dates.last;
+    final daysSinceLast = DateTime.now().difference(lastDate).inDays;
+    int predictedDays = (avgGap - daysSinceLast).ceil();
+    if (predictedDays < 1) predictedDays = 1;
+
+    final threatLabel = _formatThreatLabel(mostCommonThreat);
+    final predictionText = predictedDays <= 1
+        ? 'Based on your history, you may encounter $threatLabel very soon (within 1 day).'
+        : 'Based on your history, you may encounter $threatLabel in about $predictedDays days.';
+
+    return _buildCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.timeline, color: AppColors.primaryPurple, size: 20),
+              const SizedBox(width: 8),
+              const Text('Risk Prediction',
+                  style: TextStyle(color: AppColors.primaryText, fontSize: 16, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(predictionText, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14, height: 1.4)),
+          const SizedBox(height: 8),
+          Text('Stay vigilant – avoid clicking suspicious links.',
+              style: TextStyle(color: AppColors.primaryPurple.withOpacity(0.7), fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  // ================= NEW: THREAT GROUPING BOTTOM SHEET =================
+  void _showThreatGroupBottomSheet(String threatType) {
+    // Find all scans of this threat type
+    final groupedScans = _scans.where((scan) => scan.threatType == threatType).toList();
+    if (groupedScans.isEmpty) return;
+
+    // Group by domain (similarity reason)
+    final Map<String, List<ScanResult>> byDomain = {};
+    for (final scan in groupedScans) {
+      final domain = _extractDomain(scan.url);
+      byDomain.putIfAbsent(domain, () => []).add(scan);
+    }
+
+    String similarityReason;
+    if (byDomain.keys.length == 1) {
+      similarityReason = 'All these links share the same domain "$_extractDomain(groupedScans.first.url)".';
+    } else {
+      similarityReason = 'These links were all classified as $threatType by our threat engine.';
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        minChildSize: 0.4,
+        builder: (_, scrollController) => Column(
+          children: [
+            Container(
+              width: 50,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(color: AppColors.divider, borderRadius: BorderRadius.circular(2)),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _formatThreatLabel(threatType),
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primaryText),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$similarityReason\nTap any link to view details.',
+                    style: const TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      // TODO: navigate to ViewHistoryScreen with filter
+                      Navigator.pop(ctx);
+                    },
+                    icon: const Icon(Icons.history, size: 18),
+                    label: const Text('View All in History'),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple),
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(color: AppColors.divider),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: groupedScans.length,
+                itemBuilder: (context, index) {
+                  final scan = groupedScans[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    color: AppColors.mainBackground,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: ListTile(
+                      title: Text(_extractDomain(scan.url),
+                          style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
+                      subtitle: Text(scan.url,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                      trailing: const Icon(Icons.chevron_right, color: AppColors.secondaryText),
+                      onTap: () {
+                        // Navigate to scan details – you can push ScanResultDetailsScreen here
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Open scan details – feature coming soon')),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _extractDomain(String url) {
+    try {
+      final uri = Uri.parse(url);
+      return uri.host.replaceAll(RegExp(r'^www\.'), '');
+    } catch (_) {
+      return url.split('/').first;
+    }
+  }
+
+  // ================= EXISTING METHODS (modified for grouping) =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -220,11 +398,13 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
                             const SizedBox(height: 24),
                             _buildThreatPieSection(),
                             const SizedBox(height: 24),
-                            _buildRiskOverTimeChart(), // NEW: line chart
+                            _buildRiskOverTimeChart(),
+                            const SizedBox(height: 24),
+                            _buildPredictionCard(), // NEW
                             const SizedBox(height: 24),
                             _buildOldestSafeLinksSection(),
                             const SizedBox(height: 24),
-                            _buildTopThreatsSection(),
+                            _buildTopThreatsSection(), // modified to be tappable
                             const SizedBox(height: 24),
                             _buildTrendsSection(),
                             const SizedBox(height: 24),
@@ -362,6 +542,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
     );
   }
 
+  // MODIFIED PIE CHART: tap navigates to grouping
   Widget _buildThreatPieSection() {
     final threatPercentages = _buildThreatPie(_scans);
     if (threatPercentages.isEmpty) return const SizedBox.shrink();
@@ -397,12 +578,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
                               final touchedIndex = pieTouchResponse.touchedSection?.touchedSectionIndex;
                               if (touchedIndex != null && touchedIndex != -1) {
                                 final threat = threatPercentages[touchedIndex];
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('${_formatThreatLabel(threat.threatType)}: ${threat.count} scans (${threat.percentage.toStringAsFixed(1)}%)'),
-                                    duration: const Duration(seconds: 2),
-                                  ),
-                                );
+                                _showThreatGroupBottomSheet(threat.threatType);
                               }
                             }
                           },
@@ -431,16 +607,14 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
     );
   }
 
-  // ================= NEW: RISK SCORE OVER TIME (LINE CHART) =================
+  // Risk over time chart (unchanged)
   Widget _buildRiskOverTimeChart() {
     if (_scans.isEmpty) return const SizedBox.shrink();
-    // Group scans by week
     final now = DateTime.now();
     final cutoff = now.subtract(Duration(days: _periodDays));
     final filteredScans = _scans.where((s) => s.timestamp.isAfter(cutoff)).toList();
     if (filteredScans.isEmpty) return const SizedBox.shrink();
 
-    // Determine date range: start from oldest scan or cutoff
     final oldest = filteredScans.map((s) => s.timestamp).reduce((a, b) => a.isBefore(b) ? a : b);
     final startDate = oldest.isBefore(cutoff) ? cutoff : oldest;
     final weeks = ((now.difference(startDate).inDays / 7).ceil()).clamp(1, 12);
@@ -453,7 +627,6 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
         final avg = weekScans.map((s) => s.riskScore).reduce((a, b) => a + b) / weekScans.length;
         weeklyAvg[i] = avg;
       } else {
-        // If no scans, use previous week's value or 0
         weeklyAvg[i] = i > 0 ? weeklyAvg[i-1]! : 0;
       }
     }
@@ -470,10 +643,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Average risk score per week',
-                style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
-              ),
+              const Text('Average risk score per week', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
               const SizedBox(height: 16),
               SizedBox(
                 height: 220,
@@ -547,10 +717,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
           _buildCard(
             child: const Padding(
               padding: EdgeInsets.all(16),
-              child: Text(
-                'All your safe links are up to date. Great job!',
-                style: TextStyle(color: AppColors.secondaryText),
-              ),
+              child: Text('All your safe links are up to date. Great job!', style: TextStyle(color: AppColors.secondaryText)),
             ),
           ),
         ],
@@ -637,6 +804,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
     );
   }
 
+  // MODIFIED TOP THREATS: tappable
   Widget _buildTopThreatsSection() {
     final topThreats = _insights?.topThreats ?? [];
     if (topThreats.isEmpty) return const SizedBox.shrink();
@@ -656,8 +824,16 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
         const SizedBox(height: 12),
         _buildCard(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ...topThreats.map((threat) => _buildThreatItem(_formatThreatLabel(threat.threatType), threat.count, threatColors[threat.threatType] ?? AppColors.primaryPurple)),
+              ...topThreats.map((threat) => GestureDetector(
+                onTap: () => _showThreatGroupBottomSheet(threat.threatType),
+                child: _buildThreatItem(
+                  _formatThreatLabel(threat.threatType),
+                  threat.count,
+                  threatColors[threat.threatType] ?? AppColors.primaryPurple,
+                ),
+              )),
               const SizedBox(height: 16),
               Text(_getDynamicTopThreatSummary(topThreats.first, totalScans), style: const TextStyle(color: AppColors.secondaryText, fontSize: 14, height: 1.5)),
             ],
@@ -702,7 +878,6 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
         _buildCard(
           child: Column(
             children: trends.map((trend) {
-              // Skip benign – already excluded by analyzer, but double‑check
               if (trend.threatType == 'benign') return const SizedBox.shrink();
               final icon = trend.direction == 'up' ? Icons.arrow_upward : Icons.arrow_downward;
               final color = trend.direction == 'up' ? AppColors.highRisk : AppColors.safe;
@@ -742,6 +917,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
     );
   }
 
+  // Helper widgets (unchanged)
   Widget _sectionHeader(String title, IconData icon) {
     return Row(
       children: [
@@ -826,7 +1002,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
         scan.threatType == 'benign' &&
         scan.url.trim().isNotEmpty &&
         occurrences[scan.url.trim()] == 1 &&
-        now.difference(scan.timestamp).inDays > 7 // only older than 7 days
+        now.difference(scan.timestamp).inDays > 7
     ).toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     return safeLinks.take(3).toList();
   }

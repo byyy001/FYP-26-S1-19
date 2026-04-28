@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart'; // for WidgetsBindingObserver
 import '../constants/app_colors.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
@@ -17,7 +18,7 @@ class UnregisteredHomeScreen extends StatefulWidget {
   State<UnregisteredHomeScreen> createState() => _UnregisteredHomeScreenState();
 }
 
-class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
+class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> with WidgetsBindingObserver {
   final TextEditingController _urlController = TextEditingController();
   bool _isScanning = false;
   bool _engineReady = false;
@@ -28,7 +29,23 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initEngine();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _urlController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Clear URL when app goes to background or is detached (session ends)
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      _urlController.clear();
+    }
   }
 
   Future<void> _initEngine() async {
@@ -58,12 +75,6 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> {
 
   void _retryInit() {
     _initEngine();
-  }
-
-  @override
-  void dispose() {
-    _urlController.dispose();
-    super.dispose();
   }
 
   void _showAuthDialog({String feature = 'this feature'}) {

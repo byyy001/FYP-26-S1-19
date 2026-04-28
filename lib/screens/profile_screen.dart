@@ -7,6 +7,8 @@ import 'notification_settings_screen.dart';
 import 'help_screen.dart';
 import 'about_screen.dart';
 import 'unregistered_home_screen.dart';
+import 'report_history_screen.dart';
+import 'delete_account_screen.dart';   // <-- added for delete account
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -238,7 +240,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _ProfileSettingTile(
                           label: 'Delete Account',
                           isDestructive: true,
-                          onTap: () => _showComingSoon('Delete Account'),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const DeleteAccountScreen(),
+                              ),
+                            );
+                          },
                           showDivider: false,
                         ),
                       ],
@@ -287,8 +296,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.help_outline,
                       children: [
                         _ProfileSettingTile(
-                          label: 'Report Issues',
-                          onTap: () => _showComingSoon('Report Issues'),
+                          label: 'Report History',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ReportHistoryScreen(),
+                              ),
+                            );
+                          },
                         ),
                         _ProfileSettingTile(
                           label: 'Help',
@@ -318,7 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                     const SizedBox(height: 30),
 
-                    // Sign Out button (solid red)
+                    // Sign Out button
                     Center(
                       child: SizedBox(
                         width: screenWidth * 0.52,
