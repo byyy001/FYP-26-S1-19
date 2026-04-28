@@ -3,12 +3,102 @@ import '../../constants/app_colors.dart';
 import 'user_management_screen.dart';
 import 'flagged_reviews_screen.dart';
 import 'scan_statistics_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // ============================================================================
-// Dashboard Content (extracted from original AdminDashboardScreen)
+// Dashboard Content — converted to StatefulWidget so futures are stable
 // ============================================================================
-class _DashboardContent extends StatelessWidget {
+class _DashboardContent extends StatefulWidget {
   const _DashboardContent();
+
+  @override
+  State<_DashboardContent> createState() => _DashboardContentState();
+}
+
+class _DashboardContentState extends State<_DashboardContent> {
+  // Futures are created once in initState — not on every rebuild
+  late Future<int> _totalUsers;
+  late Future<int> _scansToday;
+  late Future<int> _highRiskDetected;
+  late Future<int> _flaggedReports;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Guard: wait for auth to be confirmed before querying Firestore
+    FirebaseAuth.instance.authStateChanges().first.then((user) {
+      if (user != null && mounted) {
+        setState(() {
+          _totalUsers = _getTotalUsers();
+          _scansToday = _getScansToday();
+          _highRiskDetected = _getHighRiskDetected();
+          _flaggedReports = _getFlaggedReports();
+        });
+      }
+    });
+
+    // Initialise with futures that resolve to 0 while auth is pending
+    _totalUsers = Future.value(0);
+    _scansToday = Future.value(0);
+    _highRiskDetected = Future.value(0);
+    _flaggedReports = Future.value(0);
+  }
+
+  // ── Firestore helpers ────────────────────────────────────────────────────
+
+  Future<int> _getTotalUsers() async {
+    try {
+      final snapshot =
+          await FirebaseFirestore.instance.collection('users').get();
+      return snapshot.size;
+    } catch (e) {
+      debugPrint('Error fetching total users: $e');
+      return 0;
+    }
+  }
+
+  Future<int> _getScansToday() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      debugPrint('Current user UID: $uid');
+
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      debugPrint('Filtering scans from: $startOfDay');
+
+      final snapshot = await FirebaseFirestore.instance
+          .collectionGroup('scans')
+          .where('scannedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .get();
+
+      debugPrint('Scans today: ${snapshot.size}');
+      return snapshot.size;
+    } catch (e) {
+      debugPrint('Error fetching scans: $e');
+      return 0;
+    }
+  }
+
+  Future<int> _getHighRiskDetected() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collectionGroup('scans')
+          .where('riskScore', isGreaterThanOrEqualTo: 50)
+          .get();
+
+      return snapshot.size;
+    } catch (e) {
+      debugPrint('Error fetching high risk scans: $e');
+      return 0;
+    }
+  }
+
+  // flagged_reports collection does not exist yet — stubbed to 0
+  Future<int> _getFlaggedReports() async => 0;
+
+  // ── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -43,25 +133,25 @@ class _DashboardContent extends StatelessWidget {
                             mainAxisSpacing: 14,
                             crossAxisSpacing: 14,
                             childAspectRatio: 2.5,
-                            children: const [
+                            children: [
                               _StatCard(
                                 title: 'Total Users',
-                                value: '1,234',
+                                value: _totalUsers,
                                 icon: Icons.people_outline,
                               ),
                               _StatCard(
                                 title: 'Scans Today',
-                                value: '675',
+                                value: _scansToday,
                                 icon: Icons.qr_code_scanner_outlined,
                               ),
                               _StatCard(
                                 title: 'High Risk Detected',
-                                value: '87',
+                                value: _highRiskDetected,
                                 icon: Icons.warning_amber_rounded,
                               ),
                               _StatCard(
                                 title: 'Flagged Reports',
-                                value: '11',
+                                value: _flaggedReports,
                                 icon: Icons.flag_outlined,
                               ),
                             ],
@@ -82,25 +172,25 @@ class _DashboardContent extends StatelessWidget {
                         mainAxisSpacing: 14,
                         crossAxisSpacing: 14,
                         childAspectRatio: 2.4,
-                        children: const [
+                        children: [
                           _StatCard(
                             title: 'Total Users',
-                            value: '1,234',
+                            value: _totalUsers,
                             icon: Icons.people_outline,
                           ),
                           _StatCard(
                             title: 'Scans Today',
-                            value: '675',
+                            value: _scansToday,
                             icon: Icons.qr_code_scanner_outlined,
                           ),
                           _StatCard(
                             title: 'High Risk Detected',
-                            value: '87',
+                            value: _highRiskDetected,
                             icon: Icons.warning_amber_rounded,
                           ),
                           _StatCard(
                             title: 'Flagged Reports',
-                            value: '11',
+                            value: _flaggedReports,
                             icon: Icons.flag_outlined,
                           ),
                         ],
@@ -186,13 +276,127 @@ class _DashboardContent extends StatelessWidget {
 }
 
 // ============================================================================
-// Dashboard Sub‑widgets (updated badge colours – now match ResultScreen)
+// Stat Card + Placeholder
+// ============================================================================
+class _StatCardPlaceholder extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const _StatCardPlaceholder({
+    required this.title,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Icon(icon, color: AppColors.secondaryText, size: 28),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(title,
+                  style: const TextStyle(
+                      color: AppColors.secondaryText, fontSize: 13)),
+              const SizedBox(height: 6),
+              const SizedBox(
+                width: 40,
+                height: 10,
+                child: LinearProgressIndicator(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String title;
+  final Future<int> value;
+  final IconData icon;
+
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<int>(
+      future: value,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _StatCardPlaceholder(title: title, icon: icon);
+        }
+        if (snapshot.hasError) {
+          debugPrint('StatCard error for $title: ${snapshot.error}');
+          return _StatCardPlaceholder(title: title, icon: icon);
+        }
+        return _Panel(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, color: AppColors.primaryPurple, size: 28),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          color: AppColors.secondaryText, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  Text(
+                    snapshot.data?.toString() ?? '0',
+                    style: const TextStyle(
+                      color: AppColors.primaryText,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ============================================================================
+// Admin Profile Card — pulls real data from FirebaseAuth
 // ============================================================================
 class _AdminProfileCard extends StatelessWidget {
   const _AdminProfileCard();
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = user?.displayName ?? 'Admin User';
+    final email = user?.email ?? '';
+
+    // Format last sign-in time
+    String lastLogin = 'Unknown';
+    if (user?.metadata.lastSignInTime != null) {
+      final dt = user!.metadata.lastSignInTime!.toLocal();
+      final now = DateTime.now();
+      final isToday = dt.year == now.year &&
+          dt.month == now.month &&
+          dt.day == now.day;
+      final hour = dt.hour.toString().padLeft(2, '0');
+      final minute = dt.minute.toString().padLeft(2, '0');
+      lastLogin =
+          '${isToday ? 'Today' : '${dt.day}/${dt.month}/${dt.year}'}, $hour:$minute';
+    }
+
     return _Panel(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -207,40 +411,36 @@ class _AdminProfileCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Row(
+          Row(
             children: [
-              CircleAvatar(
+              const CircleAvatar(
                 radius: 28,
                 backgroundColor: Colors.white24,
-                child: Icon(
-                  Icons.person_outline,
-                  color: Colors.white,
-                  size: 28,
-                ),
+                child: Icon(Icons.person_outline, color: Colors.white, size: 28),
               ),
-              SizedBox(width: 14),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Full Name',
-                      style: TextStyle(
+                      displayName,
+                      style: const TextStyle(
                         color: AppColors.primaryText,
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    SizedBox(height: 3),
+                    const SizedBox(height: 3),
                     Text(
-                      'exampleemail.com',
-                      style: TextStyle(
+                      email,
+                      style: const TextStyle(
                         color: AppColors.secondaryText,
                         fontSize: 13,
                       ),
                     ),
-                    SizedBox(height: 8),
-                    Text(
+                    const SizedBox(height: 8),
+                    const Text(
                       'Role: System Administrator',
                       style: TextStyle(
                         color: AppColors.secondaryText,
@@ -259,10 +459,10 @@ class _AdminProfileCard extends StatelessWidget {
               color: AppColors.mainBackground,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                const Text(
                   'Last Login',
                   style: TextStyle(
                     color: AppColors.secondaryText,
@@ -270,8 +470,8 @@ class _AdminProfileCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'Today, 08:42 AM',
-                  style: TextStyle(
+                  lastLogin,
+                  style: const TextStyle(
                     color: AppColors.primaryText,
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
@@ -286,69 +486,9 @@ class _AdminProfileCard extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.primaryPurple.withOpacity(0.35),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.18),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.primaryPurple, size: 22),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
+// ============================================================================
+// Scan Activity Panel (hardcoded chart — wire to Firestore when ready)
+// ============================================================================
 class _ScanActivityPanel extends StatelessWidget {
   const _ScanActivityPanel();
 
@@ -390,10 +530,7 @@ class _ScanActivityPanel extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: List.generate(
                             5,
-                            (index) => Container(
-                              height: 1,
-                              color: Colors.white10,
-                            ),
+                            (index) => Container(height: 1, color: Colors.white10),
                           ),
                         ),
                       ),
@@ -441,9 +578,7 @@ class _ScanActivityPanel extends StatelessWidget {
 class _Bar extends StatelessWidget {
   final double height;
 
-  const _Bar({
-    required this.height,
-  });
+  const _Bar({required this.height});
 
   @override
   Widget build(BuildContext context) {
@@ -462,6 +597,9 @@ class _Bar extends StatelessWidget {
   }
 }
 
+// ============================================================================
+// System Status Panel
+// ============================================================================
 class _SystemStatusPanel extends StatelessWidget {
   const _SystemStatusPanel();
 
@@ -532,9 +670,7 @@ class _StatusRow extends StatelessWidget {
           ),
           Text(
             status,
-            style: const TextStyle(
-              color: AppColors.secondaryText,
-            ),
+            style: const TextStyle(color: AppColors.secondaryText),
           ),
         ],
       ),
@@ -542,6 +678,9 @@ class _StatusRow extends StatelessWidget {
   }
 }
 
+// ============================================================================
+// Recent Flagged Reports Panel (hardcoded — wire to Firestore when ready)
+// ============================================================================
 class _RecentFlaggedReportsPanel extends StatelessWidget {
   const _RecentFlaggedReportsPanel();
 
@@ -618,18 +757,17 @@ class _ReportRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Color badgeColor;
-    // Match ResultScreen categories: Unsafe (red), Suspicious (orange), Safe (green)
     switch (risk) {
       case 'Malicious':
       case 'High Risk':
-        badgeColor = AppColors.highRisk; // red – Unsafe
+        badgeColor = AppColors.highRisk;
         break;
       case 'Suspicious':
-        badgeColor = AppColors.mediumRisk; // orange – Suspicious
+        badgeColor = AppColors.mediumRisk;
         break;
       case 'False Positive':
       case 'Safe':
-        badgeColor = AppColors.safe; // green – Safe
+        badgeColor = AppColors.safe;
         break;
       default:
         badgeColor = AppColors.primaryPurple;
@@ -640,9 +778,7 @@ class _ReportRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: isLast
             ? null
-            : const Border(
-                bottom: BorderSide(color: Colors.white10),
-              ),
+            : const Border(bottom: BorderSide(color: Colors.white10)),
       ),
       child: Row(
         children: [
@@ -698,6 +834,9 @@ class _ReportRow extends StatelessWidget {
   }
 }
 
+// ============================================================================
+// Recent System Activity Panel
+// ============================================================================
 class _RecentSystemActivityPanel extends StatelessWidget {
   const _RecentSystemActivityPanel();
 
@@ -783,6 +922,9 @@ class _MiniActivityTile extends StatelessWidget {
   }
 }
 
+// ============================================================================
+// Shared Panel widget
+// ============================================================================
 class _Panel extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -850,7 +992,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       body: SafeArea(
         child: Row(
           children: [
-            // Sidebar (darker background)
+            // Sidebar
             Container(
               width: 280,
               decoration: BoxDecoration(
@@ -866,7 +1008,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 24),
-                  // Logo
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Image.asset(
@@ -876,7 +1017,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  // Navigation items
                   _buildNavItem(
                     icon: Icons.dashboard_outlined,
                     label: 'Dashboard',
@@ -903,7 +1043,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     padding: const EdgeInsets.all(20),
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
                         color: AppColors.cardBackground,
                         borderRadius: BorderRadius.circular(14),
@@ -916,24 +1057,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           const CircleAvatar(
                             radius: 18,
                             backgroundColor: Colors.white24,
-                            child: Icon(Icons.person_outline, color: Colors.white),
+                            child: Icon(Icons.person_outline,
+                                color: Colors.white),
                           ),
                           const SizedBox(width: 12),
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Admin User',
-                                  style: TextStyle(
+                                  FirebaseAuth.instance.currentUser
+                                          ?.displayName ??
+                                      'Admin User',
+                                  style: const TextStyle(
                                     color: AppColors.primaryText,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                SizedBox(height: 2),
+                                const SizedBox(height: 2),
                                 Text(
-                                  'admin@linksentry.com',
-                                  style: TextStyle(
+                                  FirebaseAuth.instance.currentUser?.email ??
+                                      '',
+                                  style: const TextStyle(
                                     color: AppColors.secondaryText,
                                     fontSize: 12,
                                   ),
@@ -942,12 +1087,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             ),
                           ),
                           IconButton(
-                            icon: Icon(Icons.logout, color: AppColors.secondaryText, size: 20),
-                            onPressed: () {
-                              // TODO: Implement logout
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Logout not implemented yet')),
-                              );
+                            icon: const Icon(Icons.logout,
+                                color: AppColors.secondaryText, size: 20),
+                            onPressed: () async {
+                              await FirebaseAuth.instance.signOut();
+                              // TODO: Navigate to login screen after sign out
                             },
                           ),
                         ],
@@ -963,7 +1107,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top bar with title and search
+                  // Top bar
                   Container(
                     padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
                     decoration: BoxDecoration(
@@ -998,10 +1142,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             style: TextStyle(color: AppColors.primaryText),
                             decoration: InputDecoration(
                               hintText: 'Search...',
-                              hintStyle: TextStyle(color: AppColors.disabledText),
-                              prefixIcon: Icon(Icons.search, color: AppColors.secondaryText),
+                              hintStyle:
+                                  TextStyle(color: AppColors.disabledText),
+                              prefixIcon: Icon(Icons.search,
+                                  color: AppColors.secondaryText),
                               border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(vertical: 10),
+                              contentPadding:
+                                  EdgeInsets.symmetric(vertical: 10),
                             ),
                           ),
                         ),
@@ -1032,7 +1179,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: isSelected ? AppColors.primaryPurple.withOpacity(0.15) : Colors.transparent,
+        color: isSelected
+            ? AppColors.primaryPurple.withOpacity(0.15)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         border: isSelected
             ? Border.all(color: AppColors.primaryPurple.withOpacity(0.5))
@@ -1041,13 +1190,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       child: ListTile(
         leading: Icon(
           icon,
-          color: isSelected ? AppColors.primaryPurple : AppColors.secondaryText,
+          color:
+              isSelected ? AppColors.primaryPurple : AppColors.secondaryText,
         ),
         title: Text(
           label,
           style: TextStyle(
-            color: isSelected ? AppColors.primaryText : AppColors.secondaryText,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+            color:
+                isSelected ? AppColors.primaryText : AppColors.secondaryText,
+            fontWeight:
+                isSelected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
         onTap: () {

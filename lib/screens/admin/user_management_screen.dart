@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../constants/app_colors.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -26,9 +27,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUsers();
-    _searchController.addListener(_onSearchChanged);
-  }
+    // Wait for auth state to be confirmed before loading
+    FirebaseAuth.instance.authStateChanges().first.then((user) {
+    if (user != null && mounted) {
+      _loadUsers();
+      _searchController.addListener(_onSearchChanged);
+    }
+  });
+}
 
   @override
   void dispose() {
@@ -54,53 +60,71 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Future<void> _loadUsers() async {
-    if (_isLoading || !_hasMore) return;
-    setState(() => _isLoading = true);
 
-    try {
-      Query query = FirebaseFirestore.instance
-          .collection('users')
-          .orderBy('createdAt', descending: true)
-          .limit(_pageSize);
-
-      if (_lastDocument != null) {
-        query = query.startAfterDocument(_lastDocument!);
-      }
-
-      final snapshot = await query.get();
-
-      if (snapshot.docs.isEmpty) {
-        setState(() => _hasMore = false);
-      } else {
-        final newUsers = snapshot.docs.map((doc) {
-          // Explicitly cast to Map<String, dynamic>
-          final data = doc.data() as Map<String, dynamic>;
-          return {
-            'id': doc.id,
-            'firstName': data['firstName']?.toString() ?? '',
-            'lastName': data['lastName']?.toString() ?? '',
-            'email': data['email']?.toString() ?? '',
-            'role': data['role']?.toString() ?? 'User',
-            'isActive': data['isActive'] ?? true,
-            'isPremium': data['isPremium'] ?? false,
-            'createdAt': data['createdAt'],
-          };
-        }).toList();
-
-        setState(() {
-          _users.addAll(newUsers);
-          _lastDocument = snapshot.docs.last;
-          _hasMore = snapshot.docs.length == _pageSize;
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading users: $e'), backgroundColor: AppColors.highRisk),
-      );
-    } finally {
-      setState(() => _isLoading = false);
-    }
+    // Guard: ensure user is authenticated before querying
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Not authenticated. Please log in.')),
+    );
+    return;
   }
+
+  if (_isLoading || !_hasMore) return;
+  setState(() => _isLoading = true);
+
+  try {
+    Query query = FirebaseFirestore.instance
+        .collection('users')
+        .orderBy('createdAt', descending: true)
+        .limit(_pageSize);
+
+    if (_selectedRoleFilter != 'All') {
+      query = query.where('role', isEqualTo: _selectedRoleFilter);
+    }
+
+    if (_selectedStatusFilter != 'All') {
+      query = query.where('isActive', isEqualTo: _selectedStatusFilter == 'Active');
+    }
+
+    final snapshot = await query.get();
+
+    print('Fetched ${snapshot.docs.length} users');  // Debug log
+
+    if (snapshot.docs.isEmpty) {
+      setState(() => _hasMore = false);
+      print('No users found!');
+    } else {
+      final newUsers = snapshot.docs.map((doc) {
+        // Explicitly cast to Map<String, dynamic>
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          'id': doc.id,
+          'firstName': data['firstName']?.toString() ?? '',
+          'lastName': data['lastName']?.toString() ?? '',
+          'email': data['email']?.toString() ?? '',
+          'role': data['role']?.toString() ?? 'User',
+          'isActive': data['isActive'] ?? true,
+          'isPremium': data['isPremium'] ?? false,
+          'createdAt': data['createdAt'],
+        };
+      }).toList();
+
+      setState(() {
+        _users.addAll(newUsers);
+        _lastDocument = snapshot.docs.last;
+        _hasMore = snapshot.docs.length == _pageSize;
+        print('Last Document ID: ${_lastDocument?.id}'); // Debugging line
+      });
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error loading users: $e'), backgroundColor: AppColors.highRisk),
+    );
+  } finally {
+    setState(() => _isLoading = false);
+  }
+}
 
   List<Map<String, dynamic>> get _filteredUsers {
     return _users.where((user) {
@@ -237,7 +261,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ),
     );
   }
-
+  
   @override
   Widget build(BuildContext context) {
     final filteredUsers = _filteredUsers;
@@ -435,7 +459,7 @@ class _UserCard extends StatelessWidget {
           ),
           const SizedBox(width: 20),
           Expanded(
-            flex: 3,
+            flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -459,7 +483,7 @@ class _UserCard extends StatelessWidget {
             ),
           ),
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Row(
               children: [
                 const Text(
@@ -469,7 +493,7 @@ class _UserCard extends StatelessWidget {
                     fontSize: 13,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
@@ -485,7 +509,7 @@ class _UserCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 24),
+                const SizedBox(width: 12),
                 const Text(
                   'Status:',
                   style: TextStyle(
@@ -493,7 +517,7 @@ class _UserCard extends StatelessWidget {
                     fontSize: 13,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
