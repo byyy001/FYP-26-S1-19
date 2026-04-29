@@ -1048,6 +1048,7 @@ class _Panel extends StatelessWidget {
 
   const _Panel({
     required this.child,
+    this.padding,
   });
 
   @override

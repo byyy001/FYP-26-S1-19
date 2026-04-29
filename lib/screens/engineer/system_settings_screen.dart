@@ -259,7 +259,10 @@ class _Panel extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
 
-  const _Panel({required this.child});
+  const _Panel({
+    required this.child,
+    this.padding,
+    });
 
   @override
   Widget build(BuildContext context) {
