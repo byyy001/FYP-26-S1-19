@@ -1,4 +1,3 @@
-import 'dart:math';
 
 // ============================================================================
 // Data Classes for Scan Result and Insights
