@@ -142,33 +142,34 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           .collection('settings')
           .doc('scan_preferences')
           .get();
+
       if (doc.exists) {
         final data = doc.data()!;
-        setState(() {
-          _userSettings = ScanSettings(
-            phishingSensitivity: data['phishingSensitivity'] ?? true,
-            httpSitesWarning: false,
-            scriptAnalysis: data['scriptAnalysis'] ?? true,
-            adReductionAnalysis: false,
-            adDensityLevel: 1,
-            autoRecheckScans: false,
-            sharingConfiguration: false,
-            useExternalApis: data['useExternalApis'] ?? true,
-            isPremium: data['isPremium'] ?? true,
-            userLevel: data['userLevel'] ?? 'beginner',
-            enableMachineLearning: true,
-            useEnsemble: data['useEnsemble'] ?? true,
-            useLogisticRegression: data['useLogisticRegression'] ?? true,
-            useDecisionTree: data['useDecisionTree'] ?? true,
-            useXGBoost: data['useXGBoost'] ?? true,
-            useLightGBM: data['useLightGBM'] ?? true,
-            deepScan: data['deepScan'] ?? true,
-            adFilter: false,
-          );
-        });
+        final newSettings = ScanSettings(
+          phishingSensitivity: data['phishingSensitivity'] ?? true,
+          httpSitesWarning: false,
+          scriptAnalysis: data['scriptAnalysis'] ?? true,
+          adReductionAnalysis: false,
+          adDensityLevel: 1,
+          autoRecheckScans: false,
+          sharingConfiguration: false,
+          useExternalApis: data['useExternalApis'] ?? true,
+          isPremium: data['isPremium'] ?? true,
+          userLevel: data['userLevel'] ?? 'beginner',
+          enableMachineLearning: true,
+          useEnsemble: data['useEnsemble'] ?? true,
+          useLogisticRegression: data['useLogisticRegression'] ?? true,
+          useDecisionTree: data['useDecisionTree'] ?? true,
+          useXGBoost: data['useXGBoost'] ?? true,
+          useLightGBM: data['useLightGBM'] ?? true,
+          deepScan: data['deepScan'] ?? true,
+          adFilter: false,
+        );
+      if (mounted) setState(() => _userSettings = newSettings);
       } else {
         if (mounted) setState(() => _userSettings = ScanSettings.forBeginner());
       }
+      
     } catch (e) {
       debugPrint('Error loading scan settings: $e');
     } finally {
@@ -244,7 +245,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       'behaviorCategories': scanResult['behavior_categories'],
       'ensembleProbabilities': scanResult['ensemble_probabilities'],
     });
-    if (mounted) setState(() => _statsFuture = _getScanStats());
   }
 
   String _normalizeUrl(String input) {
@@ -312,11 +312,19 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           ),
         ),
       );
-    } catch (e) {
+    // } catch (e) {
+    //   if (!mounted) return;
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     SnackBar(content: Text('Scan error: $e'), backgroundColor: AppColors.highRisk),
+    //   );
+    } catch (e, stack) {
+      debugPrint('SCAN ERROR: $e');
+      debugPrint('STACK: $stack');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Scan error: $e'), backgroundColor: AppColors.highRisk),
       );
+
     } finally {
       if (mounted) setState(() => _isScanning = false);
     }
@@ -358,7 +366,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                 );
                 if (!mounted) return;
                 if (deletedHistory == true) {
-                  setState(() => _statsFuture = _getScanStats());
+                  final newFuture = _getScanStats();
+                  setState(() => _statsFuture = newFuture);
                   _showDeleteHistoryBanner();
                 }
               },

@@ -12,6 +12,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../threat_engine/scan_settings.dart';
 import '../threat_engine/layer5_facade/threat_engine.dart';
+import '../services/notification_service.dart';
 
 enum ScanMode {
   defaultMode,
@@ -106,12 +107,28 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
         setState(() => _showScrollTop = false);
       }
     });
+
+    if (widget.isRegistered) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _triggerNotification();
+      });
+    }
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _triggerNotification() async {
+    await NotificationService.instance.triggerScanNotification(
+      url: widget.url,
+      score: widget.score,
+      verdict: widget.verdict,
+      threatType: widget.engineResult?['threat_type'] ?? 'benign',
+      mlConfidence: widget.engineResult?['ml_confidence']?.toString() ?? 'none',
+    );
   }
 
   String _cleanText(String text) {

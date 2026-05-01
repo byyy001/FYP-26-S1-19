@@ -36,6 +36,7 @@ dependencies:
   pdf: ^3.10.7
   shimmer: ^3.0.0
   receive_sharing_intent: ^1.8.1   # This is the correct package for receiving shared URLs
+  flutter_local_notifications: ^18.0.0 # saving notification settings for each user
 
   # Additional dependencies for the threat engine
   path: ^1.9.0

@@ -22,11 +22,14 @@ import 'screens/splash_screen.dart';
 import 'screens/unregistered_home_screen.dart';
 import 'screens/registered_home_screen.dart';
 import 'screens/about_screen.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  await NotificationService.instance.init();
 
   runApp(const MyApp());
 }
