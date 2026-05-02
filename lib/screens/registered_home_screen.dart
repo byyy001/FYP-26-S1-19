@@ -102,6 +102,40 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     Future.delayed(const Duration(seconds: 2), () => entry.remove());
   }
 
+
+  void _showScanSuccessBanner() {
+  final overlay = Overlay.of(context, rootOverlay: true);
+  late OverlayEntry entry;
+
+  entry = OverlayEntry(
+    builder: (context) => Positioned(
+      left: 0,
+      right: 0,
+      bottom: 74,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          height: 56,
+          color: AppColors.primaryPurple,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: const Text(
+            'Scan completed successfully.',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  overlay.insert(entry);
+  Future.delayed(const Duration(seconds: 2), () => entry.remove());
+}
+
   Future<void> _initEngine() async {
     try {
       _engine = await ThreatEngine.getInstance();
@@ -132,7 +166,12 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   Future<void> _loadUserSettings() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      if (mounted) setState(() => _settingsLoaded = true);
+      if (mounted) {
+        setState(() {
+          _userSettings = ScanSettings.forBeginner();
+          _settingsLoaded = true;
+        });
+      }
       return;
     }
     try {
@@ -302,8 +341,11 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       final result = await _engine.analyze(url, settings: _userSettings);
       if (!mounted) return;
       await _saveScanToFirestore(url: url, scanResult: result['scan_result']);
+
+
       if (!mounted) return;
-      Navigator.push(
+
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => ResultScreen.fromEngineResult(
@@ -312,11 +354,16 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           ),
         ),
       );
-    // } catch (e) {
-    //   if (!mounted) return;
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(content: Text('Scan error: $e'), backgroundColor: AppColors.highRisk),
-    //   );
+
+      if (!mounted) return;
+
+      setState(() {
+        _statsFuture = _getScanStats();
+      });
+
+      _showScanSuccessBanner();
+
+
     } catch (e, stack) {
       debugPrint('SCAN ERROR: $e');
       debugPrint('STACK: $stack');
@@ -366,8 +413,11 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                 );
                 if (!mounted) return;
                 if (deletedHistory == true) {
-                  final newFuture = _getScanStats();
-                  setState(() => _statsFuture = newFuture);
+                  if (mounted) {
+                    setState(() {
+                      _statsFuture = _getScanStats();
+                    });
+                  }
                   _showDeleteHistoryBanner();
                 }
               },
@@ -426,7 +476,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                 ),
                 const SizedBox(height: 24),
                 FutureBuilder<Map<String, int>>(
-                  future: _statsFuture,
+                  future: _getScanStats(),
                   builder: (context, statsSnapshot) {
                     final stats = statsSnapshot.data ?? {'totalScans': 0, 'safeLinks': 0, 'threats': 0};
                     return Row(
