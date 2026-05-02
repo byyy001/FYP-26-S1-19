@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
 import 'unregistered_home_screen.dart';
@@ -72,9 +73,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             // Guest option
             OutlinedButton(
               onPressed: () async {
+                await FirebaseAuth.instance.signOut(); 
+
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('onboardingCompleted', true);
-                await prefs.setBool('isGuestMode', true);
+
                 if (!context.mounted) return;
                 Navigator.pop(context);
                 Navigator.pushReplacement(

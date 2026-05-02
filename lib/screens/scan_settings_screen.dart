@@ -35,8 +35,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
   bool _useLightGBM = true;
 
   bool _isLoading = false;
-
-  bool get _canCustomize => _isPremium;
+  bool get _canCustomize => FirebaseAuth.instance.currentUser != null;
 
   @override
   void initState() {
@@ -49,7 +48,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
 
     setState(() {
       _isLoggedIn = user != null;
-      _isPremium = _isLoggedIn; 
+      _isPremium = user != null;
     });
 
     if (_isLoggedIn) {
@@ -406,176 +405,188 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
     );
   }
 
+
   Widget _buildPlanAndModeCard() {
-    final double disabledOpacity = _canCustomize ? 1.0 : 0.55;
+  final user = FirebaseAuth.instance.currentUser;
+  final isGuest = user == null;
+  final double disabledOpacity = _canCustomize ? 1.0 : 0.55;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _canCustomize
-              ? Colors.white.withOpacity(0.05)
-              : Colors.white.withOpacity(0.08),
-        ),
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: AppColors.cardBackground,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: _canCustomize
+            ? Colors.white.withOpacity(0.05)
+            : Colors.white.withOpacity(0.08),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.workspace_premium,
-                color: AppColors.primaryPurple,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Plan',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.primaryText,
-                  ),
-                ),
-              ),
-              Text(
-                _isPremium ? 'Premium' : 'Free',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: _isPremium
-                      ? AppColors.primaryPurple
-                      : AppColors.disabledText,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.only(left: 28),
-            child: Text(
-              _isPremium
-                  ? 'You have access to all features'
-                  : 'Sign in to unlock premium scanning (ML models, deep scan, external APIs)',
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.disabledText,
-              ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 🔹 PLAN ROW
+        Row(
+          children: [
+            const Icon(
+              Icons.workspace_premium,
+              color: AppColors.primaryPurple,
+              size: 20,
             ),
-          ),
-          const SizedBox(height: 18),
-
-          Row(
-            children: [
-              const Icon(
-                Icons.analytics_outlined,
-                color: AppColors.primaryPurple,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'Scan Mode',
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Plan',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                   color: AppColors.primaryText,
                 ),
               ),
-              if (!_canCustomize) ...[
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.lock_outline,
-                  size: 16,
-                  color: AppColors.disabledText,
-                ),
-              ],
-            ],
+            ),
+            Text(
+              isGuest ? 'Free' : 'Premium',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isGuest
+                    ? AppColors.disabledText
+                    : AppColors.primaryPurple,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 4),
+
+        Padding(
+          padding: const EdgeInsets.only(left: 28),
+          child: Text(
+            isGuest
+                ? 'Sign in to unlock premium scanning (ML models, deep scan, external APIs)'
+                : 'You have access to all features',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.disabledText,
+            ),
           ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.only(left: 28),
-            child: Text(
-              _canCustomize
-                  ? 'Default: simple result. Advanced: detailed technical analysis.'
-                  : 'Visible for free users, but locked until sign in.',
-              style: const TextStyle(
-                fontSize: 12,
+        ),
+
+        const SizedBox(height: 18),
+
+        // SCAN MODE
+        Row(
+          children: [
+            const Icon(
+              Icons.analytics_outlined,
+              color: AppColors.primaryPurple,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Scan Mode',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: AppColors.primaryText,
+              ),
+            ),
+            if (!_canCustomize) ...[
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.lock_outline,
+                size: 16,
                 color: AppColors.disabledText,
               ),
-            ),
-          ),
-          const SizedBox(height: 8),
+            ],
+          ],
+        ),
 
-          Opacity(
-            opacity: disabledOpacity,
-            child: IgnorePointer(
-              ignoring: !_canCustomize,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: RadioListTile<String>(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                      visualDensity: VisualDensity.compact,
-                      dense: true,
-                      title: Text(
-                        'Default',
-                        style: TextStyle(
-                          color: _canCustomize
-                              ? AppColors.primaryText
-                              : AppColors.disabledText,
-                        ),
-                      ),
-                      value: 'beginner',
-                      groupValue: _userLevel,
-                      activeColor: AppColors.primaryPurple,
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            _userLevel = value;
-                            _useEnsemble = true;
-                          });
-                        }
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    child: RadioListTile<String>(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                      visualDensity: VisualDensity.compact,
-                      dense: true,
-                      title: Text(
-                        'Advanced',
-                        style: TextStyle(
-                          color: _canCustomize
-                              ? AppColors.primaryText
-                              : AppColors.disabledText,
-                        ),
-                      ),
-                      value: 'advanced',
-                      groupValue: _userLevel,
-                      activeColor: AppColors.primaryPurple,
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            _userLevel = value;
-                            _useEnsemble = true; // now enabled by default
-                          });
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
+        const SizedBox(height: 4),
+
+        Padding(
+          padding: const EdgeInsets.only(left: 28),
+          child: Text(
+            _canCustomize
+                ? 'Default: simple result. Advanced: detailed technical analysis.'
+                : 'Visible for free users, but locked until sign in.',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.disabledText,
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+
+        const SizedBox(height: 8),
+
+        // 🔹 RADIO BUTTONS
+        Opacity(
+          opacity: disabledOpacity,
+          child: IgnorePointer(
+            ignoring: !_canCustomize,
+            child: Row(
+              children: [
+                Expanded(
+                  child: RadioListTile<String>(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                    dense: true,
+                    title: Text(
+                      'Default',
+                      style: TextStyle(
+                        color: _canCustomize
+                            ? AppColors.primaryText
+                            : AppColors.disabledText,
+                      ),
+                    ),
+                    value: 'beginner',
+                    groupValue: _userLevel,
+                    activeColor: AppColors.primaryPurple,
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _userLevel = value;
+                          _useEnsemble = true;
+                        });
+                      }
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: RadioListTile<String>(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                    dense: true,
+                    title: Text(
+                      'Advanced',
+                      style: TextStyle(
+                        color: _canCustomize
+                            ? AppColors.primaryText
+                            : AppColors.disabledText,
+                      ),
+                    ),
+                    value: 'advanced',
+                    groupValue: _userLevel,
+                    activeColor: AppColors.primaryPurple,
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _userLevel = value;
+                          _useEnsemble = true;
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildSectionHeader({
     required IconData icon,

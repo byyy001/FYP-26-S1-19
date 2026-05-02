@@ -1178,37 +1178,29 @@ Explanation: ${_cleanText(widget.explanation)}
           const SizedBox(height: 24),
           _buildSectionHeader('TECHNICAL ANALYSIS', Icons.code),
           const SizedBox(height: 16),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 600),
-            child: DefaultTabController(
-              length: 2,
-              child: Column(
-                children: [
-                  const TabBar(
-                    indicatorColor: AppColors.primaryPurple,
-                    labelColor: AppColors.primaryPurple,
-                    unselectedLabelColor: AppColors.secondaryText,
-                    tabs: [
-                      Tab(text: 'Technical Details', icon: Icon(Icons.memory)),
-                      Tab(text: 'External Data', icon: Icon(Icons.cloud_queue)),
-                    ],
-                  ),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        SingleChildScrollView(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: _buildTechnicalDetailsTab(engine!),
-                        ),
-                        SingleChildScrollView(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: _buildExternalDataTab(engine),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+         DefaultTabController(
+            length: 2,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const TabBar(
+                  indicatorColor: AppColors.primaryPurple,
+                  labelColor: AppColors.primaryPurple,
+                  unselectedLabelColor: AppColors.secondaryText,
+                  tabs: [
+                    Tab(text: 'Technical Details', icon: Icon(Icons.memory)),
+                    Tab(text: 'External Data', icon: Icon(Icons.cloud_queue)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const SizedBox(height: 16),
+                
+                _buildTechnicalDetailsTab(engine!),
+
+                const SizedBox(height: 16),
+
+                _buildExternalDataTab(engine),
+              ],
             ),
           ),
           const SizedBox(height: 24),

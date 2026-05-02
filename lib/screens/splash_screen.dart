@@ -20,11 +20,13 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkUserStatus();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkUserStatus();
+    });
   }
 
   Future<void> _checkUserStatus() async {
-    // Simulate a loading delay
     await Future.delayed(const Duration(seconds: 2));
 
     if (kIsWeb) {
@@ -32,35 +34,34 @@ class _SplashScreenState extends State<SplashScreen> {
         context,
         MaterialPageRoute(builder: (context) => LoginScreen()),
       );
-    } else {
-      User? user = FirebaseAuth.instance.currentUser;
-
-      if (user == null) {
-        // If no user is logged in, navigate to onboarding screen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => OnboardingScreen()),
-        );
-      } else {
-        // If user is registered, navigate to the registered home screen
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        bool? isRegistered = prefs.getBool('isRegisrered');
-
-        if (isRegistered != null && isRegistered) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => RegisteredHomeScreen()),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => UnregisteredHomeScreen()),
-          );
-        }
-      }
+      return;
     }
-  }
 
+    final prefs = await SharedPreferences.getInstance();
+    final bool hasSeenOnboarding = prefs.getBool('seenOnboarding') ?? false;
+
+    final User? user = FirebaseAuth.instance.currentUser;
+
+    if (!hasSeenOnboarding) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => OnboardingScreen()),
+      );
+      return;
+    }
+    if (user == null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => UnregisteredHomeScreen()),
+      );
+      return;
+    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => RegisteredHomeScreen()),
+    );
+ }
+      
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;

@@ -193,7 +193,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           autoRecheckScans: false,
           sharingConfiguration: false,
           useExternalApis: data['useExternalApis'] ?? true,
-          isPremium: data['isPremium'] ?? true,
+          isPremium: data['isPremium'] ?? false,
           userLevel: data['userLevel'] ?? 'beginner',
           enableMachineLearning: true,
           useEnsemble: data['useEnsemble'] ?? true,
@@ -204,7 +204,15 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           deepScan: data['deepScan'] ?? true,
           adFilter: false,
         );
-      if (mounted) setState(() => _userSettings = newSettings);
+      if (mounted) {
+        final user = FirebaseAuth.instance.currentUser;
+
+        setState(() {
+          _userSettings = user == null
+              ? ScanSettings.forBeginner()
+              : newSettings;
+        });
+      }
       } else {
         if (mounted) setState(() => _userSettings = ScanSettings.forBeginner());
       }
