@@ -7,7 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 // ============================================================================
-// Dashboard Content — converted to StatefulWidget so futures are stable
+// Dashboard Content (unchanged except for stat cards – flaggedReports updated)
 // ============================================================================
 class _DashboardContent extends StatefulWidget {
   const _DashboardContent();
@@ -17,7 +17,6 @@ class _DashboardContent extends StatefulWidget {
 }
 
 class _DashboardContentState extends State<_DashboardContent> {
-  // Futures are created once in initState — not on every rebuild
   late Future<int> _totalUsers;
   late Future<int> _scansToday;
   late Future<int> _highRiskDetected;
@@ -26,8 +25,6 @@ class _DashboardContentState extends State<_DashboardContent> {
   @override
   void initState() {
     super.initState();
-
-    // Guard: wait for auth to be confirmed before querying Firestore
     FirebaseAuth.instance.authStateChanges().first.then((user) {
       if (user != null && mounted) {
         setState(() {
@@ -38,45 +35,31 @@ class _DashboardContentState extends State<_DashboardContent> {
         });
       }
     });
-
-    // Initialise with futures that resolve to 0 while auth is pending
     _totalUsers = Future.value(0);
     _scansToday = Future.value(0);
     _highRiskDetected = Future.value(0);
     _flaggedReports = Future.value(0);
   }
 
-  // ── Firestore helpers ────────────────────────────────────────────────────
-
   Future<int> _getTotalUsers() async {
     try {
-      final snapshot =
-          await FirebaseFirestore.instance.collection('users').get();
+      final snapshot = await FirebaseFirestore.instance.collection('users').get();
       return snapshot.size;
     } catch (e) {
-      debugPrint('Error fetching total users: $e');
       return 0;
     }
   }
 
   Future<int> _getScansToday() async {
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      debugPrint('Current user UID: $uid');
-
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
-      debugPrint('Filtering scans from: $startOfDay');
-
       final snapshot = await FirebaseFirestore.instance
           .collectionGroup('scans')
           .where('scannedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
           .get();
-
-      debugPrint('Scans today: ${snapshot.size}');
       return snapshot.size;
     } catch (e) {
-      debugPrint('Error fetching scans: $e');
       return 0;
     }
   }
@@ -87,18 +70,24 @@ class _DashboardContentState extends State<_DashboardContent> {
           .collectionGroup('scans')
           .where('riskScore', isGreaterThanOrEqualTo: 50)
           .get();
-
       return snapshot.size;
     } catch (e) {
-      debugPrint('Error fetching high risk scans: $e');
       return 0;
     }
   }
 
-  // flagged_reports collection does not exist yet — stubbed to 0
-  Future<int> _getFlaggedReports() async => 0;
-
-  // ── Build ────────────────────────────────────────────────────────────────
+  // PHASE 1: Count pending reports from false_reports
+  Future<int> _getFlaggedReports() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('false_reports')
+          .where('status', isEqualTo: 'pending')
+          .get();
+      return snapshot.docs.length;
+    } catch (e) {
+      return 0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -110,19 +99,15 @@ class _DashboardContentState extends State<_DashboardContent> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top section: admin overview + stat cards
+              // Top section: admin overview + stat cards (unchanged)
               LayoutBuilder(
                 builder: (context, constraints) {
                   final bool isWide = constraints.maxWidth > 1050;
-
                   if (isWide) {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Expanded(
-                          flex: 5,
-                          child: _AdminProfileCard(),
-                        ),
+                        const Expanded(flex: 5, child: _AdminProfileCard()),
                         const SizedBox(width: 16),
                         Expanded(
                           flex: 7,
@@ -134,33 +119,16 @@ class _DashboardContentState extends State<_DashboardContent> {
                             crossAxisSpacing: 14,
                             childAspectRatio: 2.5,
                             children: [
-                              _StatCard(
-                                title: 'Total Users',
-                                value: _totalUsers,
-                                icon: Icons.people_outline,
-                              ),
-                              _StatCard(
-                                title: 'Scans Today',
-                                value: _scansToday,
-                                icon: Icons.qr_code_scanner_outlined,
-                              ),
-                              _StatCard(
-                                title: 'High Risk Detected',
-                                value: _highRiskDetected,
-                                icon: Icons.warning_amber_rounded,
-                              ),
-                              _StatCard(
-                                title: 'Flagged Reports',
-                                value: _flaggedReports,
-                                icon: Icons.flag_outlined,
-                              ),
+                              _StatCard(title: 'Total Users', value: _totalUsers, icon: Icons.people_outline),
+                              _StatCard(title: 'Scans Today', value: _scansToday, icon: Icons.qr_code_scanner_outlined),
+                              _StatCard(title: 'High Risk Detected', value: _highRiskDetected, icon: Icons.warning_amber_rounded),
+                              _StatCard(title: 'Flagged Reports', value: _flaggedReports, icon: Icons.flag_outlined),
                             ],
                           ),
                         ),
                       ],
                     );
                   }
-
                   return Column(
                     children: [
                       const _AdminProfileCard(),
@@ -173,94 +141,60 @@ class _DashboardContentState extends State<_DashboardContent> {
                         crossAxisSpacing: 14,
                         childAspectRatio: 2.4,
                         children: [
-                          _StatCard(
-                            title: 'Total Users',
-                            value: _totalUsers,
-                            icon: Icons.people_outline,
-                          ),
-                          _StatCard(
-                            title: 'Scans Today',
-                            value: _scansToday,
-                            icon: Icons.qr_code_scanner_outlined,
-                          ),
-                          _StatCard(
-                            title: 'High Risk Detected',
-                            value: _highRiskDetected,
-                            icon: Icons.warning_amber_rounded,
-                          ),
-                          _StatCard(
-                            title: 'Flagged Reports',
-                            value: _flaggedReports,
-                            icon: Icons.flag_outlined,
-                          ),
+                          _StatCard(title: 'Total Users', value: _totalUsers, icon: Icons.people_outline),
+                          _StatCard(title: 'Scans Today', value: _scansToday, icon: Icons.qr_code_scanner_outlined),
+                          _StatCard(title: 'High Risk Detected', value: _highRiskDetected, icon: Icons.warning_amber_rounded),
+                          _StatCard(title: 'Flagged Reports', value: _flaggedReports, icon: Icons.flag_outlined),
                         ],
                       ),
                     ],
                   );
                 },
               ),
-
               const SizedBox(height: 18),
 
-              // Middle section: scan chart + system status
+              // PHASE 2: Replace hardcoded chart with dynamic scan activity
               LayoutBuilder(
                 builder: (context, constraints) {
                   final bool isWide = constraints.maxWidth > 1050;
-
                   if (isWide) {
-                    return Row(
+                    return const Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Expanded(
-                          flex: 8,
-                          child: _ScanActivityPanel(),
-                        ),
+                      children: [
+                        Expanded(flex: 8, child: _DynamicScanActivityPanel()),
                         SizedBox(width: 16),
-                        Expanded(
-                          flex: 5,
-                          child: _SystemStatusPanel(),
-                        ),
+                        Expanded(flex: 5, child: _SystemStatusPanel()),
                       ],
                     );
                   }
-
                   return const Column(
                     children: [
-                      _ScanActivityPanel(),
+                      _DynamicScanActivityPanel(),
                       SizedBox(height: 16),
                       _SystemStatusPanel(),
                     ],
                   );
                 },
               ),
-
               const SizedBox(height: 18),
 
-              // Bottom section: reports + system activity
+              // PHASE 1: Replace hardcoded flagged reports with dynamic list from false_reports
               LayoutBuilder(
                 builder: (context, constraints) {
                   final bool isWide = constraints.maxWidth > 1050;
-
                   if (isWide) {
-                    return Row(
+                    return const Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Expanded(
-                          flex: 8,
-                          child: _RecentFlaggedReportsPanel(),
-                        ),
+                      children: [
+                        Expanded(flex: 8, child: _DynamicFlaggedReportsPanel()),
                         SizedBox(width: 16),
-                        Expanded(
-                          flex: 5,
-                          child: _RecentSystemActivityPanel(),
-                        ),
+                        Expanded(flex: 5, child: _RecentSystemActivityPanel()),
                       ],
                     );
                   }
-
                   return const Column(
                     children: [
-                      _RecentFlaggedReportsPanel(),
+                      _DynamicFlaggedReportsPanel(),
                       SizedBox(height: 16),
                       _RecentSystemActivityPanel(),
                     ],
@@ -276,16 +210,12 @@ class _DashboardContentState extends State<_DashboardContent> {
 }
 
 // ============================================================================
-// Stat Card + Placeholder
+// Stat Card (unchanged)
 // ============================================================================
 class _StatCardPlaceholder extends StatelessWidget {
   final String title;
   final IconData icon;
-
-  const _StatCardPlaceholder({
-    required this.title,
-    required this.icon,
-  });
+  const _StatCardPlaceholder({required this.title, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -299,15 +229,9 @@ class _StatCardPlaceholder extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(title,
-                  style: const TextStyle(
-                      color: AppColors.secondaryText, fontSize: 13)),
+              Text(title, style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
               const SizedBox(height: 6),
-              const SizedBox(
-                width: 40,
-                height: 10,
-                child: LinearProgressIndicator(),
-              ),
+              const SizedBox(width: 40, height: 10, child: LinearProgressIndicator()),
             ],
           ),
         ],
@@ -320,12 +244,7 @@ class _StatCard extends StatelessWidget {
   final String title;
   final Future<int> value;
   final IconData icon;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-  });
+  const _StatCard({required this.title, required this.value, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -336,7 +255,6 @@ class _StatCard extends StatelessWidget {
           return _StatCardPlaceholder(title: title, icon: icon);
         }
         if (snapshot.hasError) {
-          debugPrint('StatCard error for $title: ${snapshot.error}');
           return _StatCardPlaceholder(title: title, icon: icon);
         }
         return _Panel(
@@ -349,17 +267,11 @@ class _StatCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: AppColors.secondaryText, fontSize: 13)),
+                  Text(title, style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
                   const SizedBox(height: 4),
                   Text(
                     snapshot.data?.toString() ?? '0',
-                    style: const TextStyle(
-                      color: AppColors.primaryText,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: const TextStyle(color: AppColors.primaryText, fontSize: 22, fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
@@ -372,7 +284,7 @@ class _StatCard extends StatelessWidget {
 }
 
 // ============================================================================
-// Admin Profile Card — pulls real data from FirebaseAuth
+// Admin Profile Card (unchanged)
 // ============================================================================
 class _AdminProfileCard extends StatelessWidget {
   const _AdminProfileCard();
@@ -382,71 +294,35 @@ class _AdminProfileCard extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
     final displayName = user?.displayName ?? 'Admin User';
     final email = user?.email ?? '';
-
-    // Format last sign-in time
     String lastLogin = 'Unknown';
     if (user?.metadata.lastSignInTime != null) {
       final dt = user!.metadata.lastSignInTime!.toLocal();
       final now = DateTime.now();
-      final isToday = dt.year == now.year &&
-          dt.month == now.month &&
-          dt.day == now.day;
+      final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
       final hour = dt.hour.toString().padLeft(2, '0');
       final minute = dt.minute.toString().padLeft(2, '0');
-      lastLogin =
-          '${isToday ? 'Today' : '${dt.day}/${dt.month}/${dt.year}'}, $hour:$minute';
+      lastLogin = '${isToday ? 'Today' : '${dt.day}/${dt.month}/${dt.year}'}, $hour:$minute';
     }
-
     return _Panel(
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Admin Overview',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          const Text('Admin Overview', style: TextStyle(color: AppColors.primaryText, fontSize: 17, fontWeight: FontWeight.w700)),
           const SizedBox(height: 14),
           Row(
             children: [
-              const CircleAvatar(
-                radius: 28,
-                backgroundColor: Colors.white24,
-                child: Icon(Icons.person_outline, color: Colors.white, size: 28),
-              ),
+              const CircleAvatar(radius: 28, backgroundColor: Colors.white24, child: Icon(Icons.person_outline, color: Colors.white, size: 28)),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      displayName,
-                      style: const TextStyle(
-                        color: AppColors.primaryText,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    Text(displayName, style: const TextStyle(color: AppColors.primaryText, fontSize: 17, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 3),
-                    Text(
-                      email,
-                      style: const TextStyle(
-                        color: AppColors.secondaryText,
-                        fontSize: 13,
-                      ),
-                    ),
+                    Text(email, style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Role: System Administrator',
-                      style: TextStyle(
-                        color: AppColors.secondaryText,
-                        fontSize: 12.5,
-                      ),
-                    ),
+                    const Text('Role: System Administrator', style: TextStyle(color: AppColors.secondaryText, fontSize: 12.5)),
                   ],
                 ),
               ),
@@ -455,28 +331,12 @@ class _AdminProfileCard extends StatelessWidget {
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.mainBackground,
-              borderRadius: BorderRadius.circular(12),
-            ),
+            decoration: BoxDecoration(color: AppColors.mainBackground, borderRadius: BorderRadius.circular(12)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Last Login',
-                  style: TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 12.5,
-                  ),
-                ),
-                Text(
-                  lastLogin,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
+                const Text('Last Login', style: TextStyle(color: AppColors.secondaryText, fontSize: 12.5)),
+                Text(lastLogin, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600, fontSize: 13)),
               ],
             ),
           ),
@@ -487,87 +347,130 @@ class _AdminProfileCard extends StatelessWidget {
 }
 
 // ============================================================================
-// Scan Activity Panel (hardcoded chart — wire to Firestore when ready)
+// PHASE 2: Dynamic Scan Activity Panel (last 7 days from scans collectionGroup)
+// FIXED: no num/double error
 // ============================================================================
-class _ScanActivityPanel extends StatelessWidget {
-  const _ScanActivityPanel();
+class _DynamicScanActivityPanel extends StatefulWidget {
+  const _DynamicScanActivityPanel();
+
+  @override
+  State<_DynamicScanActivityPanel> createState() => _DynamicScanActivityPanelState();
+}
+
+class _DynamicScanActivityPanelState extends State<_DynamicScanActivityPanel> {
+  late Future<List<double>> _dailyScanCounts;
+  final List<String> _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  @override
+  void initState() {
+    super.initState();
+    _dailyScanCounts = _fetchDailyScanCounts();
+  }
+
+  Future<List<double>> _fetchDailyScanCounts() async {
+    try {
+      final now = DateTime.now();
+      final startOfWeek = now.subtract(Duration(days: now.weekday - 1)); // Monday
+      final List<double> counts = List.filled(7, 0.0);
+
+      for (int i = 0; i < 7; i++) {
+        final dayStart = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day + i);
+        final dayEnd = dayStart.add(const Duration(days: 1));
+        final snapshot = await FirebaseFirestore.instance
+            .collectionGroup('scans')
+            .where('scannedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
+            .where('scannedAt', isLessThan: Timestamp.fromDate(dayEnd))
+            .get();
+        counts[i] = snapshot.docs.length.toDouble();
+      }
+      return counts;
+    } catch (e) {
+      return [0, 0, 0, 0, 0, 0, 0];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    const List<double> values = [80, 120, 95, 150, 200, 170, 130];
-    const List<String> days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Scan Activity (Last 7 Days)',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          const Text('Scan Activity (Last 7 Days)', style: TextStyle(color: AppColors.primaryText, fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 16),
-          Container(
-            height: 290,
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            decoration: BoxDecoration(
-              color: AppColors.mainBackground,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppColors.primaryPurple.withOpacity(0.35),
-              ),
-            ),
-            child: Column(
-              children: [
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: List.generate(
-                            5,
-                            (index) => Container(height: 1, color: Colors.white10),
-                          ),
-                        ),
-                      ),
-                      Positioned.fill(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: List.generate(
-                            values.length,
-                            (index) => _Bar(height: values[index]),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+          FutureBuilder<List<double>>(
+            future: _dailyScanCounts,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return SizedBox(
+                  height: 290,
+                  child: const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple)),
+                );
+              }
+              if (snapshot.hasError || !snapshot.hasData) {
+                return SizedBox(
+                  height: 290,
+                  child: Center(child: Text('Failed to load scan data', style: TextStyle(color: AppColors.secondaryText))),
+                );
+              }
+              final values = snapshot.data!;
+              // Find max value (as double)
+              double maxVal = 0.0;
+              for (final v in values) {
+                if (v > maxVal) maxVal = v;
+              }
+              // Normalize to max 200
+              final List<double> normalized = [];
+              for (final v in values) {
+                if (maxVal > 0) {
+                  normalized.add((v / maxVal) * 200.0);
+                } else {
+                  normalized.add(0.0);
+                }
+              }
+              return Container(
+                height: 290,
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                decoration: BoxDecoration(
+                  color: AppColors.mainBackground,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: days
-                      .map(
-                        (day) => SizedBox(
-                          width: 32,
-                          child: Text(
-                            day,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.secondaryText,
-                              fontSize: 12,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: List.generate(5, (index) => Container(height: 1, color: Colors.white10)),
                             ),
                           ),
-                        ),
-                      )
-                      .toList(),
+                          Positioned.fill(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: List.generate(
+                                values.length,
+                                (index) => _Bar(height: normalized[index]),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: _days.map((day) => SizedBox(
+                        width: 32,
+                        child: Text(day, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                      )).toList(),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -577,20 +480,14 @@ class _ScanActivityPanel extends StatelessWidget {
 
 class _Bar extends StatelessWidget {
   final double height;
-
   const _Bar({required this.height});
-
   @override
   Widget build(BuildContext context) {
     return Container(
       width: 30,
       height: height,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: AppColors.premiumGradient,
-        ),
+        gradient: const LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: AppColors.premiumGradient),
         borderRadius: BorderRadius.circular(10),
       ),
     );
@@ -598,25 +495,17 @@ class _Bar extends StatelessWidget {
 }
 
 // ============================================================================
-// System Status Panel
+// System Status Panel (still hardcoded – can be updated later)
 // ============================================================================
 class _SystemStatusPanel extends StatelessWidget {
   const _SystemStatusPanel();
-
   @override
   Widget build(BuildContext context) {
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
-          Text(
-            'System Status',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          Text('System Status', style: TextStyle(color: AppColors.primaryText, fontSize: 18, fontWeight: FontWeight.w700)),
           SizedBox(height: 16),
           _StatusRow(label: 'Threat Engine', status: 'Online', good: true),
           _StatusRow(label: 'Database', status: 'Connected', good: true),
@@ -632,46 +521,19 @@ class _StatusRow extends StatelessWidget {
   final String label;
   final String status;
   final bool good;
-
-  const _StatusRow({
-    required this.label,
-    required this.status,
-    required this.good,
-  });
-
+  const _StatusRow({required this.label, required this.status, required this.good});
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.mainBackground,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(color: AppColors.mainBackground, borderRadius: BorderRadius.circular(12)),
       child: Row(
         children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              color: good ? Colors.greenAccent : Colors.orangeAccent,
-              shape: BoxShape.circle,
-            ),
-          ),
+          Container(width: 10, height: 10, decoration: BoxDecoration(color: good ? Colors.greenAccent : Colors.orangeAccent, shape: BoxShape.circle)),
           const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.primaryText,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Text(
-            status,
-            style: const TextStyle(color: AppColors.secondaryText),
-          ),
+          Expanded(child: Text(label, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w500))),
+          Text(status, style: const TextStyle(color: AppColors.secondaryText)),
         ],
       ),
     );
@@ -679,10 +541,23 @@ class _StatusRow extends StatelessWidget {
 }
 
 // ============================================================================
-// Recent Flagged Reports Panel (hardcoded — wire to Firestore when ready)
+// PHASE 1: Dynamic Flagged Reports Panel (from false_reports collection)
 // ============================================================================
-class _RecentFlaggedReportsPanel extends StatelessWidget {
-  const _RecentFlaggedReportsPanel();
+class _DynamicFlaggedReportsPanel extends StatelessWidget {
+  const _DynamicFlaggedReportsPanel();
+
+  Future<void> _updateReportStatus(BuildContext context, String docId, String newStatus) async {
+    try {
+      await FirebaseFirestore.instance.collection('false_reports').doc(docId).update({'status': newStatus});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Report marked as $newStatus'), backgroundColor: AppColors.safe),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating report: $e'), backgroundColor: AppColors.highRisk),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -690,54 +565,61 @@ class _RecentFlaggedReportsPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Recent Flagged Reports',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          const Text('Recent Flagged Reports', style: TextStyle(color: AppColors.primaryText, fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 16),
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.mainBackground,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              children: const [
-                _ReportRow(
-                  url: 'secure-login-check.com',
-                  risk: 'High Risk',
-                  date: 'Today, 10:45 AM',
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('false_reports')
+                .where('status', isEqualTo: 'pending')
+                .orderBy('submittedAt', descending: true)
+                .limit(5)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple));
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Container(
+                  padding: const EdgeInsets.all(24),
+                  alignment: Alignment.center,
+                  child: Text('No pending flagged reports', style: TextStyle(color: AppColors.secondaryText)),
+                );
+              }
+              final reports = snapshot.data!.docs;
+              return Container(
+                decoration: BoxDecoration(color: AppColors.mainBackground, borderRadius: BorderRadius.circular(14)),
+                child: Column(
+                  children: reports.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final url = data['url'] ?? 'Unknown URL';
+                    final risk = data['scanResult']?['verdict'] ?? 'Pending';
+                    final date = data['submittedAt'] != null
+                        ? (data['submittedAt'] as Timestamp).toDate()
+                        : DateTime.now();
+                    final formattedDate = _formatDate(date);
+                    return _ReportRow(
+                      url: url,
+                      risk: risk,
+                      date: formattedDate,
+                      onReview: () => _updateReportStatus(context, doc.id, 'reviewed'),
+                    );
+                  }).toList(),
                 ),
-                _ReportRow(
-                  url: 'paypal-verify-access.net',
-                  risk: 'Suspicious',
-                  date: 'Today, 09:12 AM',
-                ),
-                _ReportRow(
-                  url: 'bank-alert-now.co',
-                  risk: 'Malicious',
-                  date: 'Yesterday, 8:40 PM',
-                ),
-                _ReportRow(
-                  url: 'telegram-security-check.org',
-                  risk: 'Suspicious',
-                  date: 'Yesterday, 3:05 PM',
-                ),
-                _ReportRow(
-                  url: 'gift-card-claim-now.xyz',
-                  risk: 'High Risk',
-                  date: 'Yesterday, 1:18 PM',
-                  isLast: true,
-                ),
-              ],
-            ),
+              );
+            },
           ),
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final isToday = date.day == now.day && date.month == now.month && date.year == now.year;
+    if (isToday) {
+      return 'Today, ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    }
+    return '${date.day}/${date.month}/${date.year}';
   }
 }
 
@@ -745,62 +627,43 @@ class _ReportRow extends StatelessWidget {
   final String url;
   final String risk;
   final String date;
-  final bool isLast;
+  final VoidCallback onReview;
 
   const _ReportRow({
     required this.url,
     required this.risk,
     required this.date,
-    this.isLast = false,
+    required this.onReview,
   });
 
   @override
   Widget build(BuildContext context) {
     Color badgeColor;
-    switch (risk) {
-      case 'Malicious':
-      case 'High Risk':
+    switch (risk.toLowerCase()) {
+      case 'malicious':
         badgeColor = AppColors.highRisk;
         break;
-      case 'Suspicious':
+      case 'suspicious':
         badgeColor = AppColors.mediumRisk;
         break;
-      case 'False Positive':
-      case 'Safe':
+      case 'safe':
         badgeColor = AppColors.safe;
         break;
       default:
         badgeColor = AppColors.primaryPurple;
     }
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        border: isLast
-            ? null
-            : const Border(bottom: BorderSide(color: Colors.white10)),
-      ),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white10))),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  url,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                Text(url, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                Text(
-                  date,
-                  style: const TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 12,
-                  ),
-                ),
+                Text(date, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
               ],
             ),
           ),
@@ -811,21 +674,12 @@ class _ReportRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
               border: Border.all(color: badgeColor.withOpacity(0.5)),
             ),
-            child: Text(
-              risk,
-              style: TextStyle(
-                color: badgeColor,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
+            child: Text(risk, style: TextStyle(color: badgeColor, fontWeight: FontWeight.w600, fontSize: 12)),
           ),
           const SizedBox(width: 14),
           TextButton(
-            onPressed: () {},
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.primaryPurple,
-            ),
+            onPressed: onReview,
+            style: TextButton.styleFrom(foregroundColor: AppColors.primaryPurple),
             child: const Text('Review'),
           ),
         ],
@@ -835,45 +689,25 @@ class _ReportRow extends StatelessWidget {
 }
 
 // ============================================================================
-// Recent System Activity Panel
+// Recent System Activity Panel (still hardcoded – can be updated later)
 // ============================================================================
 class _RecentSystemActivityPanel extends StatelessWidget {
   const _RecentSystemActivityPanel();
-
   @override
   Widget build(BuildContext context) {
     return _Panel(
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Recent System Activity',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          Text('Recent System Activity', style: TextStyle(color: AppColors.primaryText, fontSize: 18, fontWeight: FontWeight.w700)),
           SizedBox(height: 16),
-          _MiniActivityTile(
-            title: 'New threat rule added',
-            subtitle: 'Phishing category updated 24 mins ago',
-          ),
+          _MiniActivityTile(title: 'New threat rule added', subtitle: 'Phishing category updated 24 mins ago'),
           SizedBox(height: 12),
-          _MiniActivityTile(
-            title: 'Database backup completed',
-            subtitle: 'Backup finished successfully at 07:30 AM',
-          ),
+          _MiniActivityTile(title: 'Database backup completed', subtitle: 'Backup finished successfully at 07:30 AM'),
           SizedBox(height: 12),
-          _MiniActivityTile(
-            title: 'Flagged report reviewed',
-            subtitle: 'Admin marked one URL as malicious',
-          ),
+          _MiniActivityTile(title: 'Flagged report reviewed', subtitle: 'Admin marked one URL as malicious'),
           SizedBox(height: 12),
-          _MiniActivityTile(
-            title: 'User status updated',
-            subtitle: 'One suspicious account was disabled',
-          ),
+          _MiniActivityTile(title: 'User status updated', subtitle: 'One suspicious account was disabled'),
         ],
       ),
     );
@@ -883,39 +717,19 @@ class _RecentSystemActivityPanel extends StatelessWidget {
 class _MiniActivityTile extends StatelessWidget {
   final String title;
   final String subtitle;
-
-  const _MiniActivityTile({
-    required this.title,
-    required this.subtitle,
-  });
-
+  const _MiniActivityTile({required this.title, required this.subtitle});
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.mainBackground,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(color: AppColors.mainBackground, borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.primaryText,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          Text(title, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 12,
-            ),
-          ),
+          Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
         ],
       ),
     );
@@ -923,17 +737,12 @@ class _MiniActivityTile extends StatelessWidget {
 }
 
 // ============================================================================
-// Shared Panel widget
+// Shared Panel widget (unchanged)
 // ============================================================================
 class _Panel extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
-
-  const _Panel({
-    required this.child,
-    this.padding,
-  });
-
+  const _Panel({required this.child, this.padding});
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -942,16 +751,8 @@ class _Panel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.primaryPurple.withOpacity(0.35),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.14),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
+        boxShadow: [BoxShadow(color: AppColors.primaryPurple.withOpacity(0.14), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: child,
     );
@@ -959,7 +760,7 @@ class _Panel extends StatelessWidget {
 }
 
 // ============================================================================
-// Main AdminDashboardScreen with Sidebar and Navigation
+// Main AdminDashboardScreen (unchanged except sidebar collapsible)
 // ============================================================================
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -970,12 +771,13 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _selectedIndex = 0;
+  bool _isSidebarCollapsed = false;
 
-  final List<Widget> _screens = const [
-    _DashboardContent(),
+  final List<Widget> _screens = [
+    const _DashboardContent(),
     UserManagementScreen(),
-    FlaggedReviewsScreen(),
-    ScanStatisticsScreen(),
+    const FlaggedReviewsScreen(),
+    const ScanStatisticsScreen(),
   ];
 
   final List<String> _titles = [
@@ -992,108 +794,83 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       body: SafeArea(
         child: Row(
           children: [
-            // Sidebar
-            Container(
-              width: 280,
+            // Animated Sidebar
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              width: _isSidebarCollapsed ? 72 : 280,
               decoration: BoxDecoration(
                 color: AppColors.mainBackground,
-                border: Border(
-                  right: BorderSide(
-                    color: AppColors.divider.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
+                border: Border(right: BorderSide(color: AppColors.divider.withOpacity(0.3), width: 1)),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: _isSidebarCollapsed ? CrossAxisAlignment.center : CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 24),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Image.asset(
-                      'assets/images/LinkSentryLogoTop.png',
-                      height: 48,
-                      fit: BoxFit.contain,
+                    padding: EdgeInsets.symmetric(horizontal: _isSidebarCollapsed ? 12 : 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (!_isSidebarCollapsed)
+                          Image.asset('assets/images/LinkSentryLogoTop.png', height: 48, fit: BoxFit.contain),
+                        if (_isSidebarCollapsed)
+                          const Icon(Icons.shield_outlined, color: AppColors.primaryPurple, size: 32),
+                        IconButton(
+                          icon: Icon(_isSidebarCollapsed ? Icons.menu_open : Icons.menu, color: AppColors.secondaryText),
+                          onPressed: () => setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 32),
-                  _buildNavItem(
-                    icon: Icons.dashboard_outlined,
-                    label: 'Dashboard',
-                    index: 0,
-                  ),
-                  _buildNavItem(
-                    icon: Icons.people_outline,
-                    label: 'User Management',
-                    index: 1,
-                  ),
-                  _buildNavItem(
-                    icon: Icons.flag_outlined,
-                    label: 'Flagged Reviews',
-                    index: 2,
-                  ),
-                  _buildNavItem(
-                    icon: Icons.analytics_outlined,
-                    label: 'Scan Statistics',
-                    index: 3,
-                  ),
+                  _buildNavItem(icon: Icons.dashboard_outlined, label: 'Dashboard', index: 0),
+                  _buildNavItem(icon: Icons.people_outline, label: 'User Management', index: 1),
+                  _buildNavItem(icon: Icons.flag_outlined, label: 'Flagged Reviews', index: 2),
+                  _buildNavItem(icon: Icons.analytics_outlined, label: 'Scan Statistics', index: 3),
                   const Spacer(),
-                  // Logout section
                   Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.all(_isSidebarCollapsed ? 8 : 20),
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                      padding: EdgeInsets.symmetric(horizontal: _isSidebarCollapsed ? 8 : 14, vertical: _isSidebarCollapsed ? 8 : 12),
                       decoration: BoxDecoration(
                         color: AppColors.cardBackground,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: AppColors.primaryPurple.withOpacity(0.3),
-                        ),
+                        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.3)),
                       ),
                       child: Row(
+                        mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
                         children: [
-                          const CircleAvatar(
-                            radius: 18,
-                            backgroundColor: Colors.white24,
-                            child: Icon(Icons.person_outline,
-                                color: Colors.white),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  FirebaseAuth.instance.currentUser
-                                          ?.displayName ??
-                                      'Admin User',
-                                  style: const TextStyle(
-                                    color: AppColors.primaryText,
-                                    fontWeight: FontWeight.w600,
+                          const CircleAvatar(radius: 18, backgroundColor: Colors.white24, child: Icon(Icons.person_outline, color: Colors.white)),
+                          if (!_isSidebarCollapsed) const SizedBox(width: 12),
+                          if (!_isSidebarCollapsed)
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    FirebaseAuth.instance.currentUser?.displayName ?? 'Admin User',
+                                    style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600),
                                   ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  FirebaseAuth.instance.currentUser?.email ??
-                                      '',
-                                  style: const TextStyle(
-                                    color: AppColors.secondaryText,
-                                    fontSize: 12,
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    FirebaseAuth.instance.currentUser?.email ?? '',
+                                    style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.logout,
-                                color: AppColors.secondaryText, size: 20),
-                            onPressed: () async {
-                              await FirebaseAuth.instance.signOut();
-                              // TODO: Navigate to login screen after sign out
-                            },
-                          ),
+                          if (!_isSidebarCollapsed)
+                            IconButton(
+                              icon: const Icon(Icons.logout, color: AppColors.secondaryText, size: 20),
+                              onPressed: () async => await FirebaseAuth.instance.signOut(),
+                            ),
+                          if (_isSidebarCollapsed)
+                            IconButton(
+                              icon: const Icon(Icons.logout, color: AppColors.secondaryText, size: 20),
+                              onPressed: () async => await FirebaseAuth.instance.signOut(),
+                            ),
                         ],
                       ),
                     ),
@@ -1107,26 +884,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top bar
                   Container(
                     padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: AppColors.divider.withOpacity(0.3),
-                        ),
-                      ),
-                    ),
+                    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.divider.withOpacity(0.3)))),
                     child: Row(
                       children: [
-                        Text(
-                          _titles[_selectedIndex],
-                          style: const TextStyle(
-                            color: AppColors.primaryText,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        Text(_titles[_selectedIndex], style: const TextStyle(color: AppColors.primaryText, fontSize: 28, fontWeight: FontWeight.bold)),
                         const Spacer(),
                         Container(
                           width: 280,
@@ -1134,33 +897,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           decoration: BoxDecoration(
                             color: AppColors.cardBackground,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: AppColors.divider.withOpacity(0.3),
-                            ),
+                            border: Border.all(color: AppColors.divider.withOpacity(0.3)),
                           ),
                           child: const TextField(
                             style: TextStyle(color: AppColors.primaryText),
                             decoration: InputDecoration(
                               hintText: 'Search...',
-                              hintStyle:
-                                  TextStyle(color: AppColors.disabledText),
-                              prefixIcon: Icon(Icons.search,
-                                  color: AppColors.secondaryText),
+                              hintStyle: TextStyle(color: AppColors.disabledText),
+                              prefixIcon: Icon(Icons.search, color: AppColors.secondaryText),
                               border: InputBorder.none,
-                              contentPadding:
-                                  EdgeInsets.symmetric(vertical: 10),
+                              contentPadding: EdgeInsets.symmetric(vertical: 10),
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  Expanded(
-                    child: IndexedStack(
-                      index: _selectedIndex,
-                      children: _screens,
-                    ),
-                  ),
+                  Expanded(child: IndexedStack(index: _selectedIndex, children: _screens)),
                 ],
               ),
             ),
@@ -1170,43 +923,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required int index,
-  }) {
+  Widget _buildNavItem({required IconData icon, required String label, required int index}) {
     final isSelected = _selectedIndex == index;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: isSelected
-            ? AppColors.primaryPurple.withOpacity(0.15)
-            : Colors.transparent,
+        color: isSelected ? AppColors.primaryPurple.withOpacity(0.15) : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        border: isSelected
-            ? Border.all(color: AppColors.primaryPurple.withOpacity(0.5))
-            : null,
+        border: isSelected ? Border.all(color: AppColors.primaryPurple.withOpacity(0.5)) : null,
       ),
       child: ListTile(
-        leading: Icon(
-          icon,
-          color:
-              isSelected ? AppColors.primaryPurple : AppColors.secondaryText,
-        ),
-        title: Text(
-          label,
-          style: TextStyle(
-            color:
-                isSelected ? AppColors.primaryText : AppColors.secondaryText,
-            fontWeight:
-                isSelected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-        onTap: () {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
+        leading: Icon(icon, color: isSelected ? AppColors.primaryPurple : AppColors.secondaryText),
+        title: _isSidebarCollapsed
+            ? null
+            : Text(label, style: TextStyle(color: isSelected ? AppColors.primaryText : AppColors.secondaryText, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
+        onTap: () => setState(() => _selectedIndex = index),
       ),
     );
   }

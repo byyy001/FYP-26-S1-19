@@ -27,14 +27,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   @override
   void initState() {
     super.initState();
-    // Wait for auth state to be confirmed before loading
     FirebaseAuth.instance.authStateChanges().first.then((user) {
-    if (user != null && mounted) {
-      _loadUsers();
-      _searchController.addListener(_onSearchChanged);
-    }
-  });
-}
+      if (user != null && mounted) {
+        _loadUsers();
+        _searchController.addListener(_onSearchChanged);
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -44,9 +43,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   void _onSearchChanged() {
-    setState(() {
-      _searchQuery = _searchController.text.trim().toLowerCase();
-    });
+    setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
     _refreshUsers();
   }
 
@@ -59,92 +56,80 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     _loadUsers();
   }
 
+  void _clearFilters() {
+    setState(() {
+      _selectedRoleFilter = 'All';
+      _selectedStatusFilter = 'All';
+      _searchController.clear();
+      _searchQuery = '';
+    });
+    _refreshUsers();
+  }
+
   Future<void> _loadUsers() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    if (_isLoading || !_hasMore) return;
+    setState(() => _isLoading = true);
 
-    // Guard: ensure user is authenticated before querying
-  final currentUser = FirebaseAuth.instance.currentUser;
-  if (currentUser == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Not authenticated. Please log in.')),
-    );
-    return;
+    try {
+      Query query = FirebaseFirestore.instance
+          .collection('users')
+          .orderBy('createdAt', descending: true)
+          .limit(_pageSize);
+
+      if (_selectedRoleFilter != 'All') {
+        query = query.where('role', isEqualTo: _selectedRoleFilter);
+      }
+      if (_selectedStatusFilter != 'All') {
+        query = query.where('isActive', isEqualTo: _selectedStatusFilter == 'Active');
+      }
+
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        setState(() => _hasMore = false);
+      } else {
+        final newUsers = snapshot.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return {
+            'id': doc.id,
+            'firstName': data['firstName']?.toString() ?? '',
+            'lastName': data['lastName']?.toString() ?? '',
+            'email': data['email']?.toString() ?? '',
+            'role': data['role']?.toString() ?? 'User',
+            'isActive': data['isActive'] ?? true,
+            'isPremium': data['isPremium'] ?? false,
+            'createdAt': data['createdAt'],
+          };
+        }).toList();
+
+        setState(() {
+          _users.addAll(newUsers);
+          _lastDocument = snapshot.docs.last;
+          _hasMore = snapshot.docs.length == _pageSize;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading users: $e'), backgroundColor: AppColors.highRisk),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
-
-  if (_isLoading || !_hasMore) return;
-  setState(() => _isLoading = true);
-
-  try {
-    Query query = FirebaseFirestore.instance
-        .collection('users')
-        .orderBy('createdAt', descending: true)
-        .limit(_pageSize);
-
-    if (_selectedRoleFilter != 'All') {
-      query = query.where('role', isEqualTo: _selectedRoleFilter);
-    }
-
-    if (_selectedStatusFilter != 'All') {
-      query = query.where('isActive', isEqualTo: _selectedStatusFilter == 'Active');
-    }
-
-    final snapshot = await query.get();
-
-    print('Fetched ${snapshot.docs.length} users');  // Debug log
-
-    if (snapshot.docs.isEmpty) {
-      setState(() => _hasMore = false);
-      print('No users found!');
-    } else {
-      final newUsers = snapshot.docs.map((doc) {
-        // Explicitly cast to Map<String, dynamic>
-        final data = doc.data() as Map<String, dynamic>;
-        return {
-          'id': doc.id,
-          'firstName': data['firstName']?.toString() ?? '',
-          'lastName': data['lastName']?.toString() ?? '',
-          'email': data['email']?.toString() ?? '',
-          'role': data['role']?.toString() ?? 'User',
-          'isActive': data['isActive'] ?? true,
-          'isPremium': data['isPremium'] ?? false,
-          'createdAt': data['createdAt'],
-        };
-      }).toList();
-
-      setState(() {
-        _users.addAll(newUsers);
-        _lastDocument = snapshot.docs.last;
-        _hasMore = snapshot.docs.length == _pageSize;
-        print('Last Document ID: ${_lastDocument?.id}'); // Debugging line
-      });
-    }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error loading users: $e'), backgroundColor: AppColors.highRisk),
-    );
-  } finally {
-    setState(() => _isLoading = false);
-  }
-}
 
   List<Map<String, dynamic>> get _filteredUsers {
     return _users.where((user) {
-      // Search filter
       final fullName = '${user['firstName']} ${user['lastName']}'.toLowerCase();
       final email = (user['email'] as String?)?.toLowerCase() ?? '';
       final matchesSearch = _searchQuery.isEmpty ||
           fullName.contains(_searchQuery) ||
           email.contains(_searchQuery);
-
-      // Role filter
-      final matchesRole = _selectedRoleFilter == 'All' ||
-          user['role'] == _selectedRoleFilter;
-
-      // Status filter
+      final matchesRole = _selectedRoleFilter == 'All' || user['role'] == _selectedRoleFilter;
       final isActive = user['isActive'] == true;
       final matchesStatus = _selectedStatusFilter == 'All' ||
           (_selectedStatusFilter == 'Active' && isActive) ||
           (_selectedStatusFilter == 'Suspended' && !isActive);
-
       return matchesSearch && matchesRole && matchesStatus;
     }).toList();
   }
@@ -187,12 +172,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ),
     );
     if (confirmed != true) return;
-
     try {
       await FirebaseFirestore.instance.collection('users').doc(userId).delete();
-      setState(() {
-        _users.removeWhere((u) => u['id'] == userId);
-      });
+      setState(() => _users.removeWhere((u) => u['id'] == userId));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('User deleted successfully'), backgroundColor: AppColors.safe),
       );
@@ -211,37 +193,43 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.cardBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Edit ${user['firstName']} ${user['lastName']}',
             style: const TextStyle(color: AppColors.primaryText)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              value: selectedRole,
-              dropdownColor: AppColors.cardBackground,
-              style: const TextStyle(color: AppColors.primaryText),
-              decoration: const InputDecoration(
-                labelText: 'Role',
-                labelStyle: TextStyle(color: AppColors.secondaryText),
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.divider),
+        content: StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedRole,
+                  dropdownColor: AppColors.cardBackground,
+                  style: const TextStyle(color: AppColors.primaryText),
+                  decoration: InputDecoration(
+                    labelText: 'Role',
+                    labelStyle: const TextStyle(color: AppColors.secondaryText),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: AppColors.divider),
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'User', child: Text('User')),
+                    DropdownMenuItem(value: 'Admin', child: Text('Admin')),
+                    DropdownMenuItem(value: 'Engineer', child: Text('Engineer')),
+                  ],
+                  onChanged: (value) => setStateDialog(() => selectedRole = value!),
                 ),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'User', child: Text('User')),
-                DropdownMenuItem(value: 'Admin', child: Text('Admin')),
-                DropdownMenuItem(value: 'Engineer', child: Text('Engineer')),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  title: const Text('Active', style: TextStyle(color: AppColors.primaryText)),
+                  value: isActive,
+                  onChanged: (value) => setStateDialog(() => isActive = value),
+                  activeColor: AppColors.safe,
+                  secondary: Icon(isActive ? Icons.check_circle : Icons.cancel, color: isActive ? AppColors.safe : AppColors.highRisk),
+                ),
               ],
-              onChanged: (value) => selectedRole = value!,
-            ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              title: const Text('Active', style: TextStyle(color: AppColors.primaryText)),
-              value: isActive,
-              onChanged: (value) => isActive = value,
-              activeColor: AppColors.safe,
-            ),
-          ],
+            );
+          },
         ),
         actions: [
           TextButton(
@@ -254,14 +242,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               await _updateUserField(user['id'], 'role', selectedRole);
               await _updateUserField(user['id'], 'isActive', isActive);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPurple),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryPurple,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
             child: const Text('Save'),
           ),
         ],
       ),
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final filteredUsers = _filteredUsers;
@@ -269,13 +260,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Search and filters (without duplicate title)
         _buildSearchAndFiltersPanel(),
         const SizedBox(height: 24),
 
-        // User list
         if (_isLoading && _users.isEmpty)
-          const Center(child: CircularProgressIndicator())
+          const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple))
         else if (filteredUsers.isEmpty)
           _buildEmptyState()
         else
@@ -283,20 +272,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: filteredUsers.length,
-            itemBuilder: (context, index) {
-              final user = filteredUsers[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _UserCard(
-                  user: user,
-                  onEdit: () => _showEditDialog(user),
-                  onDelete: () => _deleteUser(user['id'], '${user['firstName']} ${user['lastName']}'),
-                ),
-              );
-            },
+            itemBuilder: (context, index) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _UserCard(
+                user: filteredUsers[index],
+                onEdit: () => _showEditDialog(filteredUsers[index]),
+                onDelete: () => _deleteUser(filteredUsers[index]['id'], '${filteredUsers[index]['firstName']} ${filteredUsers[index]['lastName']}'),
+              ),
+            ),
           ),
 
-        // Load more button
         if (_hasMore && !_isLoading && _users.isNotEmpty)
           Center(
             child: Padding(
@@ -305,6 +290,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 onPressed: _loadUsers,
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: AppColors.primaryPurple.withOpacity(0.5)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text('Load More'),
               ),
@@ -323,37 +309,25 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: _roleFilters.map((filter) {
-              return _FilterChip(
-                label: filter,
-                selected: _selectedRoleFilter == filter,
-                onSelected: () {
-                  setState(() {
-                    _selectedRoleFilter = filter;
-                  });
-                },
-              );
-            }).toList(),
+            children: _roleFilters.map((filter) => _FilterChip(
+              label: filter,
+              selected: _selectedRoleFilter == filter,
+              onSelected: () => setState(() => _selectedRoleFilter = filter),
+            )).toList(),
           ),
           const SizedBox(height: 12),
           // Status filters
           Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: _statusFilters.map((filter) {
-              return _FilterChip(
-                label: filter,
-                selected: _selectedStatusFilter == filter,
-                onSelected: () {
-                  setState(() {
-                    _selectedStatusFilter = filter;
-                  });
-                },
-              );
-            }).toList(),
+            children: _statusFilters.map((filter) => _FilterChip(
+              label: filter,
+              selected: _selectedStatusFilter == filter,
+              onSelected: () => setState(() => _selectedStatusFilter = filter),
+            )).toList(),
           ),
           const SizedBox(height: 16),
-          // Search field
+          // Search field with clear button
           TextField(
             controller: _searchController,
             style: const TextStyle(color: AppColors.primaryText),
@@ -361,6 +335,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               hintText: 'Search by name or email...',
               hintStyle: const TextStyle(color: AppColors.disabledText),
               prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, color: AppColors.secondaryText),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                        _refreshUsers();
+                      },
+                    )
+                  : null,
               filled: true,
               fillColor: AppColors.mainBackground,
               border: OutlineInputBorder(
@@ -370,6 +354,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               contentPadding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
+          const SizedBox(height: 12),
+          if (_selectedRoleFilter != 'All' || _selectedStatusFilter != 'All' || _searchQuery.isNotEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _clearFilters,
+                style: TextButton.styleFrom(foregroundColor: AppColors.primaryPurple),
+                child: const Text('Clear Filters'),
+              ),
+            ),
         ],
       ),
     );
@@ -380,10 +374,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       child: const Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 40),
-          child: Text(
-            'No users found.',
-            style: TextStyle(color: AppColors.secondaryText),
-          ),
+          child: Text('No users found.', style: TextStyle(color: AppColors.secondaryText)),
         ),
       ),
     );
@@ -394,12 +385,7 @@ class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onSelected;
-
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.onSelected,
-  });
+  const _FilterChip({required this.label, required this.selected, required this.onSelected});
 
   @override
   Widget build(BuildContext context) {
@@ -408,15 +394,9 @@ class _FilterChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primaryPurple.withOpacity(0.2)
-              : AppColors.mainBackground,
+          color: selected ? AppColors.primaryPurple.withOpacity(0.2) : AppColors.mainBackground,
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: selected
-                ? AppColors.primaryPurple.withOpacity(0.6)
-                : AppColors.divider.withOpacity(0.3),
-          ),
+          border: Border.all(color: selected ? AppColors.primaryPurple.withOpacity(0.6) : AppColors.divider.withOpacity(0.3)),
         ),
         child: Text(
           label,
@@ -435,12 +415,7 @@ class _UserCard extends StatelessWidget {
   final Map<String, dynamic> user;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-
-  const _UserCard({
-    required this.user,
-    required this.onEdit,
-    required this.onDelete,
-  });
+  const _UserCard({required this.user, required this.onEdit, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -452,33 +427,16 @@ class _UserCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          const CircleAvatar(
-            radius: 28,
-            backgroundColor: Colors.white24,
-            child: Icon(Icons.person_outline, color: Colors.white, size: 28),
-          ),
+          const CircleAvatar(radius: 28, backgroundColor: Colors.white24, child: Icon(Icons.person_outline, color: Colors.white, size: 28)),
           const SizedBox(width: 20),
           Expanded(
             flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  displayName,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                Text(displayName, style: const TextStyle(color: AppColors.primaryText, fontSize: 16, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text(
-                  user['email'] ?? '',
-                  style: const TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 13,
-                  ),
-                ),
+                Text(user['email'] ?? '', style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
               ],
             ),
           ),
@@ -486,59 +444,24 @@ class _UserCard extends StatelessWidget {
             flex: 3,
             child: Row(
               children: [
-                const Text(
-                  'Role:',
-                  style: TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 13,
-                  ),
-                ),
+                const Text('Role:', style: TextStyle(color: AppColors.secondaryText, fontSize: 13)),
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.white10,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    user['role'] ?? 'User',
-                    style: const TextStyle(
-                      color: AppColors.primaryText,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(20)),
+                  child: Text(user['role'] ?? 'User', style: const TextStyle(color: AppColors.primaryText, fontSize: 12, fontWeight: FontWeight.w600)),
                 ),
                 const SizedBox(width: 12),
-                const Text(
-                  'Status:',
-                  style: TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 13,
-                  ),
-                ),
+                const Text('Status:', style: TextStyle(color: AppColors.secondaryText, fontSize: 13)),
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: isActive
-                        ? AppColors.safe.withOpacity(0.2)
-                        : AppColors.highRisk.withOpacity(0.2),
+                    color: isActive ? AppColors.safe.withOpacity(0.2) : AppColors.highRisk.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isActive
-                          ? AppColors.safe.withOpacity(0.5)
-                          : AppColors.highRisk.withOpacity(0.5),
-                    ),
+                    border: Border.all(color: isActive ? AppColors.safe.withOpacity(0.5) : AppColors.highRisk.withOpacity(0.5)),
                   ),
-                  child: Text(
-                    isActive ? 'Active' : 'Suspended',
-                    style: TextStyle(
-                      color: isActive ? AppColors.safe : AppColors.highRisk,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: Text(isActive ? 'Active' : 'Suspended', style: TextStyle(color: isActive ? AppColors.safe : AppColors.highRisk, fontSize: 12, fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
@@ -551,11 +474,8 @@ class _UserCard extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: onEdit,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primaryText,
-                    side: BorderSide(color: AppColors.primaryPurple.withOpacity(0.5)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                    side: BorderSide(color: AppColors.primaryPurple.withOpacity(0.6)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
@@ -567,13 +487,10 @@ class _UserCard extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: onDelete,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.highRisk,
                     side: const BorderSide(color: AppColors.highRisk),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.highRisk)),
                 ),
               ),
             ],
@@ -587,11 +504,7 @@ class _UserCard extends StatelessWidget {
 class _Panel extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
-
-  const _Panel({
-    required this.child,
-    this.padding,
-  });
+  const _Panel({required this.child, this.padding});
 
   @override
   Widget build(BuildContext context) {
@@ -600,17 +513,9 @@ class _Panel extends StatelessWidget {
       padding: padding ?? const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.primaryPurple.withOpacity(0.3),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.3)),
+        boxShadow: [BoxShadow(color: AppColors.primaryPurple.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: child,
     );
