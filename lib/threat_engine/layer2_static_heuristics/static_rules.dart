@@ -19,7 +19,7 @@ import '../services/virustotal.dart';
 class ApiKeys {
   static const String openPhishApiKey = '';
   static const String urlhausApiKey = '';
-  static const String ipQualityScoreApiKey = '41x7jw1Zwbqgd4UAbeuwpJaHyC4JOyy3'; // REPLACE THIS
+  static const String ipQualityScoreApiKey = '8taF8VxvuRm7ymklzzA08AfM46X2fxxU'; // REPLACE THIS
   static const String whoisApiKey = 'at_RL2ksZSnT1Lk6EdCG7tEZldd84gJi';           // REPLACE THIS
 }
 

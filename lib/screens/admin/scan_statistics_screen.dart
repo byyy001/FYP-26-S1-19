@@ -30,18 +30,23 @@ class _ScanStatisticsScreenState extends State<ScanStatisticsScreen> {
   Future<Map<String, dynamic>> _fetchStatistics() async {
     try {
       DateTime startDate;
+      int daysInRange;
       switch (_selectedRange) {
         case 'Last 7 Days':
           startDate = DateTime.now().subtract(const Duration(days: 7));
+          daysInRange = 7;
           break;
         case 'Last 30 Days':
           startDate = DateTime.now().subtract(const Duration(days: 30));
+          daysInRange = 30;
           break;
         case 'Last 90 Days':
           startDate = DateTime.now().subtract(const Duration(days: 90));
+          daysInRange = 90;
           break;
         default:
-          startDate = DateTime(2000); // far past
+          startDate = DateTime(2000);
+          daysInRange = DateTime.now().difference(DateTime(2000)).inDays.clamp(1, 99999);
       }
 
       Query query = FirebaseFirestore.instance.collectionGroup('scans');
@@ -57,14 +62,44 @@ class _ScanStatisticsScreenState extends State<ScanStatisticsScreen> {
       int mediumRisk = 0;
       int lowRisk = 0;
       Map<String, int> threatCounts = {};
-      Map<String, int> dailyCounts = {};
+      final Map<String, int> chartCounts = {};
+      final List<String> chartLabels = [];
+      String chartTitle;
 
       final now = DateTime.now();
-      final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-      for (int i = 0; i < 7; i++) {
-        final day = startOfWeek.add(Duration(days: i));
-        final key = '${day.day}/${day.month}';
-        dailyCounts[key] = 0;
+
+      if (_selectedRange == 'Last 7 Days') {
+        chartTitle = 'Daily Scans (Last 7 Days)';
+        for (int i = 6; i >= 0; i--) {
+          final day = now.subtract(Duration(days: i));
+          final key = '${day.day}/${day.month}';
+          chartCounts[key] = 0;
+          chartLabels.add(key);
+        }
+      } else if (_selectedRange == 'Last 30 Days') {
+        chartTitle = 'Weekly Scans (Last 30 Days)';
+        for (int i = 3; i >= 0; i--) {
+          final weekStart = now.subtract(Duration(days: (i + 1) * 7));
+          final key = '${weekStart.day}/${weekStart.month}';
+          chartCounts[key] = 0;
+          chartLabels.add(key);
+        }
+      } else if (_selectedRange == 'Last 90 Days') {
+        chartTitle = 'Monthly Scans (Last 90 Days)';
+        for (int i = 2; i >= 0; i--) {
+          final month = DateTime(now.year, now.month - i, 1);
+          final key = _monthLabel(month.month);
+          chartCounts[key] = 0;
+          chartLabels.add(key);
+        }
+      } else {
+        chartTitle = 'Monthly Scans (Last 12 Months)';
+        for (int i = 11; i >= 0; i--) {
+          final month = DateTime(now.year, now.month - i, 1);
+          final key = _monthLabel(month.month);
+          chartCounts[key] = 0;
+          chartLabels.add(key);
+        }
       }
 
       for (var scan in scans) {
@@ -79,25 +114,37 @@ class _ScanStatisticsScreenState extends State<ScanStatisticsScreen> {
         final timestamp = scan['scannedAt'] as Timestamp?;
         if (timestamp != null) {
           final date = timestamp.toDate();
-          final dayKey = '${date.day}/${date.month}';
-          if (dailyCounts.containsKey(dayKey)) {
-            dailyCounts[dayKey] = (dailyCounts[dayKey] ?? 0) + 1;
+          final String bucketKey;
+
+          if (_selectedRange == 'Last 7 Days') {
+            bucketKey = '${date.day}/${date.month}';
+          } else if (_selectedRange == 'Last 30 Days') {
+            final daysAgo = now.difference(date).inDays.clamp(0, 27);
+            final weekIndex = (daysAgo / 7).floor();
+            final weekStart = now.subtract(Duration(days: (weekIndex + 1) * 7));
+            bucketKey = '${weekStart.day}/${weekStart.month}';
+          } else {
+            bucketKey = _monthLabel(date.month);
+          }
+
+          if (chartCounts.containsKey(bucketKey)) {
+            chartCounts[bucketKey] = (chartCounts[bucketKey] ?? 0) + 1;
           }
         }
       }
 
-      double avgPerDay = total / 7;
-      String peakDay = dailyCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+      double avgPerDay = total / daysInRange;
+      String peakPeriod = chartCounts.entries.isEmpty
+          ? 'N/A'
+          : chartCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
       String mostCommonThreat = threatCounts.entries.isEmpty
           ? 'None'
           : threatCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
 
-      // Prepare daily chart values (normalised)
-      final List<double> dailyValues = dailyCounts.values.map((v) => v.toDouble()).toList();
-      double maxDaily = dailyValues.isEmpty ? 1 : dailyValues.reduce((a, b) => a > b ? a : b);
-      final normalizedDaily = dailyValues.map((v) => maxDaily > 0 ? (v / maxDaily) * 200 : 0).toList();
+      final List<double> chartValues = chartLabels.map((k) => (chartCounts[k] ?? 0).toDouble()).toList();
+      double maxChart = chartValues.isEmpty ? 1 : chartValues.reduce((a, b) => a > b ? a : b);
+      final normalizedChart = chartValues.map((v) => maxChart > 0 ? (v / maxChart) * 200 : 0.0).toList();
 
-      // Prepare threat distribution (top 4)
       final List<Map<String, dynamic>> distribution = [];
       final sortedThreats = threatCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
       for (var entry in sortedThreats.take(4)) {
@@ -115,15 +162,21 @@ class _ScanStatisticsScreenState extends State<ScanStatisticsScreen> {
         'mediumRisk': mediumRisk,
         'lowRisk': lowRisk,
         'avgPerDay': avgPerDay,
-        'peakDay': peakDay,
+        'peakDay': peakPeriod,
         'mostCommonThreat': _formatThreatLabel(mostCommonThreat),
-        'dailyLabels': dailyCounts.keys.toList(),
-        'dailyValues': normalizedDaily,
+        'dailyLabels': chartLabels,
+        'dailyValues': normalizedChart,
+        'chartTitle': chartTitle,
         'distribution': distribution,
       };
     } catch (e) {
       return {'error': e.toString()};
     }
+  }
+
+  String _monthLabel(int month) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[month - 1];
   }
 
   String _formatThreatLabel(String type) {
@@ -265,12 +318,13 @@ class _ScanStatisticsScreenState extends State<ScanStatisticsScreen> {
   Widget _buildDailyScansCard(Map<String, dynamic> data) {
     final labels = data['dailyLabels'] as List<String>;
     final values = data['dailyValues'] as List<double>;
+    final chartTitle = data['chartTitle'] as String? ?? 'Scan Activity';
     if (labels.isEmpty) return const SizedBox.shrink();
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Daily Scans (Last 7 Days)', style: TextStyle(color: AppColors.primaryText, fontSize: 18, fontWeight: FontWeight.w700)),
+          Text(chartTitle, style: const TextStyle(color: AppColors.primaryText, fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 16),
           Container(
             height: 280,
