@@ -5,6 +5,7 @@ import 'flagged_reviews_screen.dart';
 import 'scan_statistics_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 
 // ============================================================================
 // Dashboard Content (unchanged except for stat cards – flaggedReports updated)
@@ -495,22 +496,170 @@ class _Bar extends StatelessWidget {
 }
 
 // ============================================================================
-// System Status Panel (still hardcoded – can be updated later)
+// System Status Panel (dynamic – checks live service health)
 // ============================================================================
-class _SystemStatusPanel extends StatelessWidget {
+class _SystemStatusPanel extends StatefulWidget {
   const _SystemStatusPanel();
+
+  @override
+  State<_SystemStatusPanel> createState() => _SystemStatusPanelState();
+}
+
+class _SystemStatusPanelState extends State<_SystemStatusPanel> {
+  late Future<Map<String, dynamic>> _statusFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _statusFuture = _fetchSystemStatus();
+  }
+
+  Future<Map<String, dynamic>> _fetchSystemStatus() async {
+    late bool dbOk;
+    late int flagCount;
+    late bool threatEngineOk;
+    late bool apiGatewayOk;
+
+    await Future.wait([
+      () async {
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .limit(1)
+              .get()
+              .timeout(const Duration(seconds: 6));
+          dbOk = true;
+        } catch (_) {
+          dbOk = false;
+        }
+      }(),
+      () async {
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collection('false_reports')
+              .where('status', isEqualTo: 'pending')
+              .get()
+              .timeout(const Duration(seconds: 6));
+          flagCount = snap.docs.length;
+        } catch (_) {
+          flagCount = -1;
+        }
+      }(),
+      () async {
+        // Threat engine is always embedded — check if it processed any scans today
+        try {
+          final now = DateTime.now();
+          final startOfDay = DateTime(now.year, now.month, now.day);
+          final snap = await FirebaseFirestore.instance
+              .collectionGroup('scans')
+              .where('scannedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+              .limit(1)
+              .get()
+              .timeout(const Duration(seconds: 6));
+          threatEngineOk = snap.docs.isNotEmpty;
+        } catch (_) {
+          threatEngineOk = true; // engine is always available even if query fails
+        }
+      }(),
+      () async {
+        try {
+          // Use Google's DNS-over-HTTPS as a reliable internet/API reachability check
+          final res = await http
+              .get(Uri.parse('https://dns.google/resolve?name=virustotal.com'))
+              .timeout(const Duration(seconds: 6));
+          apiGatewayOk = res.statusCode == 200;
+        } catch (_) {
+          apiGatewayOk = false;
+        }
+      }(),
+    ]);
+
+    return {
+      'threatEngine': {'status': threatEngineOk ? 'Active' : 'Idle', 'good': true},
+      'database': {'status': dbOk ? 'Connected' : 'Disconnected', 'good': dbOk},
+      'apiGateway': {'status': apiGatewayOk ? 'Healthy' : 'Unreachable', 'good': apiGatewayOk},
+      'flagQueue': {
+        'status': flagCount >= 0 ? '$flagCount Pending' : 'Unknown',
+        'good': flagCount == 0,
+      },
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text('System Status', style: TextStyle(color: AppColors.primaryText, fontSize: 18, fontWeight: FontWeight.w700)),
-          SizedBox(height: 16),
-          _StatusRow(label: 'Threat Engine', status: 'Online', good: true),
-          _StatusRow(label: 'Database', status: 'Connected', good: true),
-          _StatusRow(label: 'API Gateway', status: 'Healthy', good: true),
-          _StatusRow(label: 'Flag Queue', status: '11 Pending', good: false),
+        children: [
+          Row(
+            children: [
+              const Text('System Status', style: TextStyle(color: AppColors.primaryText, fontSize: 18, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.refresh, color: AppColors.secondaryText, size: 18),
+                onPressed: () => setState(() => _statusFuture = _fetchSystemStatus()),
+                tooltip: 'Refresh',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          FutureBuilder<Map<String, dynamic>>(
+            future: _statusFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Column(
+                  children: [
+                    _StatusRowLoading(label: 'Threat Engine'),
+                    _StatusRowLoading(label: 'Database'),
+                    _StatusRowLoading(label: 'API Gateway'),
+                    _StatusRowLoading(label: 'Flag Queue'),
+                  ],
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('Failed to load status', style: TextStyle(color: AppColors.secondaryText)),
+                  ),
+                );
+              }
+              final d = snapshot.data!;
+              return Column(
+                children: [
+                  _StatusRow(label: 'Threat Engine', status: d['threatEngine']['status'], good: d['threatEngine']['good']),
+                  _StatusRow(label: 'Database', status: d['database']['status'], good: d['database']['good']),
+                  _StatusRow(label: 'API Gateway', status: d['apiGateway']['status'], good: d['apiGateway']['good']),
+                  _StatusRow(label: 'Flag Queue', status: d['flagQueue']['status'], good: d['flagQueue']['good']),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusRowLoading extends StatelessWidget {
+  final String label;
+  const _StatusRowLoading({required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(color: AppColors.mainBackground, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 10,
+            height: 10,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryPurple),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w500))),
+          const Text('Checking...', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
         ],
       ),
     );
@@ -689,25 +838,234 @@ class _ReportRow extends StatelessWidget {
 }
 
 // ============================================================================
-// Recent System Activity Panel (still hardcoded – can be updated later)
+// Recent System Activity Panel – dynamic, merged from 3 Firestore sources
 // ============================================================================
-class _RecentSystemActivityPanel extends StatelessWidget {
+class _ActivityItem {
+  final String title;
+  final String subtitle;
+  final DateTime time;
+  final IconData icon;
+  final Color iconColor;
+
+  _ActivityItem({
+    required this.title,
+    required this.subtitle,
+    required this.time,
+    required this.icon,
+    required this.iconColor,
+  });
+}
+
+class _RecentSystemActivityPanel extends StatefulWidget {
   const _RecentSystemActivityPanel();
+
+  @override
+  State<_RecentSystemActivityPanel> createState() => _RecentSystemActivityPanelState();
+}
+
+class _RecentSystemActivityPanelState extends State<_RecentSystemActivityPanel> {
+  late Future<List<_ActivityItem>> _activityFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _activityFuture = _fetchActivity();
+  }
+
+  Future<List<_ActivityItem>> _fetchActivity() async {
+    final items = <_ActivityItem>[];
+
+    await Future.wait([
+      // Source 1: false_reports (submitted + reviewed)
+      () async {
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collection('false_reports')
+              .orderBy('submittedAt', descending: true)
+              .limit(5)
+              .get();
+          for (final doc in snap.docs) {
+            final data = doc.data();
+            final time = (data['submittedAt'] as Timestamp?)?.toDate();
+            if (time == null) continue;
+            final url = data['url'] as String? ?? 'Unknown URL';
+            final domain = _extractDomain(url);
+            final status = data['status'] ?? 'pending';
+            if (status == 'reviewed') {
+              items.add(_ActivityItem(
+                title: 'Flagged report reviewed',
+                subtitle: 'Admin resolved report for $domain',
+                time: time,
+                icon: Icons.check_circle_outline,
+                iconColor: AppColors.safe,
+              ));
+            } else {
+              final verdict = data['scanResult']?['verdict'] as String? ?? 'unknown';
+              items.add(_ActivityItem(
+                title: 'Flagged report submitted',
+                subtitle: '$domain flagged as $verdict',
+                time: time,
+                icon: Icons.flag_outlined,
+                iconColor: AppColors.mediumRisk,
+              ));
+            }
+          }
+        } catch (_) {}
+      }(),
+
+      // Source 2: high-risk scans (riskScore >= 50)
+      () async {
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collectionGroup('scans')
+              .where('riskScore', isGreaterThanOrEqualTo: 50)
+              .limit(10)
+              .get();
+          final docs = snap.docs
+              .map((d) => d.data())
+              .where((d) => d['scannedAt'] != null)
+              .toList()
+            ..sort((a, b) {
+              final ta = (a['scannedAt'] as Timestamp).toDate();
+              final tb = (b['scannedAt'] as Timestamp).toDate();
+              return tb.compareTo(ta);
+            });
+          for (final data in docs.take(4)) {
+            final time = (data['scannedAt'] as Timestamp).toDate();
+            final domain = _extractDomain(data['url'] as String? ?? '');
+            final threat = _formatThreat(data['threatType'] as String? ?? 'unknown');
+            items.add(_ActivityItem(
+              title: 'High-risk URL detected',
+              subtitle: '$domain — $threat',
+              time: time,
+              icon: Icons.warning_amber_rounded,
+              iconColor: AppColors.highRisk,
+            ));
+          }
+        } catch (_) {}
+      }(),
+
+      // Source 3: new user registrations
+      () async {
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collection('users')
+              .orderBy('createdAt', descending: true)
+              .limit(4)
+              .get();
+          for (final doc in snap.docs) {
+            final data = doc.data();
+            final time = (data['createdAt'] as Timestamp?)?.toDate();
+            if (time == null) continue;
+            final firstName = data['firstName'] as String? ?? '';
+            final lastName = data['lastName'] as String? ?? '';
+            final name = '$firstName $lastName'.trim();
+            items.add(_ActivityItem(
+              title: 'New user registered',
+              subtitle: name.isEmpty ? 'A new user joined the platform' : '$name joined the platform',
+              time: time,
+              icon: Icons.person_add_outlined,
+              iconColor: AppColors.primaryPurple,
+            ));
+          }
+        } catch (_) {}
+      }(),
+    ]);
+
+    items.sort((a, b) => b.time.compareTo(a.time));
+    return items.take(5).toList();
+  }
+
+  String _extractDomain(String url) {
+    try {
+      final uri = Uri.parse(url.startsWith('http') ? url : 'https://$url');
+      return uri.host.replaceAll('www.', '');
+    } catch (_) {
+      return url.length > 30 ? '${url.substring(0, 30)}...' : url;
+    }
+  }
+
+  String _formatThreat(String type) {
+    switch (type.toLowerCase()) {
+      case 'phishing': return 'Phishing';
+      case 'malware': return 'Malware';
+      case 'malicious': return 'Malicious';
+      case 'defacement': return 'Defacement';
+      case 'benign': return 'Benign';
+      default: return type.isEmpty ? 'Unknown' : type[0].toUpperCase() + type.substring(1);
+    }
+  }
+
+  String _timeAgo(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min${diff.inMinutes == 1 ? '' : 's'} ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr${diff.inHours == 1 ? '' : 's'} ago';
+    final now = DateTime.now();
+    final isToday = time.day == now.day && time.month == now.month && time.year == now.year;
+    final yesterday = now.subtract(const Duration(days: 1));
+    final isYesterday = time.day == yesterday.day && time.month == yesterday.month && time.year == yesterday.year;
+    if (isToday) return 'Today, ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    if (isYesterday) return 'Yesterday';
+    return '${time.day}/${time.month}/${time.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return _Panel(
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Recent System Activity', style: TextStyle(color: AppColors.primaryText, fontSize: 18, fontWeight: FontWeight.w700)),
-          SizedBox(height: 16),
-          _MiniActivityTile(title: 'New threat rule added', subtitle: 'Phishing category updated 24 mins ago'),
-          SizedBox(height: 12),
-          _MiniActivityTile(title: 'Database backup completed', subtitle: 'Backup finished successfully at 07:30 AM'),
-          SizedBox(height: 12),
-          _MiniActivityTile(title: 'Flagged report reviewed', subtitle: 'Admin marked one URL as malicious'),
-          SizedBox(height: 12),
-          _MiniActivityTile(title: 'User status updated', subtitle: 'One suspicious account was disabled'),
+          Row(
+            children: [
+              const Text('Recent System Activity', style: TextStyle(color: AppColors.primaryText, fontSize: 18, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.refresh, color: AppColors.secondaryText, size: 18),
+                onPressed: () => setState(() => _activityFuture = _fetchActivity()),
+                tooltip: 'Refresh',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          FutureBuilder<List<_ActivityItem>>(
+            future: _activityFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: CircularProgressIndicator(color: AppColors.primaryPurple),
+                  ),
+                );
+              }
+              final items = snapshot.data ?? [];
+              if (items.isEmpty) {
+                return Container(
+                  padding: const EdgeInsets.all(24),
+                  alignment: Alignment.center,
+                  child: const Text('No recent activity', style: TextStyle(color: AppColors.secondaryText)),
+                );
+              }
+              return Column(
+                children: items.asMap().entries.map((entry) {
+                  final isLast = entry.key == items.length - 1;
+                  return Column(
+                    children: [
+                      _MiniActivityTile(
+                        title: entry.value.title,
+                        subtitle: entry.value.subtitle,
+                        timeLabel: _timeAgo(entry.value.time),
+                        icon: entry.value.icon,
+                        iconColor: entry.value.iconColor,
+                      ),
+                      if (!isLast) const SizedBox(height: 10),
+                    ],
+                  );
+                }).toList(),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -717,19 +1075,56 @@ class _RecentSystemActivityPanel extends StatelessWidget {
 class _MiniActivityTile extends StatelessWidget {
   final String title;
   final String subtitle;
-  const _MiniActivityTile({required this.title, required this.subtitle});
+  final String? timeLabel;
+  final IconData? icon;
+  final Color? iconColor;
+
+  const _MiniActivityTile({
+    required this.title,
+    required this.subtitle,
+    this.timeLabel,
+    this.icon,
+    this.iconColor,
+  });
+
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: AppColors.mainBackground, borderRadius: BorderRadius.circular(12)),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+          if (icon != null) ...[
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: (iconColor ?? AppColors.primaryPurple).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: iconColor ?? AppColors.primaryPurple, size: 16),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(title, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600, fontSize: 13)),
+                    ),
+                    if (timeLabel != null)
+                      Text(timeLabel!, style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(subtitle, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+              ],
+            ),
+          ),
         ],
       ),
     );
