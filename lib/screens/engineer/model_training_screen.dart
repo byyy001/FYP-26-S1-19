@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../../constants/app_colors.dart';
 
 class ModelTrainingScreen extends StatefulWidget {
@@ -25,13 +26,20 @@ class _ModelTrainingScreenState extends State<ModelTrainingScreen> {
 
   String _baseDatasetName = 'final_dataset_with_all_features_v3.1.csv';
   String _uploadedFileName = 'No file selected';
+  String? _uploadedDatasetId;
+  String? _uploadedStoragePath;
+  String? _selectedExistingDatasetId;
   String _fileFormat = 'CSV';
   String _detectedRows = '-';
   String _detectedColumns = '-';
   String _schemaStatus = 'Not Ready';
 
+  String _selectedModelType = 'logistic_regression';
+  String _selectedMergeMode = 'base_plus_uploaded';
   String _lastRun = '-';
   String _latestJobId = '-';
+  final String _cloudRunTrainingUrl =
+      'https://linksentry-training-backend-1071145926774.asia-southeast1.run.app/start-training';
 
   Future<void> _pickAndUploadCsv() async {
     try {
@@ -125,6 +133,9 @@ class _ModelTrainingScreenState extends State<ModelTrainingScreen> {
         _schemaStatus = 'Ready';
         _detectedRows = 'To validate';
         _detectedColumns = '59';
+
+        _uploadedDatasetId = datasetId;
+        _uploadedStoragePath = storagePath;
       });
 
       if (!mounted) return;
@@ -147,10 +158,70 @@ class _ModelTrainingScreenState extends State<ModelTrainingScreen> {
     }
   }
 
-  Future<void> _startTrainingJob() async {
-    if (_uploadedFileName == 'No file selected') {
+  Future<void> _selectExistingDataset(
+    String datasetId,
+    Map<String, dynamic> data,
+  ) async {
+    final String fileName = data['name'] ?? 'Unknown dataset';
+    final String storagePath = data['storagePath'] ?? '';
+
+    if (storagePath.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please upload a CSV dataset first.')),
+        const SnackBar(content: Text('Selected dataset has no storage path.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _selectedExistingDatasetId = datasetId;
+      _uploadedDatasetId = datasetId;
+      _uploadedStoragePath = storagePath;
+      _uploadedFileName = fileName;
+
+      _fileFormat = 'CSV';
+      _detectedRows = 'Existing';
+      _detectedColumns = '${data['featureCount'] ?? 59}';
+      _schemaStatus = 'Ready';
+      _currentStatus = 'Ready';
+      _latestLog = 'Existing dataset selected: $fileName';
+      _progressValue = 1.0;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Selected existing dataset: $fileName')),
+    );
+  }
+
+  Future<void> _callCloudRunTrainingBackend(String jobId) async {
+    if (_cloudRunTrainingUrl.isEmpty) {
+      setState(() {
+        _latestLog = 'Training job created. Cloud Run URL not connected yet.';
+      });
+      return;
+    }
+
+    final response = await http.post(
+      Uri.parse(_cloudRunTrainingUrl),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'jobId': jobId}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Cloud Run error ${response.statusCode}: ${response.body}',
+      );
+    }
+  }
+
+  Future<void> _startTrainingJob() async {
+    if (_selectedMergeMode == 'base_plus_uploaded' &&
+        (_uploadedFileName == 'No file selected' ||
+            _uploadedDatasetId == null ||
+            _uploadedStoragePath == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please upload or select a CSV dataset first.'),
+        ),
       );
       return;
     }
@@ -173,27 +244,38 @@ class _ModelTrainingScreenState extends State<ModelTrainingScreen> {
             'status': 'queued',
             'createdAt': Timestamp.now(),
             'createdBy': 'engineer',
-            'modelType': 'logistic_regression',
-            'mergeMode': 'base_plus_uploaded',
+            'modelType': _selectedModelType,
+            'mergeMode': _selectedMergeMode,
             'featureSet': 'full_features',
             'exportFormat': 'json_mobile_threat_engine',
             'baseDataset': _baseDatasetName,
-            'uploadedFileName': _uploadedFileName,
+            'baseDatasetStoragePath':
+                'datasets/base/final_dataset_with_all_features_v3.1.csv',
+            'uploadedFileName': _selectedMergeMode == 'base_plus_uploaded'
+                ? _uploadedFileName
+                : null,
+            'uploadedDatasetId': _selectedMergeMode == 'base_plus_uploaded'
+                ? _uploadedDatasetId
+                : null,
+            'uploadedStoragePath': _selectedMergeMode == 'base_plus_uploaded'
+                ? _uploadedStoragePath
+                : null,
           });
-
+      await _callCloudRunTrainingBackend(jobId);
       setState(() {
         _isStartingTraining = false;
-        _currentStatus = 'Queued';
-        _latestLog = 'Training job created. Backend trigger not connected yet.';
-        _progressValue = 0.25;
+        _currentStatus = 'Completed';
+        _latestLog =
+            'Training completed. Check Firestore and Storage for results.';
+        _progressValue = 1.0;
         _latestJobId = jobId;
         _lastRun = DateTime.now().toString();
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Training job created in Firestore.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Training job completed.')));
     } catch (e) {
       setState(() {
         _isStartingTraining = false;
@@ -237,7 +319,10 @@ class _ModelTrainingScreenState extends State<ModelTrainingScreen> {
                             detectedColumns: _detectedColumns,
                             schemaStatus: _schemaStatus,
                             isUploading: _isUploading,
+                            selectedExistingDatasetId:
+                                _selectedExistingDatasetId,
                             onChooseFile: _pickAndUploadCsv,
+                            onSelectExistingDataset: _selectExistingDataset,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -265,7 +350,9 @@ class _ModelTrainingScreenState extends State<ModelTrainingScreen> {
                         detectedColumns: _detectedColumns,
                         schemaStatus: _schemaStatus,
                         isUploading: _isUploading,
+                        selectedExistingDatasetId: _selectedExistingDatasetId,
                         onChooseFile: _pickAndUploadCsv,
+                        onSelectExistingDataset: _selectExistingDataset,
                       ),
                       const SizedBox(height: 16),
                       _TrainingStatusPanel(
@@ -285,21 +372,50 @@ class _ModelTrainingScreenState extends State<ModelTrainingScreen> {
                   final bool isWide = constraints.maxWidth > 1050;
 
                   if (isWide) {
-                    return const Row(
+                    return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 7, child: _DatasetPreviewPanel()),
-                        SizedBox(width: 16),
-                        Expanded(flex: 5, child: _TrainingConfigPanel()),
+                        const Expanded(flex: 7, child: _DatasetPreviewPanel()),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          flex: 5,
+                          child: _TrainingConfigPanel(
+                            selectedModelType: _selectedModelType,
+                            selectedMergeMode: _selectedMergeMode,
+                            onModelChanged: (value) {
+                              setState(() {
+                                _selectedModelType = value;
+                              });
+                            },
+                            onMergeModeChanged: (value) {
+                              setState(() {
+                                _selectedMergeMode = value;
+                              });
+                            },
+                          ),
+                        ),
                       ],
                     );
                   }
 
-                  return const Column(
+                  return Column(
                     children: [
-                      _DatasetPreviewPanel(),
-                      SizedBox(height: 16),
-                      _TrainingConfigPanel(),
+                      const _DatasetPreviewPanel(),
+                      const SizedBox(height: 16),
+                      _TrainingConfigPanel(
+                        selectedModelType: _selectedModelType,
+                        selectedMergeMode: _selectedMergeMode,
+                        onModelChanged: (value) {
+                          setState(() {
+                            _selectedModelType = value;
+                          });
+                        },
+                        onMergeModeChanged: (value) {
+                          setState(() {
+                            _selectedMergeMode = value;
+                          });
+                        },
+                      ),
                     ],
                   );
                 },
@@ -327,7 +443,10 @@ class _DatasetSourcePanel extends StatelessWidget {
   final String detectedColumns;
   final String schemaStatus;
   final bool isUploading;
+  final String? selectedExistingDatasetId;
   final Future<void> Function() onChooseFile;
+  final Future<void> Function(String datasetId, Map<String, dynamic> data)
+  onSelectExistingDataset;
 
   const _DatasetSourcePanel({
     required this.baseDatasetName,
@@ -337,7 +456,9 @@ class _DatasetSourcePanel extends StatelessWidget {
     required this.detectedColumns,
     required this.schemaStatus,
     required this.isUploading,
+    required this.selectedExistingDatasetId,
     required this.onChooseFile,
+    required this.onSelectExistingDataset,
   });
 
   @override
@@ -421,6 +542,121 @@ class _DatasetSourcePanel extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+
+          // Select existing uploaded dataset
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('datasets')
+                .where('status', isEqualTo: 'uploaded')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.mainBackground,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Loading existing datasets...',
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 12,
+                    ),
+                  ),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.mainBackground,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'No existing uploaded datasets found.',
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 12,
+                    ),
+                  ),
+                );
+              }
+
+              final docs = snapshot.data!.docs;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Select Existing Dataset',
+                    style: TextStyle(
+                      color: AppColors.primaryText,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedExistingDatasetId,
+                    dropdownColor: AppColors.cardBackground,
+                    style: const TextStyle(color: AppColors.primaryText),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppColors.mainBackground,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: AppColors.primaryPurple.withOpacity(0.25),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: AppColors.primaryPurple.withOpacity(0.25),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.primaryPurple,
+                        ),
+                      ),
+                    ),
+                    hint: const Text(
+                      'Choose previously uploaded CSV',
+                      style: TextStyle(color: AppColors.secondaryText),
+                    ),
+                    items: docs.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final name = data['name'] ?? doc.id;
+
+                      return DropdownMenuItem<String>(
+                        value: doc.id,
+                        child: Text(name, overflow: TextOverflow.ellipsis),
+                      );
+                    }).toList(),
+                    onChanged: (datasetId) {
+                      if (datasetId == null) return;
+
+                      final selectedDoc = docs.firstWhere(
+                        (doc) => doc.id == datasetId,
+                      );
+
+                      final data = selectedDoc.data() as Map<String, dynamic>;
+
+                      onSelectExistingDataset(datasetId, data);
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+
           const SizedBox(height: 16),
           Container(
             decoration: BoxDecoration(
@@ -669,7 +905,17 @@ class _DatasetPreviewPanel extends StatelessWidget {
 }
 
 class _TrainingConfigPanel extends StatelessWidget {
-  const _TrainingConfigPanel();
+  final String selectedModelType;
+  final String selectedMergeMode;
+  final ValueChanged<String> onModelChanged;
+  final ValueChanged<String> onMergeModeChanged;
+
+  const _TrainingConfigPanel({
+    required this.selectedModelType,
+    required this.selectedMergeMode,
+    required this.onModelChanged,
+    required this.onMergeModeChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -693,11 +939,108 @@ class _TrainingConfigPanel extends StatelessWidget {
           const SizedBox(height: 16),
           const _FieldLabel('Selected Model'),
           const SizedBox(height: 8),
-          const _FakeSelectField(value: 'Logistic Regression'),
+          DropdownButtonFormField<String>(
+            value: selectedModelType,
+            dropdownColor: AppColors.cardBackground,
+            style: const TextStyle(
+              color: AppColors.primaryText,
+              fontWeight: FontWeight.w600,
+            ),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: AppColors.mainBackground,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: AppColors.primaryPurple.withOpacity(0.25),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: AppColors.primaryPurple.withOpacity(0.25),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.primaryPurple),
+              ),
+            ),
+
+            items: const [
+              DropdownMenuItem<String>(
+                value: 'logistic_regression',
+                child: Text('Logistic Regression'),
+              ),
+              DropdownMenuItem<String>(
+                value: 'decision_tree',
+                child: Text('Decision Tree'),
+              ),
+
+              // Coming soon: backend Python file not added yet
+              DropdownMenuItem<String>(
+                value: 'xgboost',
+                child: Text('XGBoost'),
+              ),
+
+              // Coming soon: backend Python file not added yet
+              DropdownMenuItem<String>(
+                value: 'lightgbm',
+                child: Text('LightGBM'),
+              ),
+            ],
+
+            onChanged: (value) {
+              if (value == null) return;
+              onModelChanged(value);
+            },
+          ),
           const SizedBox(height: 14),
           const _FieldLabel('Dataset Merge Mode'),
           const SizedBox(height: 8),
-          const _FakeSelectField(value: 'Base Dataset + Uploaded Data'),
+          DropdownButtonFormField<String>(
+            value: selectedMergeMode,
+            dropdownColor: AppColors.cardBackground,
+            style: const TextStyle(
+              color: AppColors.primaryText,
+              fontWeight: FontWeight.w600,
+            ),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: AppColors.mainBackground,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: AppColors.primaryPurple.withOpacity(0.25),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: AppColors.primaryPurple.withOpacity(0.25),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.primaryPurple),
+              ),
+            ),
+            items: const [
+              DropdownMenuItem<String>(
+                value: 'base_only',
+                child: Text('Base Dataset Only'),
+              ),
+              DropdownMenuItem<String>(
+                value: 'base_plus_uploaded',
+                child: Text('Base Dataset + Uploaded Data'),
+              ),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              onMergeModeChanged(value);
+            },
+          ),
+
           const SizedBox(height: 14),
           const _FieldLabel('Feature Set'),
           const SizedBox(height: 8),
@@ -779,166 +1122,768 @@ class _TrainingConfigActions extends StatelessWidget {
 class _LatestModelResultsPanel extends StatelessWidget {
   const _LatestModelResultsPanel();
 
+  String _formatPercent(dynamic value) {
+    if (value == null) return '-';
+
+    final double number = (value as num).toDouble();
+    return '${(number * 100).toStringAsFixed(2)}%';
+  }
+
+  String _formatScore(dynamic value) {
+    if (value == null) return '-';
+
+    final double number = (value as num).toDouble();
+    return number.toStringAsFixed(4);
+  }
+
+  String _formatTimestamp(dynamic value) {
+    if (value == null) return '-';
+
+    if (value is Timestamp) {
+      final DateTime dateTime = value.toDate();
+      return dateTime.toString();
+    }
+
+    return value.toString();
+  }
+
+  Future<void> _deployLatestModel(
+    BuildContext context,
+    String modelVersionId,
+  ) async {
+    const String deployUrl =
+        'https://linksentry-training-backend-1071145926774.asia-southeast1.run.app/deploy-model';
+
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Deploying latest model...')),
+      );
+
+      final response = await http.post(
+        Uri.parse(deployUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'modelVersionId': modelVersionId}),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'Deploy failed ${response.statusCode}: ${response.body}',
+        );
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Model deployed successfully.')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Deploy failed: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return _Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Latest Model Results',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('model_versions')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _Panel(
+            child: Text(
+              'Loading latest model results...',
+              style: TextStyle(color: AppColors.secondaryText),
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Review the latest trained model metrics before deployment.',
-            style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final bool isWide = constraints.maxWidth > 900;
+          );
+        }
 
-              if (isWide) {
-                return const Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _MetricCard(
-                        title: 'Model Version',
-                        value: 'v1.2.0',
-                        icon: Icons.memory_outlined,
-                      ),
-                    ),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: _MetricCard(
-                        title: 'Accuracy',
-                        value: '82%',
-                        icon: Icons.analytics_outlined,
-                      ),
-                    ),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: _MetricCard(
-                        title: 'Precision',
-                        value: '0.79',
-                        icon: Icons.track_changes_outlined,
-                      ),
-                    ),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: _MetricCard(
-                        title: 'Recall',
-                        value: '0.76',
-                        icon: Icons.show_chart_outlined,
-                      ),
-                    ),
-                  ],
-                );
-              }
+        if (snapshot.hasError) {
+          return _Panel(
+            child: Text(
+              'Failed to load model results: ${snapshot.error}',
+              style: const TextStyle(color: Colors.redAccent),
+            ),
+          );
+        }
 
-              return const Column(
-                children: [
-                  _MetricCard(
-                    title: 'Model Version',
-                    value: 'v1.2.0',
-                    icon: Icons.memory_outlined,
-                  ),
-                  SizedBox(height: 12),
-                  _MetricCard(
-                    title: 'Accuracy',
-                    value: '82%',
-                    icon: Icons.analytics_outlined,
-                  ),
-                  SizedBox(height: 12),
-                  _MetricCard(
-                    title: 'Precision',
-                    value: '0.79',
-                    icon: Icons.track_changes_outlined,
-                  ),
-                  SizedBox(height: 12),
-                  _MetricCard(
-                    title: 'Recall',
-                    value: '0.76',
-                    icon: Icons.show_chart_outlined,
-                  ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.mainBackground,
-              borderRadius: BorderRadius.circular(14),
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const _Panel(
+            child: Text(
+              'No trained candidate models found yet.',
+              style: TextStyle(color: AppColors.secondaryText),
             ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _InfoRow(label: 'Last Trained', value: '12 Feb 2026'),
-                SizedBox(height: 10),
-                _InfoRow(label: 'Active Model', value: 'Logistic Regression'),
-                SizedBox(height: 10),
-                _InfoRow(label: 'Deployment Status', value: 'Current'),
-              ],
+          );
+        }
+
+        final List<QueryDocumentSnapshot> candidateDocs = snapshot.data!.docs
+            .where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return data['status'] == 'candidate';
+            })
+            .toList();
+
+        if (candidateDocs.isEmpty) {
+          return const _Panel(
+            child: Text(
+              'No candidate model available yet. Run training first.',
+              style: TextStyle(color: AppColors.secondaryText),
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
+          );
+        }
+
+        candidateDocs.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+
+          final DateTime aTime = aData['createdAt'] is Timestamp
+              ? (aData['createdAt'] as Timestamp).toDate()
+              : DateTime.fromMillisecondsSinceEpoch(0);
+
+          final DateTime bTime = bData['createdAt'] is Timestamp
+              ? (bData['createdAt'] as Timestamp).toDate()
+              : DateTime.fromMillisecondsSinceEpoch(0);
+
+          return bTime.compareTo(aTime);
+        });
+
+        final latestDoc = candidateDocs.first;
+        final data = latestDoc.data() as Map<String, dynamic>;
+
+        final String modelVersionId =
+            data['modelVersionId']?.toString() ?? latestDoc.id;
+        final String modelType = data['modelType']?.toString() ?? '-';
+        final String status = data['status']?.toString() ?? '-';
+        final String createdAt = _formatTimestamp(data['createdAt']);
+
+        final String confusionMatrixPath =
+            data['confusionMatrixPath']?.toString() ?? '';
+        final String metricsFilePath =
+            data['metricsFilePath']?.toString() ?? '';
+
+        return _Panel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: SizedBox(
-                  height: 46,
-                  child: OutlinedButton(
-                    onPressed: () {},
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(
-                        color: AppColors.primaryPurple.withOpacity(0.35),
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Compare Models',
-                      style: TextStyle(
-                        color: AppColors.primaryText,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+              const Text(
+                'Latest Model Results',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 46,
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryPurple,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 8),
+              const Text(
+                'Review the latest trained candidate model before deployment.',
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final bool isWide = constraints.maxWidth > 900;
+
+                  final cards = [
+                    _MetricCard(
+                      title: 'Model Version',
+                      value: modelVersionId,
+                      icon: Icons.memory_outlined,
+                    ),
+                    _MetricCard(
+                      title: 'Accuracy',
+                      value: _formatPercent(data['accuracy']),
+                      icon: Icons.analytics_outlined,
+                    ),
+                    _MetricCard(
+                      title: 'Macro Precision',
+                      value: _formatScore(data['macroPrecision']),
+                      icon: Icons.track_changes_outlined,
+                    ),
+                    _MetricCard(
+                      title: 'Macro Recall',
+                      value: _formatScore(data['macroRecall']),
+                      icon: Icons.show_chart_outlined,
+                    ),
+                    _MetricCard(
+                      title: 'Macro F1',
+                      value: _formatScore(data['macroF1']),
+                      icon: Icons.score_outlined,
+                    ),
+                  ];
+
+                  if (isWide) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (int i = 0; i < cards.length; i++) ...[
+                          Expanded(child: cards[i]),
+                          if (i != cards.length - 1) const SizedBox(width: 14),
+                        ],
+                      ],
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      for (int i = 0; i < cards.length; i++) ...[
+                        cards[i],
+                        if (i != cards.length - 1) const SizedBox(height: 12),
+                      ],
+                    ],
+                  );
+                },
+              ),
+
+              const SizedBox(height: 18),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.mainBackground,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _InfoRow(label: 'Created At', value: createdAt),
+                    const SizedBox(height: 10),
+                    _InfoRow(label: 'Model Type', value: modelType),
+                    const SizedBox(height: 10),
+                    _InfoRow(label: 'Candidate Status', value: status),
+                    const SizedBox(height: 10),
+                    _InfoRow(
+                      label: 'Model File',
+                      value: data['modelFilePath']?.toString() ?? '-',
+                    ),
+                    const SizedBox(height: 10),
+                    _InfoRow(
+                      label: 'Scaler File',
+                      value: data['scalerFilePath']?.toString() ?? '-',
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final bool isWide = constraints.maxWidth > 900;
+
+                  if (isWide) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _EvaluationImageCard(
+                            title: 'Confusion Matrix',
+                            storagePath: confusionMatrixPath,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _PerformanceSummaryTableCard(
+                            title: 'Performance Summary',
+                            metricsPath: metricsFilePath,
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      _EvaluationImageCard(
+                        title: 'Confusion Matrix',
+                        storagePath: confusionMatrixPath,
+                      ),
+                      const SizedBox(height: 16),
+                      _PerformanceSummaryTableCard(
+                        title: 'Performance Summary',
+                        metricsPath: metricsFilePath,
+                      ),
+                    ],
+                  );
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 46,
+                      child: OutlinedButton(
+                        onPressed: () {},
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(
+                            color: AppColors.primaryPurple.withOpacity(0.35),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Compare Models',
+                          style: TextStyle(
+                            color: AppColors.primaryText,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
-                    child: const Text(
-                      'Deploy Latest Model',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 46,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          await _deployLatestModel(context, modelVersionId);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryPurple,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Deploy Latest Model',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
-        ],
+        );
+      },
+    );
+  }
+}
+
+class _EvaluationImageCard extends StatelessWidget {
+  final String title;
+  final String storagePath;
+
+  const _EvaluationImageCard({required this.title, required this.storagePath});
+
+  Future<void> _showImageDialog(BuildContext context) async {
+    if (storagePath.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No image available.')));
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: AppColors.cardBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Container(
+            width: 900,
+            constraints: const BoxConstraints(maxHeight: 720),
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: AppColors.primaryText,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(
+                        Icons.close,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: FutureBuilder<Uint8List?>(
+                    future: FirebaseStorage.instance
+                        .ref(storagePath)
+                        .getData(5 * 1024 * 1024),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Text(
+                            'Failed to load image: ${snapshot.error}',
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 12,
+                            ),
+                          ),
+                        );
+                      }
+
+                      final imageBytes = snapshot.data;
+
+                      if (imageBytes == null) {
+                        return const Center(
+                          child: Text(
+                            'Image data is empty.',
+                            style: TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 12,
+                            ),
+                          ),
+                        );
+                      }
+
+                      return InteractiveViewer(
+                        minScale: 0.5,
+                        maxScale: 4.0,
+                        child: Center(
+                          child: Image.memory(imageBytes, fit: BoxFit.contain),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  storagePath,
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 10,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _showImageDialog(context),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.mainBackground,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.primaryPurple.withOpacity(0.25)),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.image_outlined,
+              color: AppColors.primaryPurple,
+              size: 26,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppColors.primaryText,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    storagePath.isEmpty
+                        ? 'No image available'
+                        : 'Click to preview image',
+                    style: const TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.open_in_full,
+              color: AppColors.secondaryText,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PerformanceSummaryTableCard extends StatelessWidget {
+  final String title;
+  final String metricsPath;
+
+  const _PerformanceSummaryTableCard({
+    required this.title,
+    required this.metricsPath,
+  });
+
+  Future<Map<String, dynamic>> _loadMetricsJson() async {
+    final Uint8List? bytes = await FirebaseStorage.instance
+        .ref(metricsPath)
+        .getData(2 * 1024 * 1024);
+
+    if (bytes == null) {
+      throw Exception('Metrics file is empty.');
+    }
+
+    final String jsonString = utf8.decode(bytes);
+    return jsonDecode(jsonString) as Map<String, dynamic>;
+  }
+
+  String _formatMetric(dynamic value) {
+    if (value == null) return '-';
+    if (value is num) return value.toStringAsFixed(4);
+    return value.toString();
+  }
+
+  String _formatSupport(dynamic value) {
+    if (value == null) return '-';
+    if (value is num) return value.toInt().toString();
+    return value.toString();
+  }
+
+  Future<void> _showMetricsDialog(BuildContext context) async {
+    if (metricsPath.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No metrics file available.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: AppColors.cardBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Container(
+            width: 900,
+            constraints: const BoxConstraints(maxHeight: 720),
+            padding: const EdgeInsets.all(18),
+            child: FutureBuilder<Map<String, dynamic>>(
+              future: _loadMetricsJson(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox(
+                    height: 300,
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Text(
+                    'Failed to load metrics: ${snapshot.error}',
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 12,
+                    ),
+                  );
+                }
+
+                final metrics = snapshot.data!;
+                final report =
+                    metrics['classificationReport'] as Map<String, dynamic>?;
+
+                if (report == null) {
+                  return const Text(
+                    'classificationReport not found in metrics.json.',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 12),
+                  );
+                }
+
+                final classes = ['Safe', 'Suspicious', 'Phishing', 'Malware'];
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              color: AppColors.primaryText,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(
+                            Icons.close,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Overall Accuracy: ${_formatMetric(metrics['accuracy'])}',
+                      style: const TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Macro F1: ${_formatMetric(metrics['macroF1'])}',
+                      style: const TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        headingTextStyle: const TextStyle(
+                          color: AppColors.primaryText,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        dataTextStyle: const TextStyle(
+                          color: AppColors.secondaryText,
+                          fontSize: 12,
+                        ),
+                        columns: const [
+                          DataColumn(label: Text('Class')),
+                          DataColumn(label: Text('Precision')),
+                          DataColumn(label: Text('Recall')),
+                          DataColumn(label: Text('F1-score')),
+                          DataColumn(label: Text('Support')),
+                        ],
+                        rows: classes.map((className) {
+                          final classMetrics =
+                              report[className] as Map<String, dynamic>? ?? {};
+
+                          return DataRow(
+                            cells: [
+                              DataCell(Text(className)),
+                              DataCell(
+                                Text(_formatMetric(classMetrics['precision'])),
+                              ),
+                              DataCell(
+                                Text(_formatMetric(classMetrics['recall'])),
+                              ),
+                              DataCell(
+                                Text(_formatMetric(classMetrics['f1-score'])),
+                              ),
+                              DataCell(
+                                Text(_formatSupport(classMetrics['support'])),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+                    Text(
+                      metricsPath,
+                      style: const TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 10,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _showMetricsDialog(context),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.mainBackground,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.primaryPurple.withOpacity(0.25)),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.table_chart_outlined,
+              color: AppColors.primaryPurple,
+              size: 26,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppColors.primaryText,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    metricsPath.isEmpty
+                        ? 'No metrics file available'
+                        : 'Click to view performance table',
+                    style: const TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.open_in_full,
+              color: AppColors.secondaryText,
+              size: 18,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1102,10 +2047,7 @@ class _Panel extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
 
-  const _Panel({
-    required this.child,
-    this.padding,
-    });
+  const _Panel({required this.child, this.padding});
 
   @override
   Widget build(BuildContext context) {
