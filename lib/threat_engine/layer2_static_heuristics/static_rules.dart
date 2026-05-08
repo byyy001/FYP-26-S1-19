@@ -1,4 +1,7 @@
-// lib/threat_engine/layer2_static_heuristics/static_rules.dart
+// ============================================================================
+// static_rules.dart – Layer 2: Static Rule Engine + Heuristic Scoring + External Blacklists
+// FIXED: Async config loading with future, all methods defined.
+// ============================================================================
 import 'dart:math';
 import 'dart:io';
 import 'dart:convert';
@@ -12,6 +15,9 @@ import '../services/google_safe_browsing.dart';
 import '../services/virustotal.dart';
 import '../dynamic_config.dart';
 
+// --------------------------------------------------------------------------
+// Helper class to hold API keys
+// --------------------------------------------------------------------------
 class ApiKeys {
   static const String openPhishApiKey = '';
   static const String urlhausApiKey = '';
@@ -20,7 +26,7 @@ class ApiKeys {
 }
 
 // --------------------------------------------------------------------------
-// Dynamic Whitelist Manager (unchanged)
+// Dynamic Whitelist Manager (Cisco Umbrella Top 1 Million)
 // --------------------------------------------------------------------------
 class DynamicWhitelistManager {
   static DynamicWhitelistManager? _instance;
@@ -149,22 +155,24 @@ class DynamicWhitelistManager {
 }
 
 // --------------------------------------------------------------------------
-// Static Rule Engine (Fully dynamic)
+// Static Rule Engine (ASYNC INIT)
 // --------------------------------------------------------------------------
 class StaticRuleEngine {
-  // Cached dynamic values
-  late List<String> _suspiciousTlds;
-  late List<String> _phishingKeywords;
-  late List<String> _shorteners;
-  late Set<String> _staticTrustedDomains;
-  late bool _enableHomographCheck;
-  late bool _enableTyposquatting;
-  late bool _enableUnshorten;
-  late int _maxRedirectHops;
-  late int _newDomainDaysThreshold;
-  late int _pathDepthWarning;
-  late double _entropyThreshold;
-  late List<String> _enabledExternalSources;
+  // Nullable fields – loaded asynchronously
+  List<String>? _suspiciousTlds;
+  List<String>? _phishingKeywords;
+  List<String>? _shorteners;
+  Set<String>? _staticTrustedDomains;
+  bool? _enableHomographCheck;
+  bool? _enableTyposquatting;
+  bool? _enableUnshorten;
+  int? _maxRedirectHops;
+  int? _newDomainDaysThreshold;
+  int? _pathDepthWarning;
+  double? _entropyThreshold;
+  List<String>? _enabledExternalSources;
+
+  late final Future<void> _configLoaded;
 
   static Set<String>? _openPhishCache;
   static DateTime? _openPhishLastUpdate;
@@ -178,7 +186,11 @@ class StaticRuleEngine {
     this.settings, {
     List<String>? enabledExternalSources,
   }) {
-    _loadDynamicConfig(enabledExternalSources);
+    _configLoaded = _loadDynamicConfig(enabledExternalSources);
+  }
+
+  Future<void> _ensureConfigLoaded() async {
+    await _configLoaded;
   }
 
   Future<void> _loadDynamicConfig(List<String>? externalOverride) async {
@@ -229,25 +241,30 @@ class StaticRuleEngine {
     'youtube.com',
   };
 
+  // Core rule checks (async)
   Future<bool> get isSuspiciousTld async {
+    await _ensureConfigLoaded();
     final tld = features.tldSuffix;
-    final list = _suspiciousTlds.isNotEmpty ? _suspiciousTlds : _fallbackSuspiciousTlds;
+    final list = _suspiciousTlds ?? _fallbackSuspiciousTlds;
     return list.contains(tld);
   }
   
   Future<bool> get isShortener async {
+    await _ensureConfigLoaded();
     final url = features.url;
-    final list = _shorteners.isNotEmpty ? _shorteners : _fallbackShorteners;
+    final list = _shorteners ?? _fallbackShorteners;
     return list.any((s) => url.contains(s));
   }
   
   Future<bool> get isShortenerDomain async {
+    await _ensureConfigLoaded();
     final domain = features.domain;
-    final list = _shorteners.isNotEmpty ? _shorteners : _fallbackShorteners;
+    final list = _shorteners ?? _fallbackShorteners;
     return list.any((s) => domain.contains(s));
   }
 
   Future<bool> get isTrustedDomain async {
+    await _ensureConfigLoaded();
     final full = features.domain;
     if (full.isEmpty) return false;
     if (await isShortenerDomain) return false;
@@ -255,7 +272,7 @@ class StaticRuleEngine {
     final dynamicManager = await DynamicWhitelistManager.getInstance();
     if (await dynamicManager.contains(full)) return true;
 
-    final trustedSet = _staticTrustedDomains.isNotEmpty ? _staticTrustedDomains : _fallbackStaticTrustedDomains;
+    final trustedSet = _staticTrustedDomains ?? _fallbackStaticTrustedDomains;
     if (trustedSet.contains(full)) return true;
     for (final trusted in trustedSet) {
       if (full.endsWith('.$trusted') || full == trusted) return true;
@@ -264,9 +281,10 @@ class StaticRuleEngine {
   }
 
   Future<List<String>> findPhishingKeywords() async {
+    await _ensureConfigLoaded();
     final matches = <String>[];
     final lower = features.url.toLowerCase();
-    final keywords = _phishingKeywords.isNotEmpty ? _phishingKeywords : _fallbackPhishingKeywords;
+    final keywords = _phishingKeywords ?? _fallbackPhishingKeywords;
     for (final pattern in keywords) {
       if (RegExp(pattern).hasMatch(lower)) {
         matches.add(pattern.replaceAll(RegExp(r'\\.?'), ''));
@@ -282,13 +300,14 @@ class StaticRuleEngine {
     if (RegExp(r'//[^/]+//').hasMatch(features.url)) patterns.add('Double slash anomaly');
     if (RegExp(r'%[0-9a-f]{2}', caseSensitive: false).hasMatch(features.url)) patterns.add('Heavy URL encoding');
     if (RegExp(r'--').hasMatch(features.domain)) patterns.add('Punycode indicator');
-    final threshold = _entropyThreshold != 0 ? _entropyThreshold : 4.2;
+    final threshold = (_entropyThreshold != null) ? _entropyThreshold! : 4.2;
     if (features.entropy > threshold) patterns.add('High URL entropy detected');
     return patterns;
   }
 
   Future<String?> detectTyposquatting() async {
-    if (!_enableTyposquatting) return null;
+    await _ensureConfigLoaded();
+    if (_enableTyposquatting != true) return null;
     const brands = ['paypal', 'google', 'apple', 'microsoft', 'amazon'];
     final domain = features.domain.toLowerCase();
     for (final brand in brands) {
@@ -333,17 +352,19 @@ class StaticRuleEngine {
   }
 
   Future<double> _checkGoogleSafeBrowsing() async {
+    await _ensureConfigLoaded();
     if (settings != null && !settings!.useExternalApis) return 0.0;
-    if (!_enabledExternalSources.contains('google_sb')) return 0.0;
+    if (!(_enabledExternalSources?.contains('google_sb') ?? false)) return 0.0;
     final score = await GoogleSafeBrowsing.checkUrl(features.url);
     return score ?? 0.0;
   }
 
   Future<Map<String, dynamic>> _checkVirusTotal() async {
+    await _ensureConfigLoaded();
     if (settings != null && !settings!.useExternalApis) {
       return {'score': 0.0, 'details': null};
     }
-    if (!_enabledExternalSources.contains('virustotal')) {
+    if (!(_enabledExternalSources?.contains('virustotal') ?? false)) {
       return {'score': 0.0, 'details': null};
     }
     final result = await VirusTotal.checkUrl(features.url);
@@ -391,10 +412,11 @@ class StaticRuleEngine {
   }
 
   Future<Map<String, dynamic>> _checkOpenPhish() async {
+    await _ensureConfigLoaded();
     if (settings != null && !settings!.useExternalApis) {
       return {'score': 0.0, 'found': false, 'details': null};
     }
-    if (!_enabledExternalSources.contains('openphish')) {
+    if (!(_enabledExternalSources?.contains('openphish') ?? false)) {
       return {'score': 0.0, 'found': false, 'details': null};
     }
     try {
@@ -414,10 +436,11 @@ class StaticRuleEngine {
   }
 
   Future<Map<String, dynamic>> _checkURLhaus() async {
+    await _ensureConfigLoaded();
     if (settings != null && !settings!.useExternalApis) {
       return {'score': 0.0, 'found': false, 'details': null};
     }
-    if (!_enabledExternalSources.contains('urlhaus')) {
+    if (!(_enabledExternalSources?.contains('urlhaus') ?? false)) {
       return {'score': 0.0, 'found': false, 'details': null};
     }
     try {
@@ -455,8 +478,9 @@ class StaticRuleEngine {
   }
 
   Future<Map<String, dynamic>> _checkIpQualityScore() async {
+    await _ensureConfigLoaded();
     if (settings != null && !settings!.useExternalApis) return {'score': 0.0, 'details': null};
-    if (!_enabledExternalSources.contains('ipqs')) return {'score': 0.0, 'details': null};
+    if (!(_enabledExternalSources?.contains('ipqs') ?? false)) return {'score': 0.0, 'details': null};
     if (ApiKeys.ipQualityScoreApiKey.isEmpty) return {'score': 0.0, 'details': null};
     try {
       final url = Uri.parse('https://ipqualityscore.com/api/json/url/${ApiKeys.ipQualityScoreApiKey}/${Uri.encodeComponent(features.url)}');
@@ -484,8 +508,9 @@ class StaticRuleEngine {
   }
 
   Future<Map<String, dynamic>> _checkWhoisAPI() async {
+    await _ensureConfigLoaded();
     if (settings != null && !settings!.useExternalApis) return {'score': 0.0, 'details': null};
-    if (!_enabledExternalSources.contains('whois')) return {'score': 0.0, 'details': null};
+    if (!(_enabledExternalSources?.contains('whois') ?? false)) return {'score': 0.0, 'details': null};
     if (ApiKeys.whoisApiKey.isEmpty) return {'score': 0.0, 'details': null};
     final domain = features.domain;
     if (domain.isEmpty) return {'score': 0.0, 'details': null};
@@ -506,13 +531,14 @@ class StaticRuleEngine {
       if (createdDateStr == null) return {'score': 0.0, 'details': null};
       final created = DateTime.parse(createdDateStr);
       final ageDays = DateTime.now().difference(created).inDays;
-      print('WhoisAPI: Domain age $ageDays days (${ageDays < _newDomainDaysThreshold ? "new" : "established"})');
-      if (ageDays < _newDomainDaysThreshold) {
+      final threshold = _newDomainDaysThreshold ?? 30;
+      print('WhoisAPI: Domain age $ageDays days (${ageDays < threshold ? "new" : "established"})');
+      if (ageDays < threshold) {
         return {
           'score': 0.8,
           'details': {
             'age_days': ageDays,
-            'warning': 'Domain registered less than $_newDomainDaysThreshold days ago ($ageDays days)',
+            'warning': 'Domain registered less than $threshold days ago ($ageDays days)',
           }
         };
       }
@@ -527,7 +553,8 @@ class StaticRuleEngine {
   }
 
   Future<String?> _expandShortener(String url) async {
-    if (!_enableUnshorten) return null;
+    await _ensureConfigLoaded();
+    if (_enableUnshorten != true) return null;
     try {
       final client = HttpClient()
         ..autoUncompress = true
@@ -537,7 +564,9 @@ class StaticRuleEngine {
       final finalUrl = response.headers.value('location');
       client.close();
       if (finalUrl != null && finalUrl != url) return finalUrl;
-    } catch (e) {}
+    } catch (e) {
+      // ignore
+    }
     return null;
   }
 
@@ -545,6 +574,7 @@ class StaticRuleEngine {
   // Main external check
   // --------------------------------------------------------------------------
   Future<Map<String, dynamic>> checkExternalBlacklists() async {
+    await _ensureConfigLoaded();
     double maxScore = 0.0;
     final sources = <String>[];
     final details = <String, dynamic>{};
@@ -609,6 +639,7 @@ class StaticRuleEngine {
   // Public API: Run full static + heuristic analysis
   // --------------------------------------------------------------------------
   Future<List<Map<String, dynamic>>> analyzeSync() async {
+    await _ensureConfigLoaded();
     final threats = <Map<String, dynamic>>[];
     if (await isTrustedDomain) return threats;
 
@@ -693,7 +724,7 @@ class StaticRuleEngine {
     }
 
     final domain = features.domain;
-    if (_enableHomographCheck && domain.contains(RegExp(r'[^\x00-\x7F]'))) {
+    if (_enableHomographCheck == true && domain.contains(RegExp(r'[^\x00-\x7F]'))) {
       threats.add({
         'type': 'homograph_attack',
         'severity': 'high',
