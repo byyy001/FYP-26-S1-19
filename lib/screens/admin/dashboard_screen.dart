@@ -1185,6 +1185,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
               width: _isSidebarCollapsed ? 72 : 280,
+              clipBehavior: Clip.hardEdge,
               decoration: BoxDecoration(
                 color: AppColors.mainBackground,
                 border: Border(right: BorderSide(color: AppColors.divider.withValues(alpha: 0.3), width: 1)),
@@ -1193,23 +1194,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 crossAxisAlignment: _isSidebarCollapsed ? CrossAxisAlignment.center : CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 24),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: _isSidebarCollapsed ? 12 : 20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        if (!_isSidebarCollapsed)
+                  if (_isSidebarCollapsed)
+                    Center(
+                      child: IconButton(
+                        icon: const Icon(Icons.menu_open, color: AppColors.secondaryText),
+                        onPressed: () => setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
+                        tooltip: 'Expand sidebar',
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
                           Image.asset('assets/images/LinkSentryLogoTop.png', height: 48, fit: BoxFit.contain),
-                        if (_isSidebarCollapsed)
-                          const Icon(Icons.shield_outlined, color: AppColors.primaryPurple, size: 32),
-                        IconButton(
-                          icon: Icon(_isSidebarCollapsed ? Icons.menu_open : Icons.menu, color: AppColors.secondaryText),
-                          onPressed: () => setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
-                          tooltip: _isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar',
-                        ),
-                      ],
+                          IconButton(
+                            icon: const Icon(Icons.menu, color: AppColors.secondaryText),
+                            onPressed: () => setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
+                            tooltip: 'Collapse sidebar',
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 32),
                   _buildNavItem(icon: Icons.dashboard_outlined, label: 'Dashboard', index: 0),
                   _buildNavItem(icon: Icons.people_outline, label: 'User Management', index: 1),
@@ -1329,10 +1336,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                   ),
                   Expanded(
-                    child: IndexedStack(
-                      index: _selectedIndex,
-                      children: _screens,
-                    ),
+                    child: _screens[_selectedIndex],
                   ),
                 ],
               ),
@@ -1352,32 +1356,46 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Tooltip(
       message: _isSidebarCollapsed ? label : '',
       waitDuration: const Duration(milliseconds: 500),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Material(
+          color: isSelected
+              ? AppColors.primaryPurple.withValues(alpha: 0.12)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          color: isSelected ? AppColors.primaryPurple.withValues(alpha: 0.12) : Colors.transparent,
-        ),
-        child: ListTile(
-          leading: Icon(
-            icon,
-            color: isSelected ? AppColors.primaryPurple : AppColors.secondaryText,
-          ),
-          title: _isSidebarCollapsed
-              ? null
-              : Text(
-                  label,
-                  style: TextStyle(
-                    color: isSelected ? AppColors.primaryText : AppColors.secondaryText,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => setState(() => _selectedIndex = index),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: _isSidebarCollapsed ? 8 : 12,
+                vertical: 10,
+              ),
+              child: Row(
+                mainAxisAlignment: _isSidebarCollapsed
+                    ? MainAxisAlignment.center
+                    : MainAxisAlignment.start,
+                children: [
+                  Icon(
+                    icon,
+                    color: isSelected ? AppColors.primaryPurple : AppColors.secondaryText,
                   ),
-                ),
-          onTap: () => setState(() => _selectedIndex = index),
-          dense: true,
-          horizontalTitleGap: _isSidebarCollapsed ? 0 : 12,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: _isSidebarCollapsed ? 0 : 16,
-            vertical: 8,
+                  if (!_isSidebarCollapsed) ...[
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: isSelected ? AppColors.primaryText : AppColors.secondaryText,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),

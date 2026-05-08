@@ -1,6 +1,7 @@
 // lib/screens/admin/security_management_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../constants/app_colors.dart';
 
@@ -67,6 +68,9 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
   Future<void> _loadConfig() async {
     setState(() => _isLoading = true);
     try {
+      final user = await FirebaseAuth.instance.authStateChanges().first;
+      if (user == null || !mounted) return;
+
       final doc = await FirebaseFirestore.instance
           .collection('app_config')
           .doc('threat_engine')
@@ -209,75 +213,68 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
       body: SafeArea(
-        child: Row(
+        child: Column(
           children: [
-            const _AdminSidebar(),
-            Expanded(
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Security Management',
-                          style: TextStyle(color: AppColors.primaryText, fontSize: 28, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Manage all dynamic threat engine settings.',
-                          style: TextStyle(color: AppColors.secondaryText, fontSize: 14),
-                        ),
-                        const SizedBox(height: 20),
-                        TabBar(
-                          controller: _tabController,
-                          isScrollable: true,
-                          labelColor: AppColors.primaryPurple,
-                          unselectedLabelColor: AppColors.secondaryText,
-                          indicatorColor: AppColors.primaryPurple,
-                          tabs: const [
-                            Tab(text: 'Categories & Rules'),
-                            Tab(text: 'Thresholds'),
-                            Tab(text: 'Black/White Lists'),
-                            Tab(text: 'Keywords & Shorteners'),
-                            Tab(text: 'External & Fusion'),
-                          ],
-                        ),
-                      ],
-                    ),
+                  const Text(
+                    'Security Management',
+                    style: TextStyle(color: AppColors.primaryText, fontSize: 28, fontWeight: FontWeight.bold),
                   ),
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildCategoriesAndRulesTab(),
-                        _buildThresholdsTab(),
-                        _buildBlackWhiteListsTab(),
-                        _buildKeywordsShortenersTab(),
-                        _buildExternalFusionTab(),
-                      ],
-                    ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Manage all dynamic threat engine settings.',
+                    style: TextStyle(color: AppColors.secondaryText, fontSize: 14),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: _isSaving ? null : _saveConfig,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryPurple,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Save Configuration', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                      ),
-                    ),
+                  const SizedBox(height: 20),
+                  TabBar(
+                    controller: _tabController,
+                    isScrollable: true,
+                    labelColor: AppColors.primaryPurple,
+                    unselectedLabelColor: AppColors.secondaryText,
+                    indicatorColor: AppColors.primaryPurple,
+                    tabs: const [
+                      Tab(text: 'Categories & Rules'),
+                      Tab(text: 'Thresholds'),
+                      Tab(text: 'Black/White Lists'),
+                      Tab(text: 'Keywords & Shorteners'),
+                      Tab(text: 'External & Fusion'),
+                    ],
                   ),
                 ],
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildCategoriesAndRulesTab(),
+                  _buildThresholdsTab(),
+                  _buildBlackWhiteListsTab(),
+                  _buildKeywordsShortenersTab(),
+                  _buildExternalFusionTab(),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isSaving ? null : _saveConfig,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryPurple,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: _isSaving
+                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Save Configuration', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                ),
               ),
             ),
           ],
@@ -781,187 +778,6 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
           },
         ),
       ],
-    );
-  }
-}
-
-// ==================== SIDEBAR WIDGET ====================
-class _AdminSidebar extends StatelessWidget {
-  const _AdminSidebar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 260,
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border(
-          right: BorderSide(
-            color: AppColors.primaryPurple.withAlpha(45),
-          ),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: AppColors.premiumGradient,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.shield_outlined,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'LinkSentry Admin',
-                    style: TextStyle(
-                      color: AppColors.primaryText,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 28),
-            _SidebarItem(
-              icon: Icons.dashboard_outlined,
-              label: 'Dashboard',
-              selected: false,
-            ),
-            _SidebarItem(
-              icon: Icons.people_outline,
-              label: 'User Management',
-              selected: false,
-            ),
-            _SidebarItem(
-              icon: Icons.security_outlined,
-              label: 'Security Management',
-              selected: true,
-            ),
-            _SidebarItem(
-              icon: Icons.analytics_outlined,
-              label: 'Scan Statistics',
-              selected: false,
-            ),
-            _SidebarItem(
-              icon: Icons.storage_outlined,
-              label: 'Database Management',
-              selected: false,
-            ),
-            _SidebarItem(
-              icon: Icons.flag_outlined,
-              label: 'Flagged Reviews',
-              selected: false,
-            ),
-            const Spacer(),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              decoration: BoxDecoration(
-                color: AppColors.mainBackground,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: AppColors.primaryPurple.withAlpha(45),
-                ),
-              ),
-              child: const Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.white24,
-                    child: Icon(Icons.person_outline, color: Colors.white),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Admin User',
-                          style: TextStyle(
-                            color: AppColors.primaryText,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'admin@linksentry.com',
-                          style: TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.logout, color: AppColors.secondaryText, size: 20),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SidebarItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-
-  const _SidebarItem({
-    required this.icon,
-    required this.label,
-    this.selected = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: selected
-            ? AppColors.primaryPurple.withAlpha(35)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        border: selected
-            ? Border.all(color: AppColors.primaryPurple.withAlpha(80))
-            : null,
-      ),
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: selected
-              ? AppColors.primaryPurple
-              : AppColors.secondaryText,
-        ),
-        title: Text(
-          label,
-          style: TextStyle(
-            color: selected
-                ? AppColors.primaryText
-                : AppColors.secondaryText,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-        onTap: () {
-          // Navigation would be handled by the parent widget.
-        },
-      ),
     );
   }
 }

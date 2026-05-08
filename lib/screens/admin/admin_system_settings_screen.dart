@@ -9,214 +9,30 @@ class SystemSettingsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
       body: SafeArea(
-        child: Row(
-          children: [
-            const _AdminSidebar(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1000),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _TopHeader(),
-                        const SizedBox(height: 10),
-                        const _PageTitleSection(),
-                        const SizedBox(height: 18),
-                        const _SystemConfigCard(),
-                        const SizedBox(height: 16),
-                        const _SystemPerformanceCard(),
-                        const SizedBox(height: 16),
-                        const _SystemUpdatesCard(),
-                        const SizedBox(height: 16),
-                        const _SystemBackupsCard(),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminSidebar extends StatelessWidget {
-  const _AdminSidebar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 260,
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border(
-          right: BorderSide(
-            color: AppColors.primaryPurple.withAlpha(45),
-          ),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: AppColors.premiumGradient,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.shield_outlined,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'LinkSentry Admin',
-                    style: TextStyle(
-                      color: AppColors.primaryText,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 28),
-            const _SidebarItem(
-              icon: Icons.dashboard_outlined,
-              label: 'Dashboard',
-            ),
-            const _SidebarItem(
-              icon: Icons.people_outline,
-              label: 'User Management',
-            ),
-            const _SidebarItem(
-              icon: Icons.security_outlined,
-              label: 'Security Management',
-            ),
-            const _SidebarItem(
-              icon: Icons.analytics_outlined,
-              label: 'Scan Statistics',
-            ),
-            const _SidebarItem(
-              icon: Icons.storage_outlined,
-              label: 'Database Management',
-            ),
-            const _SidebarItem(
-              icon: Icons.flag_outlined,
-              label: 'Flagged Reviews',
-            ),
-            const _SidebarItem(
-              icon: Icons.settings_outlined,
-              label: 'System Settings',
-              selected: true,
-            ),
-            const Spacer(),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              decoration: BoxDecoration(
-                color: AppColors.mainBackground,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: AppColors.primaryPurple.withAlpha(45),
-                ),
-              ),
-              child: const Row(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1000),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.white24,
-                    child: Icon(Icons.person_outline, color: Colors.white),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Admin User',
-                          style: TextStyle(
-                            color: AppColors.primaryText,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'admin@linksentry.com',
-                          style: TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.logout, color: AppColors.secondaryText, size: 20),
+                  _TopHeader(),
+                  SizedBox(height: 10),
+                  _PageTitleSection(),
+                  SizedBox(height: 18),
+                  _SystemConfigCard(),
+                  SizedBox(height: 16),
+                  _SystemPerformanceCard(),
+                  SizedBox(height: 16),
+                  _SystemUpdatesCard(),
+                  SizedBox(height: 16),
+                  _SystemBackupsCard(),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SidebarItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-
-  const _SidebarItem({
-    required this.icon,
-    required this.label,
-    this.selected = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: selected
-            ? AppColors.primaryPurple.withAlpha(35)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        border: selected
-            ? Border.all(color: AppColors.primaryPurple.withAlpha(80))
-            : null,
-      ),
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: selected
-              ? AppColors.primaryPurple
-              : AppColors.secondaryText,
-        ),
-        title: Text(
-          label,
-          style: TextStyle(
-            color: selected
-                ? AppColors.primaryText
-                : AppColors.secondaryText,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
-        onTap: () {},
       ),
     );
   }
