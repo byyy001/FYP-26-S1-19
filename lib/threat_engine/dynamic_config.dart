@@ -1,4 +1,3 @@
-// lib/threat_engine/dynamic_config.dart
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,17 +6,15 @@ class DynamicConfig {
   static DynamicConfig? _instance;
   late Map<String, dynamic> _config;
   bool _loaded = false;
+  late Future<void> _initialization;
 
-  // Full hardcoded defaults (your current engine values for all 10 categories)
   static const Map<String, dynamic> _defaults = {
-    // 1. Threat categories (from TC_A_3.1)
     'threat_categories': [
       {'name': 'benign', 'enabled': true, 'min_score': 0, 'max_score': 24},
       {'name': 'phishing', 'enabled': true, 'min_score': 50, 'max_score': 100},
       {'name': 'malware', 'enabled': true, 'min_score': 75, 'max_score': 100},
       {'name': 'defacement', 'enabled': true, 'min_score': 50, 'max_score': 100},
     ],
-    // 2. Security rules (TC_A_3.1)
     'security_rules': {
       'enable_homograph_check': true,
       'enable_typosquatting': true,
@@ -27,23 +24,17 @@ class DynamicConfig {
       'path_depth_warning': 3,
       'entropy_threshold': 4.2,
     },
-    // 3. Ad-intensity threshold (TC_A_6.1)
     'ad_intensity_threshold': 0.5,
-    // 4. Tracker detection keywords (TC_A_6.1)
     'tracker_detection_keywords': [
       'googleadservices', 'doubleclick', 'googlesyndication', 'adservice',
       'adserver', 'adunit', 'advertisement', 'sponsored', 'popunder', 'popup', 'adsbygoogle'
     ],
-    // 5. Global blacklist (TC_A_8.1)
     'global_blacklist': [],
-    // 6. Global whitelist (TC_A_8.1)
     'global_whitelist': [
       'google.com', 'microsoft.com', 'apple.com', 'amazon.com', 'paypal.com',
       'facebook.com', 'twitter.com', 'linkedin.com', 'github.com', 'zoom.us',
     ],
-    // 7. Suspicious TLDs (new)
     'suspicious_tlds': ['tk', 'xyz', 'top', 'club', 'work', 'date', 'stream', 'gq', 'ml', 'cf', 'ga', 'ru', 'cn', 'pw', 'cc', 'bid', 'trade', 'webcam', 'science'],
-    // 8. Phishing keywords (new)
     'phishing_keywords': [
       r'verify', r'account', r'banking', r'secure', r'login', r'signin',
       r'update', r'confirm', r'password', r'credential', r'paypal', r'apple',
@@ -51,9 +42,7 @@ class DynamicConfig {
       r'seed.?phrase', r'private.?key', r'mnemonic', r'airdrop', r'free.?crypto',
       r'double.?your.?money', r'urgent.?action', r'verify.?wallet', r'connect.?wallet'
     ],
-    // 9. URL shorteners (new)
     'url_shorteners': ['bit.ly', 'tinyurl', 'goo.gl', 'ow.ly', 'is.gd', 'buff.ly', 'short.link'],
-    // 10. External API toggles & fusion weights (optional extras)
     'enabled_external_sources': ['google_sb', 'virustotal', 'openphish', 'urlhaus', 'ipqs', 'whois'],
     'fusion_weights': {
       'static': 0.35,
@@ -65,19 +54,19 @@ class DynamicConfig {
   };
 
   DynamicConfig._() {
-    _config = Map.from(_defaults);
+    _initialization = _load();
   }
 
   static Future<DynamicConfig> getInstance() async {
     if (_instance == null) {
       _instance = DynamicConfig._();
-      await _instance!._load();
+      await _instance!._initialization;
     }
     return _instance!;
   }
 
   Future<void> _load() async {
-    // 1. Try Firestore
+    // 1. Try Firestore (direct, always fresh)
     try {
       final doc = await FirebaseFirestore.instance
           .collection('app_config')
@@ -86,32 +75,40 @@ class DynamicConfig {
           .timeout(const Duration(seconds: 3));
       if (doc.exists) {
         final data = doc.data()!;
+        print("✅ DynamicConfig: Loaded from Firestore");
+        print("   global_blacklist: ${data['global_blacklist']}");
         _config = Map<String, dynamic>.from(_defaults);
         _config.addAll(data);
-        await _saveToCache();
         _loaded = true;
+        await _saveToCache();
         return;
+      } else {
+        print("⚠️ Firestore document does not exist, using defaults");
       }
     } catch (e) {
-      print('DynamicConfig: Firestore fetch failed: $e');
+      print("❌ DynamicConfig: Firestore fetch failed: $e");
     }
 
-    // 2. Try cache
+    // 2. Fallback to cache (only if Firestore fails)
     try {
       final prefs = await SharedPreferences.getInstance();
       final cached = prefs.getString('threat_engine_config');
       if (cached != null) {
         final Map<String, dynamic> cachedMap = jsonDecode(cached);
+        print("✅ DynamicConfig: Loaded from cache");
+        print("   global_blacklist: ${cachedMap['global_blacklist']}");
         _config = Map<String, dynamic>.from(_defaults);
         _config.addAll(cachedMap);
         _loaded = true;
         return;
       }
     } catch (e) {
-      print('DynamicConfig: Cache load failed: $e');
+      print("❌ DynamicConfig: Cache load failed: $e");
     }
 
-    // 3. Fallback to defaults (already set)
+    // 3. Defaults
+    print("⚠️ DynamicConfig: Using hardcoded defaults");
+    _config = Map.from(_defaults);
     _loaded = true;
   }
 
@@ -120,11 +117,11 @@ class DynamicConfig {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('threat_engine_config', jsonEncode(_config));
     } catch (e) {
-      print('DynamicConfig: Failed to save cache: $e');
+      print("❌ DynamicConfig: Failed to save cache: $e");
     }
   }
 
-  // Public getters for all 10 categories
+  // Getters (no extra checks needed because _initialization ensures load)
   List<Map<String, dynamic>> get threatCategories =>
       List<Map<String, dynamic>>.from(_config['threat_categories'] ?? []);
   Map<String, dynamic> get securityRules =>
@@ -148,7 +145,6 @@ class DynamicConfig {
   Map<String, dynamic> get fusionWeights =>
       Map<String, dynamic>.from(_config['fusion_weights'] ?? {});
 
-  // Convenience helpers
   bool get enableHomographCheck => securityRules['enable_homograph_check'] ?? true;
   bool get enableTyposquatting => securityRules['enable_typosquatting'] ?? true;
   bool get enableUnshorten => securityRules['enable_unshorten'] ?? true;

@@ -1,6 +1,6 @@
 // ============================================================================
 // hybrid_engine.dart – Layer 4: Threat Scoring & Intelligent Fusion (Final)
-// WITH GLOBAL BLACKLIST / WHITELIST CHECKS
+// WITH DIRECT DYNAMIC CONFIG FETCH (FIXED BLACKLIST)
 // ============================================================================
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
@@ -25,7 +25,6 @@ class HybridEngine {
   final BehaviorEngine? behaviorEngine;
   final RuleBasedAIEngine? aiEngine;
   final StandardScaler _scaler;
-  late final DynamicConfig _config;
 
   static const List<String> _classNames = ['benign', 'defacement', 'phishing', 'malware'];
 
@@ -37,35 +36,32 @@ class HybridEngine {
     this.lightGBM,
     this.behaviorEngine,
     this.aiEngine,
-  }) : _scaler = scaler {
-    _loadConfig();
-  }
-
-  Future<void> _loadConfig() async {
-    _config = await DynamicConfig.getInstance();
-  }
+  }) : _scaler = scaler;
 
   Future<Map<String, dynamic>> analyze(
     String url, {
     required ScanSettings settings,
     required Map<String, dynamic> externalResult,
   }) async {
-    // Ensure config is loaded
-    if (_config == null) await _loadConfig();
+    // ----------------------------------------------------------------------
+    // 1. LOAD DYNAMIC CONFIG (always fresh)
+    // ----------------------------------------------------------------------
+    final config = await DynamicConfig.getInstance();
+    print("✅ Config loaded. Blacklist: ${config.globalBlacklist}");
 
     // ----------------------------------------------------------------------
-    // GLOBAL BLACKLIST / WHITELIST CHECKS (HIGHEST PRIORITY)
+    // 2. GLOBAL BLACKLIST / WHITELIST CHECKS (HIGHEST PRIORITY)
     // ----------------------------------------------------------------------
     final features = UrlFeatures(url);
     final domain = features.domain;
-    final blacklist = _config.globalBlacklist;
-    final whitelist = _config.globalWhitelist;
+    final blacklist = config.globalBlacklist;
+    final whitelist = config.globalWhitelist;
 
     // Check blacklist first
     bool isBlacklisted = blacklist.contains(domain) ||
         blacklist.any((bl) => domain == bl || domain.endsWith('.$bl'));
     if (isBlacklisted) {
-      print("🚫 BLACKLIST: $domain is globally blacklisted");
+      print("🚫 BLACKLIST HIT: $domain is in global blacklist");
       return _buildBlacklistResult(url);
     }
 
@@ -73,21 +69,28 @@ class HybridEngine {
     bool isWhitelisted = whitelist.contains(domain) ||
         whitelist.any((wl) => domain == wl || domain.endsWith('.$wl'));
     if (isWhitelisted) {
-      print("✅ WHITELIST: $domain is globally whitelisted");
+      print("✅ WHITELIST HIT: $domain is in global whitelist");
       return _buildWhitelistResult(url);
     }
 
-    // Continue with normal scan
+    // ----------------------------------------------------------------------
+    // 3. FREE USER EARLY EXIT (if external already malicious)
+    // ----------------------------------------------------------------------
     if (!settings.isPremium && externalResult['is_malicious'] == true) {
       return _buildFreeEarlyExit(url, externalResult);
     }
 
+    // ----------------------------------------------------------------------
+    // 4. STATIC RULE ENGINE
+    // ----------------------------------------------------------------------
     final staticEngine = StaticRuleEngine(features, settings);
     if (await staticEngine.isTrustedDomain) {
       return _buildSafeResult(url);
     }
 
-    // Redirect chain analysis (using dynamic max hops)
+    // ----------------------------------------------------------------------
+    // 5. REDIRECT CHAIN ANALYSIS (uses config.maxRedirectHops)
+    // ----------------------------------------------------------------------
     Map<String, dynamic>? redirectResult;
     List<String> redirectChain = [];
     String finalUrl = url;
@@ -95,7 +98,7 @@ class HybridEngine {
     String redirectThreatDesc = '';
 
     if (settings.deepScan) {
-      redirectResult = await _analyzeRedirectChain(url, settings);
+      redirectResult = await _analyzeRedirectChain(url, settings, config);
       redirectChain = List<String>.from(redirectResult['chain'] ?? []);
       finalUrl = redirectResult['final_url'] ?? url;
       redirectMalicious = redirectResult['is_malicious'] ?? false;
@@ -127,7 +130,7 @@ class HybridEngine {
     }
 
     // Use dynamic new domain threshold
-    final newDomainThreshold = _config.newDomainDaysThreshold;
+    final newDomainThreshold = config.newDomainDaysThreshold;
     if (externalResult.containsKey('details')) {
       final details = externalResult['details'] as Map<String, dynamic>;
       if (details.containsKey('whois')) {
@@ -401,10 +404,14 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Redirect chain analysis (now uses dynamic max hops)
+  // Redirect chain analysis (uses config)
   // --------------------------------------------------------------------------
-  Future<Map<String, dynamic>> _analyzeRedirectChain(String startUrl, ScanSettings settings) async {
-    final maxHops = _config.maxRedirectHops;
+  Future<Map<String, dynamic>> _analyzeRedirectChain(
+    String startUrl,
+    ScanSettings settings,
+    DynamicConfig config,
+  ) async {
+    final maxHops = config.maxRedirectHops;
     List<String> chain = [startUrl];
     String currentUrl = startUrl;
     bool isMalicious = false;
@@ -533,7 +540,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Free user early exit (unchanged)
+  // Free user early exit
   // --------------------------------------------------------------------------
   Map<String, dynamic> _buildFreeEarlyExit(String url, Map<String, dynamic> external) {
     final score = (external['score'] as double? ?? 0.0) * 100;
@@ -552,7 +559,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Beginner guidance helpers (unchanged)
+  // Beginner guidance helpers
   // --------------------------------------------------------------------------
   String _getBeginnerGuidance(String threatType, String severity, String mlConfidence) {
     if (threatType == 'benign') return 'This link appears safe to open.';
@@ -696,7 +703,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Dynamic actions and safety tips (unchanged)
+  // Dynamic actions and safety tips
   // --------------------------------------------------------------------------
   Map<String, dynamic> _getDynamicActionsAndTips({
     required String threatType,
@@ -841,7 +848,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Behavior pattern categorization (unchanged)
+  // Behavior pattern categorization
   // --------------------------------------------------------------------------
   Map<String, dynamic> _categorizeBehaviorPatterns(List<String> patterns) {
     final Map<String, List<String>> categories = {
