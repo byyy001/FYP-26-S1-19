@@ -1,5 +1,6 @@
 // ============================================================================
 // hybrid_engine.dart – Layer 4: Threat Scoring & Intelligent Fusion (Final)
+// WITH GLOBAL BLACKLIST / WHITELIST CHECKS
 // ============================================================================
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
@@ -49,15 +50,38 @@ class HybridEngine {
     required ScanSettings settings,
     required Map<String, dynamic> externalResult,
   }) async {
-    // Config is already loaded in constructor, no need to check null.
+    // Ensure config is loaded
+    if (_config == null) await _loadConfig();
 
+    // ----------------------------------------------------------------------
+    // GLOBAL BLACKLIST / WHITELIST CHECKS (HIGHEST PRIORITY)
+    // ----------------------------------------------------------------------
+    final features = UrlFeatures(url);
+    final domain = features.domain;
+    final blacklist = _config.globalBlacklist;
+    final whitelist = _config.globalWhitelist;
+
+    // Check blacklist first
+    bool isBlacklisted = blacklist.contains(domain) ||
+        blacklist.any((bl) => domain == bl || domain.endsWith('.$bl'));
+    if (isBlacklisted) {
+      print("🚫 BLACKLIST: $domain is globally blacklisted");
+      return _buildBlacklistResult(url);
+    }
+
+    // Then check whitelist
+    bool isWhitelisted = whitelist.contains(domain) ||
+        whitelist.any((wl) => domain == wl || domain.endsWith('.$wl'));
+    if (isWhitelisted) {
+      print("✅ WHITELIST: $domain is globally whitelisted");
+      return _buildWhitelistResult(url);
+    }
+
+    // Continue with normal scan
     if (!settings.isPremium && externalResult['is_malicious'] == true) {
       return _buildFreeEarlyExit(url, externalResult);
     }
 
-    final features = UrlFeatures(url);
-    
-    // ✅ FIX: Pass settings as second positional argument
     final staticEngine = StaticRuleEngine(features, settings);
     if (await staticEngine.isTrustedDomain) {
       return _buildSafeResult(url);
@@ -87,12 +111,12 @@ class HybridEngine {
         }
       }
     }
-    
+
     final rawVector = features.toFeatureVector();
     final scaledVector = _scaler.transform(rawVector);
 
     List<Map<String, dynamic>> staticThreats = await staticEngine.analyzeSync();
-    
+
     if (redirectMalicious && redirectThreatDesc.isNotEmpty) {
       staticThreats.add({
         'type': 'malicious_redirect',
@@ -119,12 +143,11 @@ class HybridEngine {
         }
       }
     }
-    
-    // Fallback: add generic external threat for moderate to high external scores
+
     final externalScoreRaw = (externalResult['score'] as double?) ?? 0.0;
     final externalSourcesRaw = externalResult['sources'] as List? ?? [];
     final List<String> externalSourcesList = externalSourcesRaw.cast<String>();
-    
+
     if (staticThreats.isEmpty && externalScoreRaw >= 0.5) {
       staticThreats.add({
         'type': 'external_flag',
@@ -406,9 +429,8 @@ class HybridEngine {
 
       final finalUrl = currentUrl;
       final finalFeatures = UrlFeatures(finalUrl);
-      // ✅ FIX: Pass settings as second argument
       final staticEngine = StaticRuleEngine(finalFeatures, settings);
-      
+
       if (await staticEngine.isTrustedDomain) {
         isMalicious = false;
         threatDescription = '';
@@ -421,7 +443,7 @@ class HybridEngine {
           isMalicious = false;
         }
       }
-      
+
       return {
         'chain': chain,
         'final_url': finalUrl,
@@ -439,7 +461,55 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Safe result for whitelisted domains (unchanged)
+  // GLOBAL BLACKLIST RESULT
+  // --------------------------------------------------------------------------
+  Map<String, dynamic> _buildBlacklistResult(String url) {
+    return {
+      'url': url,
+      'scan_date': DateTime.now().toIso8601String(),
+      'risk_score': '100.0',
+      'severity': 'HIGH RISK',
+      'threat_type': 'malicious',
+      'explanation': 'This domain is globally blacklisted by administrator.',
+      'detected_threats': ['Domain is in global blacklist'],
+      'ml_confidence': 'none',
+      'ml_score': '0.0000',
+      'ai_score': '0.00',
+      'behavior_score': '0.00',
+      'ad_density': '0.00',
+      'external_score': '0.00',
+      'external_sources': [],
+      'actions': ['Do not proceed', 'Close immediately', 'Report URL'],
+      'safety_tips': ['This domain has been manually blacklisted by the system administrator.'],
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // GLOBAL WHITELIST RESULT
+  // --------------------------------------------------------------------------
+  Map<String, dynamic> _buildWhitelistResult(String url) {
+    return {
+      'url': url,
+      'scan_date': DateTime.now().toIso8601String(),
+      'risk_score': '0.0',
+      'severity': 'SAFE',
+      'threat_type': 'benign',
+      'explanation': 'This domain is globally whitelisted and considered safe.',
+      'detected_threats': [],
+      'ml_confidence': 'none',
+      'ml_score': '0.0000',
+      'ai_score': '0.00',
+      'behavior_score': '0.00',
+      'ad_density': '0.00',
+      'external_score': '0.00',
+      'external_sources': [],
+      'actions': ['Safe to use'],
+      'safety_tips': ['Always keep your browser and antivirus updated.'],
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // Safe result for whitelisted domains (fallback)
   // --------------------------------------------------------------------------
   Map<String, dynamic> _buildSafeResult(String url) {
     return {
@@ -804,7 +874,7 @@ class HybridEngine {
     }
 
     categories.removeWhere((key, value) => value.isEmpty);
-    
+
     String overallSeverity = 'LOW';
     if (categories.containsKey('Obfuscation') || categories.containsKey('Redirects')) {
       overallSeverity = 'MEDIUM';
