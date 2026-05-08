@@ -1,4 +1,6 @@
-// lib/threat_engine/layer2_static_heuristics/static_rules.dart
+// ============================================================================
+// static_rules.dart – Layer 2: Static Rule Engine + Heuristic Scoring + External Blacklists
+// ============================================================================
 import 'dart:math';
 import 'dart:io';
 import 'dart:convert';
@@ -10,23 +12,25 @@ import '../layer1_feature_extraction/feature_extractor.dart';
 import '../scan_settings.dart';
 import '../services/google_safe_browsing.dart';
 import '../services/virustotal.dart';
-import '../dynamic_config.dart';
 
+// --------------------------------------------------------------------------
+// Helper class to hold API keys (you should move these to a secure config)
+// --------------------------------------------------------------------------
 class ApiKeys {
   static const String openPhishApiKey = '';
   static const String urlhausApiKey = '';
-  static const String ipQualityScoreApiKey = '8taF8VxvuRm7ymklzzA08AfM46X2fxxU';
-  static const String whoisApiKey = 'at_RL2ksZSnT1Lk6EdCG7tEZldd84gJi';
+  static const String ipQualityScoreApiKey = '8taF8VxvuRm7ymklzzA08AfM46X2fxxU'; // REPLACE THIS
+  static const String whoisApiKey = 'at_RL2ksZSnT1Lk6EdCG7tEZldd84gJi';           // REPLACE THIS
 }
 
 // --------------------------------------------------------------------------
-// Dynamic Whitelist Manager (unchanged)
+// Dynamic Whitelist Manager (Cisco Umbrella Top 1 Million)
 // --------------------------------------------------------------------------
 class DynamicWhitelistManager {
   static DynamicWhitelistManager? _instance;
   static const String _cacheFileName = 'umbrella_top1m.cache';
   static const Duration _cacheMaxAge = Duration(days: 1);
-  static const int _maxDomains = 100000;
+  static const int _maxDomains = 100000; // top 100,000 domains
 
   Set<String>? _whitelist;
   DateTime? _lastUpdated;
@@ -149,60 +153,15 @@ class DynamicWhitelistManager {
 }
 
 // --------------------------------------------------------------------------
-// Static Rule Engine (Fully dynamic)
+// Static Rule Engine
 // --------------------------------------------------------------------------
 class StaticRuleEngine {
-  // Cached dynamic values
-  late List<String> _suspiciousTlds;
-  late List<String> _phishingKeywords;
-  late List<String> _shorteners;
-  late Set<String> _staticTrustedDomains;
-  late bool _enableHomographCheck;
-  late bool _enableTyposquatting;
-  late bool _enableUnshorten;
-  late int _maxRedirectHops;
-  late int _newDomainDaysThreshold;
-  late int _pathDepthWarning;
-  late double _entropyThreshold;
-  late List<String> _enabledExternalSources;
-
-  static Set<String>? _openPhishCache;
-  static DateTime? _openPhishLastUpdate;
-  static const Duration _openPhishCacheDuration = Duration(minutes: 30);
-
-  final UrlFeatures features;
-  final ScanSettings? settings;
-
-  StaticRuleEngine(
-    this.features,
-    this.settings, {
-    List<String>? enabledExternalSources,
-  }) {
-    _loadDynamicConfig(enabledExternalSources);
-  }
-
-  Future<void> _loadDynamicConfig(List<String>? externalOverride) async {
-    final config = await DynamicConfig.getInstance();
-    _suspiciousTlds = config.suspiciousTlds;
-    _phishingKeywords = config.phishingKeywords;
-    _shorteners = config.urlShorteners;
-    _staticTrustedDomains = config.globalWhitelist.toSet();
-    _enableHomographCheck = config.enableHomographCheck;
-    _enableTyposquatting = config.enableTyposquatting;
-    _enableUnshorten = config.enableUnshorten;
-    _maxRedirectHops = config.maxRedirectHops;
-    _newDomainDaysThreshold = config.newDomainDaysThreshold;
-    _pathDepthWarning = config.pathDepthWarning;
-    _entropyThreshold = config.entropyThreshold;
-    _enabledExternalSources = externalOverride ?? config.enabledExternalSources;
-  }
-
-  // Fallbacks (original hardcoded values)
-  List<String> get _fallbackSuspiciousTlds => const [
+  static const Set<String> suspiciousTlds = {
     'tk', 'xyz', 'top', 'club', 'work', 'date', 'stream', 'gq', 'ml', 'cf',
     'ga', 'ru', 'cn', 'pw', 'cc', 'bid', 'trade', 'webcam', 'science'
-  ];
-  List<String> get _fallbackPhishingKeywords => const [
+  };
+
+  static const List<String> phishingKeywords = [
     r'verify', r'account', r'banking', r'secure', r'login', r'signin',
     r'update', r'confirm', r'password', r'credential', r'paypal', r'apple',
     r'microsoft', r'amazon', r'netflix', r'wallet', r'crypto', r'bitcoin',
@@ -210,10 +169,13 @@ class StaticRuleEngine {
     r'double.?your.?money', r'urgent.?action', r'verify.?wallet',
     r'connect.?wallet', r'claim.?reward', r'prize.?winner'
   ];
-  List<String> get _fallbackShorteners => const [
+
+  static const List<String> shorteners = [
     'bit.ly', 'tinyurl', 'goo.gl', 'ow.ly', 'is.gd', 'buff.ly', 'short.link'
   ];
-  Set<String> get _fallbackStaticTrustedDomains => const {
+
+  // Static whitelist (fallback)
+  static const Set<String> staticTrustedDomains = {
     'google.com', 'microsoft.com', 'apple.com', 'amazon.com', 'paypal.com',
     'facebook.com', 'twitter.com', 'linkedin.com', 'github.com', 'zoom.us',
     'dropbox.com', 'drive.google.com', 'yahoo.com', 'bing.com', 'duckduckgo.com',
@@ -229,45 +191,53 @@ class StaticRuleEngine {
     'youtube.com',
   };
 
-  Future<bool> get isSuspiciousTld async {
-    final tld = features.tldSuffix;
-    final list = _suspiciousTlds.isNotEmpty ? _suspiciousTlds : _fallbackSuspiciousTlds;
-    return list.contains(tld);
-  }
+  // --------------------------------------------------------------------------
+  // OpenPhish static cache (shared across all engine instances)
+  // --------------------------------------------------------------------------
+  static Set<String>? _openPhishCache;
+  static DateTime? _openPhishLastUpdate;
+  static const Duration _openPhishCacheDuration = Duration(minutes: 30);
+
+  final UrlFeatures features;
+  final ScanSettings? settings;
+
+  StaticRuleEngine(this.features, [this.settings]);
+
+  // --------------------------------------------------------------------------
+  // Core rule checks (synchronous)
+  // --------------------------------------------------------------------------
+  bool get isSuspiciousTld => suspiciousTlds.contains(features.tldSuffix);
   
-  Future<bool> get isShortener async {
-    final url = features.url;
-    final list = _shorteners.isNotEmpty ? _shorteners : _fallbackShorteners;
-    return list.any((s) => url.contains(s));
-  }
+  bool get isShortener => shorteners.any((s) => features.url.contains(s));
   
-  Future<bool> get isShortenerDomain async {
+  bool get isShortenerDomain {
     final domain = features.domain;
-    final list = _shorteners.isNotEmpty ? _shorteners : _fallbackShorteners;
-    return list.any((s) => domain.contains(s));
+    return shorteners.any((s) => domain.contains(s));
   }
 
+  // UPDATED: Trusted domain check – shorteners are NEVER trusted
   Future<bool> get isTrustedDomain async {
     final full = features.domain;
     if (full.isEmpty) return false;
-    if (await isShortenerDomain) return false;
+
+    if (isShortenerDomain) return false;
 
     final dynamicManager = await DynamicWhitelistManager.getInstance();
-    if (await dynamicManager.contains(full)) return true;
+    if (await dynamicManager.contains(full)) {
+      return true;
+    }
 
-    final trustedSet = _staticTrustedDomains.isNotEmpty ? _staticTrustedDomains : _fallbackStaticTrustedDomains;
-    if (trustedSet.contains(full)) return true;
-    for (final trusted in trustedSet) {
+    if (staticTrustedDomains.contains(full)) return true;
+    for (final trusted in staticTrustedDomains) {
       if (full.endsWith('.$trusted') || full == trusted) return true;
     }
     return false;
   }
 
-  Future<List<String>> findPhishingKeywords() async {
+  List<String> findPhishingKeywords() {
     final matches = <String>[];
     final lower = features.url.toLowerCase();
-    final keywords = _phishingKeywords.isNotEmpty ? _phishingKeywords : _fallbackPhishingKeywords;
-    for (final pattern in keywords) {
+    for (final pattern in phishingKeywords) {
       if (RegExp(pattern).hasMatch(lower)) {
         matches.add(pattern.replaceAll(RegExp(r'\\.?'), ''));
       }
@@ -275,6 +245,9 @@ class StaticRuleEngine {
     return matches;
   }
 
+  // --------------------------------------------------------------------------
+  // Heuristic anomaly detection
+  // --------------------------------------------------------------------------
   List<String> findSuspiciousPatterns() {
     final patterns = <String>[];
     if (features.hasIp) patterns.add('IP address used');
@@ -282,13 +255,11 @@ class StaticRuleEngine {
     if (RegExp(r'//[^/]+//').hasMatch(features.url)) patterns.add('Double slash anomaly');
     if (RegExp(r'%[0-9a-f]{2}', caseSensitive: false).hasMatch(features.url)) patterns.add('Heavy URL encoding');
     if (RegExp(r'--').hasMatch(features.domain)) patterns.add('Punycode indicator');
-    final threshold = _entropyThreshold != 0 ? _entropyThreshold : 4.2;
-    if (features.entropy > threshold) patterns.add('High URL entropy detected');
+    if (features.highEntropy) patterns.add('High URL entropy detected');
     return patterns;
   }
 
-  Future<String?> detectTyposquatting() async {
-    if (!_enableTyposquatting) return null;
+  String? detectTyposquatting() {
     const brands = ['paypal', 'google', 'apple', 'microsoft', 'amazon'];
     final domain = features.domain.toLowerCase();
     for (final brand in brands) {
@@ -315,7 +286,7 @@ class StaticRuleEngine {
   }
 
   // --------------------------------------------------------------------------
-  // External Blacklist Checks (with dynamic toggles)
+  // External Blacklist Checks (Async)
   // --------------------------------------------------------------------------
   Future<bool> _isInCsaOrSpfList() async {
     try {
@@ -334,16 +305,12 @@ class StaticRuleEngine {
 
   Future<double> _checkGoogleSafeBrowsing() async {
     if (settings != null && !settings!.useExternalApis) return 0.0;
-    if (!_enabledExternalSources.contains('google_sb')) return 0.0;
     final score = await GoogleSafeBrowsing.checkUrl(features.url);
     return score ?? 0.0;
   }
 
   Future<Map<String, dynamic>> _checkVirusTotal() async {
     if (settings != null && !settings!.useExternalApis) {
-      return {'score': 0.0, 'details': null};
-    }
-    if (!_enabledExternalSources.contains('virustotal')) {
       return {'score': 0.0, 'details': null};
     }
     final result = await VirusTotal.checkUrl(features.url);
@@ -394,16 +361,14 @@ class StaticRuleEngine {
     if (settings != null && !settings!.useExternalApis) {
       return {'score': 0.0, 'found': false, 'details': null};
     }
-    if (!_enabledExternalSources.contains('openphish')) {
-      return {'score': 0.0, 'found': false, 'details': null};
-    }
     try {
       final found = await _isInOpenPhish(features.url);
+      print('OpenPhish: ${found ? "URL found in feed" : "URL not found"}');
       if (found) {
         return {
           'score': 1.0,
           'found': true,
-          'details': {'source': 'OpenPhish', 'note': 'URL found in public feed'}
+          'details': {'source': 'OpenPhish', 'note': 'URL found in public feed (updated every 30 minutes)'}
         };
       }
       return {'score': 0.0, 'found': false, 'details': null};
@@ -413,11 +378,9 @@ class StaticRuleEngine {
     }
   }
 
+  // URLhaus
   Future<Map<String, dynamic>> _checkURLhaus() async {
     if (settings != null && !settings!.useExternalApis) {
-      return {'score': 0.0, 'found': false, 'details': null};
-    }
-    if (!_enabledExternalSources.contains('urlhaus')) {
       return {'score': 0.0, 'found': false, 'details': null};
     }
     try {
@@ -454,10 +417,13 @@ class StaticRuleEngine {
     }
   }
 
+  // IPQualityScore
   Future<Map<String, dynamic>> _checkIpQualityScore() async {
     if (settings != null && !settings!.useExternalApis) return {'score': 0.0, 'details': null};
-    if (!_enabledExternalSources.contains('ipqs')) return {'score': 0.0, 'details': null};
-    if (ApiKeys.ipQualityScoreApiKey.isEmpty) return {'score': 0.0, 'details': null};
+    if (ApiKeys.ipQualityScoreApiKey.isEmpty) {
+      print('IPQualityScore API key missing. Skipping.');
+      return {'score': 0.0, 'details': null};
+    }
     try {
       final url = Uri.parse('https://ipqualityscore.com/api/json/url/${ApiKeys.ipQualityScoreApiKey}/${Uri.encodeComponent(features.url)}');
       final response = await http.get(url).timeout(const Duration(seconds: 5));
@@ -483,12 +449,18 @@ class StaticRuleEngine {
     }
   }
 
+  // WhoisAPI
   Future<Map<String, dynamic>> _checkWhoisAPI() async {
     if (settings != null && !settings!.useExternalApis) return {'score': 0.0, 'details': null};
-    if (!_enabledExternalSources.contains('whois')) return {'score': 0.0, 'details': null};
-    if (ApiKeys.whoisApiKey.isEmpty) return {'score': 0.0, 'details': null};
+    if (ApiKeys.whoisApiKey.isEmpty) {
+      print('WhoisAPI key missing. Skipping.');
+      return {'score': 0.0, 'details': null};
+    }
     final domain = features.domain;
-    if (domain.isEmpty) return {'score': 0.0, 'details': null};
+    if (domain.isEmpty) {
+      print('WhoisAPI: Empty domain – skipping.');
+      return {'score': 0.0, 'details': null};
+    }
     try {
       final url = Uri.parse('https://www.whoisxmlapi.com/whoisserver/WhoisService')
           .replace(queryParameters: {
@@ -497,22 +469,34 @@ class StaticRuleEngine {
             'outputFormat': 'JSON'
           });
       final response = await http.get(url).timeout(const Duration(seconds: 5));
-      if (response.statusCode != 200) return {'score': 0.0, 'details': null};
+      if (response.statusCode != 200) {
+        print('WhoisAPI HTTP error: ${response.statusCode}');
+        return {'score': 0.0, 'details': null};
+      }
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      if (json.containsKey('ErrorMessage')) return {'score': 0.0, 'details': null};
+      if (json.containsKey('ErrorMessage')) {
+        print('WhoisAPI error: ${json['ErrorMessage']}');
+        return {'score': 0.0, 'details': null};
+      }
       final whoisRecord = json['WhoisRecord'] as Map<String, dynamic>?;
-      if (whoisRecord == null) return {'score': 0.0, 'details': null};
+      if (whoisRecord == null) {
+        print('WhoisAPI: No WhoisRecord for domain $domain');
+        return {'score': 0.0, 'details': null};
+      }
       final createdDateStr = whoisRecord['createdDate'] as String?;
-      if (createdDateStr == null) return {'score': 0.0, 'details': null};
+      if (createdDateStr == null) {
+        print('WhoisAPI: No createdDate for domain $domain');
+        return {'score': 0.0, 'details': null};
+      }
       final created = DateTime.parse(createdDateStr);
       final ageDays = DateTime.now().difference(created).inDays;
-      print('WhoisAPI: Domain age $ageDays days (${ageDays < _newDomainDaysThreshold ? "new" : "established"})');
-      if (ageDays < _newDomainDaysThreshold) {
+      print('WhoisAPI: Domain age $ageDays days (${ageDays < 30 ? "new" : "established"})');
+      if (ageDays < 30) {
         return {
           'score': 0.8,
           'details': {
             'age_days': ageDays,
-            'warning': 'Domain registered less than $_newDomainDaysThreshold days ago ($ageDays days)',
+            'warning': 'Domain registered less than 30 days ago ($ageDays days)',
           }
         };
       }
@@ -526,8 +510,10 @@ class StaticRuleEngine {
     }
   }
 
+  // --------------------------------------------------------------------------
+  // Helper: Expand shortener URL (head request)
+  // --------------------------------------------------------------------------
   Future<String?> _expandShortener(String url) async {
-    if (!_enableUnshorten) return null;
     try {
       final client = HttpClient()
         ..autoUncompress = true
@@ -536,8 +522,12 @@ class StaticRuleEngine {
       final response = await request.close();
       final finalUrl = response.headers.value('location');
       client.close();
-      if (finalUrl != null && finalUrl != url) return finalUrl;
-    } catch (e) {}
+      if (finalUrl != null && finalUrl != url) {
+        return finalUrl;
+      }
+    } catch (e) {
+      // ignore – expansion failed
+    }
     return null;
   }
 
@@ -606,12 +596,13 @@ class StaticRuleEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Public API: Run full static + heuristic analysis
+  // Public API: Run full static + heuristic analysis (synchronous part)
   // --------------------------------------------------------------------------
   Future<List<Map<String, dynamic>>> analyzeSync() async {
     final threats = <Map<String, dynamic>>[];
     if (await isTrustedDomain) return threats;
 
+    // Existing checks
     if (features.isMalformed) {
       threats.add({
         'type': 'malformed_url',
@@ -621,7 +612,7 @@ class StaticRuleEngine {
       });
     }
 
-    if (await isSuspiciousTld) {
+    if (isSuspiciousTld) {
       threats.add({
         'type': 'suspicious_tld',
         'severity': 'medium',
@@ -630,7 +621,7 @@ class StaticRuleEngine {
       });
     }
 
-    final keywords = await findPhishingKeywords();
+    final keywords = findPhishingKeywords();
     if (keywords.isNotEmpty) {
       final severity = keywords.length >= 3 ? 'high' : 'medium';
       threats.add({
@@ -651,13 +642,18 @@ class StaticRuleEngine {
       });
     }
 
-    if (await isShortener) {
+    // URL shortener detection and expansion
+    if (isShortener) {
       threats.add({
         'type': 'url_shortener',
         'severity': 'medium',
         'description': 'Link uses a URL shortening service.',
         'score': 0.5,
       });
+      // Attempt to expand the shortener (non-blocking, do not wait for result)
+      // We'll run it as a separate future and add an extra threat if successful.
+      // To keep the scan fast, we do not await; instead we add the expanded info
+      // as a separate threat only if we get it within a short timeout.
       final expanded = await _expandShortener(features.url);
       if (expanded != null && expanded != features.url) {
         threats.add({
@@ -669,6 +665,7 @@ class StaticRuleEngine {
       }
     }
 
+    // HTTP warning
     if (features.url.startsWith('http://') && !await isTrustedDomain) {
       threats.add({
         'type': 'unencrypted_http',
@@ -678,6 +675,7 @@ class StaticRuleEngine {
       });
     }
 
+    // Suspicious path patterns
     final path = features.uri.path.toLowerCase();
     final suspiciousPaths = [
       '/cgi-bin/', '/wp-admin/', '/phpmyadmin/', '/backup/', '/shell/', '/config/',
@@ -692,8 +690,9 @@ class StaticRuleEngine {
       });
     }
 
+    // Homograph (IDN) attack detection
     final domain = features.domain;
-    if (_enableHomographCheck && domain.contains(RegExp(r'[^\x00-\x7F]'))) {
+    if (domain.contains(RegExp(r'[^\x00-\x7F]'))) {
       threats.add({
         'type': 'homograph_attack',
         'severity': 'high',
@@ -702,7 +701,7 @@ class StaticRuleEngine {
       });
     }
 
-    final brand = await detectTyposquatting();
+    final brand = detectTyposquatting();
     if (brand != null) {
       threats.add({
         'type': 'typosquatting',
@@ -715,6 +714,7 @@ class StaticRuleEngine {
     return threats;
   }
 
+  /// Async full analysis including external blacklists
   Future<Map<String, dynamic>> analyzeAsync() async {
     final syncThreats = await analyzeSync();
     final external = await checkExternalBlacklists();

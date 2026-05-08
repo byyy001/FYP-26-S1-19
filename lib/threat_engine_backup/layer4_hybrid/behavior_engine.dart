@@ -1,33 +1,11 @@
 import 'package:http/http.dart' as http;
 import '../layer1_feature_extraction/feature_extractor.dart';
-import '../dynamic_config.dart';  // <-- NEW IMPORT
 
 class BehaviorEngine {
-  late final DynamicConfig _config;
-  late final List<RegExp> _adKeywordRegexes;
-  late final double _adIntensityThreshold;
-  late final int _pathDepthWarning;
-
-  BehaviorEngine() {
-    // Load config asynchronously in constructor (non-blocking, but ensure it's ready before use)
-    _loadConfig();
-  }
-
-  Future<void> _loadConfig() async {
-    _config = await DynamicConfig.getInstance();
-    _adIntensityThreshold = _config.adIntensityThreshold;
-    _pathDepthWarning = _config.pathDepthWarning;
-
-    // Build RegExp list from dynamic keywords
-    final keywords = _config.trackerDetectionKeywords;
-    _adKeywordRegexes = keywords.map((kw) => RegExp(
-      RegExp.escape(kw),
-      caseSensitive: false,
-    )).toList();
-  }
+  BehaviorEngine();
 
   // --------------------------------------------------------------------------
-  // Regex patterns – using triple‑quoted raw strings for safety (unchanged)
+  // Regex patterns – using triple‑quoted raw strings for safety
   // --------------------------------------------------------------------------
   static final RegExp _evalRegex = RegExp(r'''eval\s*\(''', caseSensitive: false);
   static final RegExp _docWriteRegex = RegExp(r'''document\.write(?:ln)?\s*\(''', caseSensitive: false);
@@ -83,6 +61,21 @@ class BehaviorEngine {
     caseSensitive: false,
   );
 
+  static final List<RegExp> _adKeywordRegexes = [
+    RegExp(r'''googleadservices''', caseSensitive: false),
+    RegExp(r'''doubleclick''', caseSensitive: false),
+    RegExp(r'''googlesyndication''', caseSensitive: false),
+    RegExp(r'''adservice''', caseSensitive: false),
+    RegExp(r'''adserver''', caseSensitive: false),
+    RegExp(r'''adunit''', caseSensitive: false),
+    RegExp(r'''advertisement''', caseSensitive: false),
+    RegExp(r'''sponsored''', caseSensitive: false),
+    RegExp(r'''popunder''', caseSensitive: false),
+    RegExp(r'''popup''', caseSensitive: false),
+    RegExp(r'''adsbygoogle''', caseSensitive: false),
+    RegExp(r'''dfp''', caseSensitive: false),
+  ];
+
   // --------------------------------------------------------------------------
   // MAIN ANALYSIS
   // --------------------------------------------------------------------------
@@ -91,11 +84,6 @@ class BehaviorEngine {
     UrlFeatures features, {
     Map<String, dynamic>? externalThreatData,
   }) async {
-    // Ensure config is loaded (if not, wait briefly)
-    if (_adKeywordRegexes.isEmpty) {
-      await _loadConfig();
-    }
-
     final double urlScore = _urlHeuristicScore(features);
     final List<String> matchedPatterns = [];
     double scriptRisk = 0.0;
@@ -129,7 +117,8 @@ class BehaviorEngine {
 
         if (body.length <= 500000) {
 
-          // ---------------- BASIC PATTERN DETECTION (unchanged) ----------------
+          // ---------------- BASIC PATTERN DETECTION ----------------
+
           final evalMatches = _evalRegex.allMatches(body).length;
           if (evalMatches > 0) {
             scriptRisk += (evalMatches * 0.05).clamp(0.0, 0.25);
@@ -142,7 +131,7 @@ class BehaviorEngine {
           }
 
           if (_setTimeoutRegex.hasMatch(body)) {
-            scriptRisk += 0.02;
+            scriptRisk += 0.02; // reduced
           }
 
           if (_atobRegex.hasMatch(body) || _btoaRegex.hasMatch(body)) {
@@ -199,7 +188,8 @@ class BehaviorEngine {
             scriptRisk += 0.08;
           }
 
-          // ---------------- CORRELATION DETECTION (unchanged) ----------------
+          // ---------------- CORRELATION DETECTION ----------------
+
           bool hasObfuscation =
               _atobRegex.hasMatch(body) ||
               _fromCharCodeRegex.hasMatch(body) ||
@@ -229,7 +219,8 @@ class BehaviorEngine {
             scriptRisk += 0.20;
           }
 
-          // ---------------- AD DENSITY (DYNAMIC THRESHOLD & KEYWORDS) ----------------
+          // ---------------- AD DENSITY (REDUCED IMPACT) ----------------
+
           int adMatches = 0;
           for (final kw in _adKeywordRegexes) {
             adMatches += kw.allMatches(body).length;
@@ -248,13 +239,14 @@ class BehaviorEngine {
             }
           }
 
-          final contentFactor = (body.length / 10000).clamp(1.0, 10.0);
-          adDensity = (adMatches / (10 * contentFactor)).clamp(0.0, 1.0);
+          final contentFactor =
+              (body.length / 10000).clamp(1.0, 10.0);
+          adDensity =
+              (adMatches / (10 * contentFactor)).clamp(0.0, 1.0);
 
-          // Use dynamic ad intensity threshold
-          if (adDensity > _adIntensityThreshold) {
+          if (adDensity > 0.5) {
             matchedPatterns.add('Very high ad density');
-            scriptRisk += 0.05;
+            scriptRisk += 0.05; // reduced impact
           }
         }
       }
@@ -265,13 +257,13 @@ class BehaviorEngine {
     }
 
     // ----------------------------------------------------------------------
-    // URL FEATURES (use dynamic path depth warning)
+    // URL FEATURES
     // ----------------------------------------------------------------------
     if (features.hasRedirectParam) scriptRisk += 0.10;
     if (features.highEntropy) scriptRisk += 0.10;
     if (features.hasSuspiciousEncoding) scriptRisk += 0.08;
     if (features.isTyposquatting) scriptRisk += 0.20;
-    if (features.pathDepth > _pathDepthWarning) scriptRisk += 0.05;
+    if (features.pathDepth > 3) scriptRisk += 0.05;
 
     // ----------------------------------------------------------------------
     // TRUST ADJUSTMENT
@@ -283,9 +275,10 @@ class BehaviorEngine {
     scriptRisk = scriptRisk.clamp(0.0, 1.0);
 
     // ----------------------------------------------------------------------
-    // FINAL SCORE (unchanged)
+    // FINAL SCORE (IMPROVED)
     // ----------------------------------------------------------------------
-    final double combinedScore = (urlScore * 0.4) + (scriptRisk * 0.6);
+    final double combinedScore =
+        (urlScore * 0.4) + (scriptRisk * 0.6);
 
     return {
       'behaviorScore': combinedScore,
@@ -295,14 +288,14 @@ class BehaviorEngine {
   }
 
   // --------------------------------------------------------------------------
-  // URL HEURISTIC (also uses dynamic path depth)
+  // URL HEURISTIC
   // --------------------------------------------------------------------------
   double _urlHeuristicScore(UrlFeatures features) {
     double score = 0.0;
 
     if (features.hasRedirectParam) score += 0.2;
-    if (features.pathDepth > _pathDepthWarning) {
-      score += ((features.pathDepth - _pathDepthWarning) / 10).clamp(0.0, 0.2);
+    if (features.pathDepth > 3) {
+      score += ((features.pathDepth - 3) / 10).clamp(0.0, 0.2);
     }
     if (features.highEntropy) score += 0.2;
     if (features.hasSuspiciousEncoding) score += 0.15;

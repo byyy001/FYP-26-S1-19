@@ -14,7 +14,6 @@ import '../utils/scaler.dart';
 import 'behavior_engine.dart';
 import 'rule_based_ai_engine.dart';
 import '../scan_settings.dart';
-import '../dynamic_config.dart';
 
 class HybridEngine {
   final LogisticRegression logisticModel;
@@ -24,7 +23,6 @@ class HybridEngine {
   final BehaviorEngine? behaviorEngine;
   final RuleBasedAIEngine? aiEngine;
   final StandardScaler _scaler;
-  late final DynamicConfig _config;
 
   static const List<String> _classNames = ['benign', 'defacement', 'phishing', 'malware'];
 
@@ -36,34 +34,25 @@ class HybridEngine {
     this.lightGBM,
     this.behaviorEngine,
     this.aiEngine,
-  }) : _scaler = scaler {
-    _loadConfig();
-  }
-
-  Future<void> _loadConfig() async {
-    _config = await DynamicConfig.getInstance();
-  }
+  }) : _scaler = scaler;
 
   Future<Map<String, dynamic>> analyze(
     String url, {
     required ScanSettings settings,
     required Map<String, dynamic> externalResult,
   }) async {
-    // Config is already loaded in constructor, no need to check null.
-
     if (!settings.isPremium && externalResult['is_malicious'] == true) {
       return _buildFreeEarlyExit(url, externalResult);
     }
 
     final features = UrlFeatures(url);
     
-    // ✅ FIX: Pass settings as second positional argument
-    final staticEngine = StaticRuleEngine(features, settings);
+    final staticEngine = StaticRuleEngine(features);
     if (await staticEngine.isTrustedDomain) {
       return _buildSafeResult(url);
     }
 
-    // Redirect chain analysis (using dynamic max hops)
+    // Redirect chain analysis
     Map<String, dynamic>? redirectResult;
     List<String> redirectChain = [];
     String finalUrl = url;
@@ -102,18 +91,16 @@ class HybridEngine {
       });
     }
 
-    // Use dynamic new domain threshold
-    final newDomainThreshold = _config.newDomainDaysThreshold;
     if (externalResult.containsKey('details')) {
       final details = externalResult['details'] as Map<String, dynamic>;
       if (details.containsKey('whois')) {
         final whois = details['whois'] as Map<String, dynamic>;
         final ageDays = whois['age_days'];
-        if (ageDays != null && ageDays is int && ageDays < newDomainThreshold) {
+        if (ageDays != null && ageDays is int && ageDays < 30) {
           staticThreats.add({
             'type': 'new_domain',
             'severity': 'medium',
-            'description': 'Domain registered less than $newDomainThreshold days ago ($ageDays days). New domains are often used for phishing or malware.',
+            'description': 'Domain registered less than 30 days ago ($ageDays days). New domains are often used for phishing or malware.',
             'score': 0.7,
           });
         }
@@ -136,7 +123,7 @@ class HybridEngine {
 
     final staticScore = _computeStaticScore(staticThreats);
 
-    // ---- ML predictions (unchanged) ----
+    // ---- ML predictions ----
     List<double> lrProbs = [0.25, 0.25, 0.25, 0.25];
     List<double> dtProbs = [0.25, 0.25, 0.25, 0.25];
     List<double> xgbProbs = [0.25, 0.25, 0.25, 0.25];
@@ -160,49 +147,33 @@ class HybridEngine {
       }
 
       if (settings.useEnsemble) {
-        for (int i = 0; i < 4; i++) {
-          ensembleProbs[i] = lrProbs[i] + dtProbs[i] + xgbProbs[i];
-        }
+        for (int i = 0; i < 4; i++) ensembleProbs[i] = lrProbs[i] + dtProbs[i] + xgbProbs[i];
         modelCount = 3;
         if (lgbUsed) {
-          for (int i = 0; i < 4; i++) {
-            ensembleProbs[i] += lgbProbs[i];
-          }
+          for (int i = 0; i < 4; i++) ensembleProbs[i] += lgbProbs[i];
           modelCount++;
         }
-        for (int i = 0; i < 4; i++) {
-          ensembleProbs[i] /= modelCount;
-        }
+        for (int i = 0; i < 4; i++) ensembleProbs[i] /= modelCount;
       } else {
         modelCount = 0;
         if (settings.useLogisticRegression) {
-          for (int i = 0; i < 4; i++) {
-            ensembleProbs[i] += lrProbs[i];
-          }
+          for (int i = 0; i < 4; i++) ensembleProbs[i] += lrProbs[i];
           modelCount++;
         }
         if (settings.useDecisionTree) {
-          for (int i = 0; i < 4; i++) {
-            ensembleProbs[i] += dtProbs[i];
-          }
+          for (int i = 0; i < 4; i++) ensembleProbs[i] += dtProbs[i];
           modelCount++;
         }
         if (settings.useXGBoost) {
-          for (int i = 0; i < 4; i++) {
-            ensembleProbs[i] += xgbProbs[i];
-          }
+          for (int i = 0; i < 4; i++) ensembleProbs[i] += xgbProbs[i];
           modelCount++;
         }
         if (lgbUsed && settings.useLightGBM) {
-          for (int i = 0; i < 4; i++) {
-            ensembleProbs[i] += lgbProbs[i];
-          }
+          for (int i = 0; i < 4; i++) ensembleProbs[i] += lgbProbs[i];
           modelCount++;
         }
         if (modelCount > 0) {
-          for (int i = 0; i < 4; i++) {
-            ensembleProbs[i] /= modelCount;
-          }
+          for (int i = 0; i < 4; i++) ensembleProbs[i] /= modelCount;
         } else {
           ensembleProbs = xgbProbs;
           modelCount = 1;
@@ -232,13 +203,14 @@ class HybridEngine {
     }
     // =====================================
 
-    // ---- Behavior & AI (unchanged) ----
+    // ---- Behavior & AI ----
     double behaviorScore = 0.0;
     double aiScore = 0.0;
     double adDensity = 0.0;
     List<String> behaviorPatterns = [];
 
     if (settings.deepScan && settings.scriptAnalysis) {
+      // ✅ Pass externalResult to behaviorEngine for external intelligence
       final detailed = await behaviorEngine?.analyzeDetailed(
         url,
         features,
@@ -262,7 +234,7 @@ class HybridEngine {
       mlConfidence: mlConfidence,
     );
 
-    // Domain age adjustment (keep hardcoded 7 and 365 for now)
+    // Domain age adjustment
     final whoisDetails = externalResult['details']?['whois'] as Map<String, dynamic>?;
     if (whoisDetails != null && whoisDetails['age_days'] != null) {
       final ageDays = whoisDetails['age_days'] as int;
@@ -378,10 +350,10 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Redirect chain analysis (now uses dynamic max hops)
+  // Redirect chain analysis (unchanged)
   // --------------------------------------------------------------------------
   Future<Map<String, dynamic>> _analyzeRedirectChain(String startUrl, ScanSettings settings) async {
-    final maxHops = _config.maxRedirectHops;
+    const maxHops = 5;
     List<String> chain = [startUrl];
     String currentUrl = startUrl;
     bool isMalicious = false;
@@ -406,8 +378,7 @@ class HybridEngine {
 
       final finalUrl = currentUrl;
       final finalFeatures = UrlFeatures(finalUrl);
-      // ✅ FIX: Pass settings as second argument
-      final staticEngine = StaticRuleEngine(finalFeatures, settings);
+      final staticEngine = StaticRuleEngine(finalFeatures);
       
       if (await staticEngine.isTrustedDomain) {
         isMalicious = false;
@@ -439,7 +410,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Safe result for whitelisted domains (unchanged)
+  // Safe result for whitelisted domains
   // --------------------------------------------------------------------------
   Map<String, dynamic> _buildSafeResult(String url) {
     return {
@@ -463,7 +434,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Free user early exit (unchanged)
+  // Free user early exit
   // --------------------------------------------------------------------------
   Map<String, dynamic> _buildFreeEarlyExit(String url, Map<String, dynamic> external) {
     final score = (external['score'] as double? ?? 0.0) * 100;
@@ -482,7 +453,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Beginner guidance helpers (unchanged)
+  // Beginner guidance helpers
   // --------------------------------------------------------------------------
   String _getBeginnerGuidance(String threatType, String severity, String mlConfidence) {
     if (threatType == 'benign') return 'This link appears safe to open.';
@@ -529,15 +500,9 @@ class HybridEngine {
     double score = 0;
     for (final t in threats) {
       switch (t['severity']) {
-        case 'high':
-          score += 30;
-          break;
-        case 'medium':
-          score += 15;
-          break;
-        case 'low':
-          score += 8;
-          break;
+        case 'high': score += 30; break;
+        case 'medium': score += 15; break;
+        case 'low': score += 8; break;
       }
     }
     return score.clamp(0, 100).toDouble();

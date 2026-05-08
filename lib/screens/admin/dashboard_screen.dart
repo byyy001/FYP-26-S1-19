@@ -3,12 +3,13 @@ import '../../constants/app_colors.dart';
 import 'user_management_screen.dart';
 import 'flagged_reviews_screen.dart';
 import 'scan_statistics_screen.dart';
+import 'security_management_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
+import 'package:http/http.dart' as http;   // <-- RESTORED
 
 // ============================================================================
-// Dashboard Content (unchanged)
+// Dashboard Content (fully restored – same as before)
 // ============================================================================
 class _DashboardContent extends StatefulWidget {
   const _DashboardContent();
@@ -425,7 +426,7 @@ class _DynamicScanActivityPanelState extends State<_DynamicScanActivityPanel> {
                 decoration: BoxDecoration(
                   color: AppColors.mainBackground,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
+                  border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.35)),
                 ),
                 child: Column(
                   children: [
@@ -553,9 +554,7 @@ class _SystemStatusPanelState extends State<_SystemStatusPanel> {
       }(),
       () async {
         try {
-          final res = await http
-              .get(Uri.parse('https://dns.google/resolve?name=virustotal.com'))
-              .timeout(const Duration(seconds: 6));
+          final res = await http.get(Uri.parse('https://dns.google/resolve?name=virustotal.com')).timeout(const Duration(seconds: 6));
           apiGatewayOk = res.statusCode == 200;
         } catch (_) {
           apiGatewayOk = false;
@@ -679,7 +678,7 @@ class _StatusRow extends StatelessWidget {
 }
 
 // ============================================================================
-// Dynamic Flagged Reports Panel (unchanged)
+// Dynamic Flagged Reports Panel (unchanged – with mounted checks)
 // ============================================================================
 class _DynamicFlaggedReportsPanel extends StatelessWidget {
   const _DynamicFlaggedReportsPanel();
@@ -687,13 +686,17 @@ class _DynamicFlaggedReportsPanel extends StatelessWidget {
   Future<void> _updateReportStatus(BuildContext context, String docId, String newStatus) async {
     try {
       await FirebaseFirestore.instance.collection('false_reports').doc(docId).update({'status': newStatus});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Report marked as $newStatus'), backgroundColor: AppColors.safe),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Report marked as $newStatus'), backgroundColor: AppColors.safe),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating report: $e'), backgroundColor: AppColors.highRisk),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating report: $e'), backgroundColor: AppColors.highRisk),
+        );
+      }
     }
   }
 
@@ -808,9 +811,9 @@ class _ReportRow extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: badgeColor.withOpacity(0.2),
+              color: badgeColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: badgeColor.withOpacity(0.5)),
+              border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
             ),
             child: Text(risk, style: TextStyle(color: badgeColor, fontWeight: FontWeight.w600, fontSize: 12)),
           ),
@@ -1086,7 +1089,7 @@ class _MiniActivityTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: (iconColor ?? AppColors.primaryPurple).withOpacity(0.12),
+                color: (iconColor ?? AppColors.primaryPurple).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: iconColor ?? AppColors.primaryPurple, size: 16),
@@ -1118,7 +1121,7 @@ class _MiniActivityTile extends StatelessWidget {
 }
 
 // ============================================================================
-// Shared Panel widget
+// Shared Panel widget (unchanged)
 // ============================================================================
 class _Panel extends StatelessWidget {
   final Widget child;
@@ -1132,8 +1135,8 @@ class _Panel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
-        boxShadow: [BoxShadow(color: AppColors.primaryPurple.withOpacity(0.14), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.35)),
+        boxShadow: [BoxShadow(color: AppColors.primaryPurple.withValues(alpha: 0.14), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: child,
     );
@@ -1141,7 +1144,7 @@ class _Panel extends StatelessWidget {
 }
 
 // ============================================================================
-// Main AdminDashboardScreen with IMPROVED COLLAPSIBLE SIDEBAR
+// Main AdminDashboardScreen with Security Management added
 // ============================================================================
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -1158,6 +1161,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     const _DashboardContent(),
     const UserManagementScreen(),
     const FlaggedReviewsScreen(),
+    const SecurityManagementScreen(),
     const ScanStatisticsScreen(),
   ];
 
@@ -1165,6 +1169,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     'Dashboard',
     'User Management',
     'Flagged Reviews',
+    'Security Management',
     'Scan Statistics',
   ];
 
@@ -1175,20 +1180,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       body: SafeArea(
         child: Row(
           children: [
-            // Animated Sidebar with improved styling
+            // Animated Sidebar
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
               width: _isSidebarCollapsed ? 72 : 280,
               decoration: BoxDecoration(
                 color: AppColors.mainBackground,
-                border: Border(right: BorderSide(color: AppColors.divider.withOpacity(0.3), width: 1)),
+                border: Border(right: BorderSide(color: AppColors.divider.withValues(alpha: 0.3), width: 1)),
               ),
               child: Column(
                 crossAxisAlignment: _isSidebarCollapsed ? CrossAxisAlignment.center : CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 24),
-                  // Header with logo and collapse toggle
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: _isSidebarCollapsed ? 12 : 20),
                     child: Row(
@@ -1207,13 +1211,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  // Navigation items with tooltips and improved active state
                   _buildNavItem(icon: Icons.dashboard_outlined, label: 'Dashboard', index: 0),
                   _buildNavItem(icon: Icons.people_outline, label: 'User Management', index: 1),
                   _buildNavItem(icon: Icons.flag_outlined, label: 'Flagged Reviews', index: 2),
-                  _buildNavItem(icon: Icons.analytics_outlined, label: 'Scan Statistics', index: 3),
+                  _buildNavItem(icon: Icons.security_outlined, label: 'Security Management', index: 3),
+                  _buildNavItem(icon: Icons.analytics_outlined, label: 'Scan Statistics', index: 4),
                   const Spacer(),
-                  // User profile + single logout button (improved UI)
                   Padding(
                     padding: EdgeInsets.all(_isSidebarCollapsed ? 8 : 16),
                     child: Column(
@@ -1225,10 +1228,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             decoration: BoxDecoration(
                               color: AppColors.cardBackground,
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: AppColors.primaryPurple.withOpacity(0.2)),
+                              border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.2)),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.primaryPurple.withOpacity(0.08),
+                                  color: AppColors.primaryPurple.withValues(alpha: 0.08),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 )
@@ -1271,11 +1274,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             ),
                           ),
                         const SizedBox(height: 12),
-                        // Single logout button – centred when collapsed
                         Container(
                           width: _isSidebarCollapsed ? 40 : double.infinity,
                           decoration: BoxDecoration(
-                            color: AppColors.highRisk.withOpacity(0.1),
+                            color: AppColors.highRisk.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: TextButton.icon(
@@ -1302,16 +1304,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ],
               ),
             ),
-            // Main content area – removed redundant search bar
+            // Main content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Clean top bar with only title
                   Container(
                     padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
                     decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: AppColors.divider.withOpacity(0.3))),
+                      border: Border(bottom: BorderSide(color: AppColors.divider.withValues(alpha: 0.3))),
                     ),
                     child: Row(
                       children: [
@@ -1324,7 +1325,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                         ),
                         const Spacer(),
-                        // Optional: you can add a context‑specific action button here later
                       ],
                     ),
                   ),
@@ -1343,7 +1343,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // Improved navigation item with tooltip and proper padding for collapsed state
   Widget _buildNavItem({
     required IconData icon,
     required String label,
@@ -1357,7 +1356,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: isSelected ? AppColors.primaryPurple.withOpacity(0.12) : Colors.transparent,
+          color: isSelected ? AppColors.primaryPurple.withValues(alpha: 0.12) : Colors.transparent,
         ),
         child: ListTile(
           leading: Icon(

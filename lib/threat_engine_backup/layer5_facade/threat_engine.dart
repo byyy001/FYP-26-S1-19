@@ -11,20 +11,17 @@ import '../layer4_hybrid/rule_based_ai_engine.dart';
 import '../utils/scaler.dart';
 import '../scan_settings.dart';
 import '../layer1_feature_extraction/feature_extractor.dart';
-import '../dynamic_config.dart';
 
 class ThreatEngine {
   static ThreatEngine? _instance;
   late HybridEngine _engine;
-  late DynamicConfig _dynamicConfig;
 
   ThreatEngine._();
 
   static Future<ThreatEngine> getInstance() async {
     if (_instance != null) return _instance!;
 
-    final dynamicConfig = await DynamicConfig.getInstance();
-
+    // Load model JSON files from assets using rootBundle
     final lrWeightsJson = await rootBundle.loadString('assets/models/logistic_regression_weights.json');
     final lrScalerJson = await rootBundle.loadString('assets/models/scaler_params.json');
     final dtJson = await rootBundle.loadString('assets/models/decision_tree.json');
@@ -36,10 +33,15 @@ class ThreatEngine {
       print('LightGBM model not found – continuing without it');
     }
 
+    // Load Logistic Regression
     final lr = await LogisticRegression.fromJson(lrWeightsJson, lrScalerJson);
+    // Load scaler from JSON string
     final scaler = StandardScaler.fromJsonString(lrScalerJson);
+    // Load Decision Tree
     final dt = DecisionTree.fromJson(dtJson);
+    // Load XGBoost
     final xgb = XGBoostModel.fromJson(xgbJson);
+    // Load LightGBM (optional)
     LightGBMModel? lgb;
     if (lgbJson != null) {
       lgb = await LightGBMModel.fromJson(lgbJson);
@@ -49,7 +51,6 @@ class ThreatEngine {
     final aiEngine = RuleBasedAIEngine();
 
     final engine = ThreatEngine._();
-    engine._dynamicConfig = dynamicConfig;
     engine._engine = HybridEngine(
       logisticModel: lr,
       decisionTree: dt,
@@ -68,11 +69,7 @@ class ThreatEngine {
     final config = settings ?? ScanSettings.defaultSettings();
 
     final features = UrlFeatures(url);
-    final staticEngine = StaticRuleEngine(
-      features,
-      config,
-      enabledExternalSources: _dynamicConfig.enabledExternalSources,
-    );
+    final staticEngine = StaticRuleEngine(features, config);
     final externalResult = await staticEngine.checkExternalBlacklists();
 
     if (!config.isPremium && externalResult['is_malicious'] == true) {
