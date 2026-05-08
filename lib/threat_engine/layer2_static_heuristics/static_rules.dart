@@ -1,6 +1,6 @@
 // ============================================================================
 // static_rules.dart – Layer 2: Static Rule Engine + Heuristic Scoring + External Blacklists
-// FIXED: Async config loading with future, all methods defined.
+// NOW INCLUDES GLOBAL BLACKLIST CHECK
 // ============================================================================
 import 'dart:math';
 import 'dart:io';
@@ -155,7 +155,7 @@ class DynamicWhitelistManager {
 }
 
 // --------------------------------------------------------------------------
-// Static Rule Engine (ASYNC INIT)
+// Static Rule Engine (WITH BLACKLIST)
 // --------------------------------------------------------------------------
 class StaticRuleEngine {
   // Nullable fields – loaded asynchronously
@@ -163,6 +163,7 @@ class StaticRuleEngine {
   List<String>? _phishingKeywords;
   List<String>? _shorteners;
   Set<String>? _staticTrustedDomains;
+  Set<String>? _globalBlacklist;                // <-- ADDED
   bool? _enableHomographCheck;
   bool? _enableTyposquatting;
   bool? _enableUnshorten;
@@ -199,6 +200,7 @@ class StaticRuleEngine {
     _phishingKeywords = config.phishingKeywords;
     _shorteners = config.urlShorteners;
     _staticTrustedDomains = config.globalWhitelist.toSet();
+    _globalBlacklist = config.globalBlacklist.toSet();   // <-- ADDED
     _enableHomographCheck = config.enableHomographCheck;
     _enableTyposquatting = config.enableTyposquatting;
     _enableUnshorten = config.enableUnshorten;
@@ -240,8 +242,22 @@ class StaticRuleEngine {
     'aljazeera.com', 'theguardian.com', 'economist.com',
     'youtube.com',
   };
+  Set<String> get _fallbackBlacklist => const {}; // empty
 
-  // Core rule checks (async)
+  // New: Check if domain is globally blacklisted
+  Future<bool> get isBlacklisted async {
+    await _ensureConfigLoaded();
+    final domain = features.domain.toLowerCase();
+    final blacklist = _globalBlacklist ?? _fallbackBlacklist;
+    if (blacklist.contains(domain)) return true;
+    // Also check subdomain matches (e.g., blacklist 'evil.com' matches 'sub.evil.com')
+    for (final bl in blacklist) {
+      if (domain == bl || domain.endsWith('.$bl')) return true;
+    }
+    return false;
+  }
+
+  // Core rule checks
   Future<bool> get isSuspiciousTld async {
     await _ensureConfigLoaded();
     final tld = features.tldSuffix;
@@ -267,6 +283,10 @@ class StaticRuleEngine {
     await _ensureConfigLoaded();
     final full = features.domain;
     if (full.isEmpty) return false;
+    
+    // Blacklist overrides everything – never trust a blacklisted domain
+    if (await isBlacklisted) return false;
+    
     if (await isShortenerDomain) return false;
 
     final dynamicManager = await DynamicWhitelistManager.getInstance();
@@ -334,7 +354,7 @@ class StaticRuleEngine {
   }
 
   // --------------------------------------------------------------------------
-  // External Blacklist Checks (with dynamic toggles)
+  // External Blacklist Checks (unchanged but calls _ensureConfigLoaded)
   // --------------------------------------------------------------------------
   Future<bool> _isInCsaOrSpfList() async {
     try {
@@ -636,13 +656,26 @@ class StaticRuleEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Public API: Run full static + heuristic analysis
+  // Public API: Run full static + heuristic analysis (with BLACKLIST CHECK FIRST)
   // --------------------------------------------------------------------------
   Future<List<Map<String, dynamic>>> analyzeSync() async {
     await _ensureConfigLoaded();
     final threats = <Map<String, dynamic>>[];
+
+    // 🔴 BLACKLIST CHECK – HIGHEST PRIORITY
+    if (await isBlacklisted) {
+      threats.add({
+        'type': 'global_blacklist',
+        'severity': 'high',
+        'description': 'Domain is globally blacklisted by administrator.',
+        'score': 1.0,
+      });
+      return threats; // Immediately return high threat, skip other checks
+    }
+
     if (await isTrustedDomain) return threats;
 
+    // ... rest of the checks (unchanged) ...
     if (features.isMalformed) {
       threats.add({
         'type': 'malformed_url',
