@@ -256,52 +256,75 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   @override
   Widget build(BuildContext context) {
     final filteredUsers = _filteredUsers;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isSmallScreen = screenWidth < 600;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSearchAndFiltersPanel(),
-        const SizedBox(height: 24),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSearchAndFiltersPanel(),
+          const SizedBox(height: 24),
 
-        if (_isLoading && _users.isEmpty)
-          const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple))
-        else if (filteredUsers.isEmpty)
-          _buildEmptyState()
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: filteredUsers.length,
-            itemBuilder: (context, index) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _UserCard(
-                user: filteredUsers[index],
-                onEdit: () => _showEditDialog(filteredUsers[index]),
-                onDelete: () => _deleteUser(filteredUsers[index]['id'], '${filteredUsers[index]['firstName']} ${filteredUsers[index]['lastName']}'),
-              ),
-            ),
-          ),
-
-        if (_hasMore && !_isLoading && _users.isNotEmpty)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: OutlinedButton(
-                onPressed: _loadUsers,
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: AppColors.primaryPurple.withOpacity(0.5)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          if (_isLoading && _users.isEmpty)
+            const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple))
+          else if (filteredUsers.isEmpty)
+            _buildEmptyState()
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: filteredUsers.length,
+              itemBuilder: (context, index) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _UserCard(
+                  user: filteredUsers[index],
+                  onEdit: () => _showEditDialog(filteredUsers[index]),
+                  onDelete: () => _deleteUser(filteredUsers[index]['id'], '${filteredUsers[index]['firstName']} ${filteredUsers[index]['lastName']}'),
+                  isSmallScreen: isSmallScreen,
                 ),
-                child: const Text('Load More'),
               ),
             ),
-          ),
-      ],
+
+          if (_hasMore && !_isLoading && _users.isNotEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: TextButton(
+                  onPressed: _loadUsers,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primaryPurple,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: AppColors.primaryPurple.withOpacity(0.5)),
+                    ),
+                  ),
+                  child: const Text('Load More'),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
   Widget _buildSearchAndFiltersPanel() {
-    return _Panel(
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -309,10 +332,24 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: _roleFilters.map((filter) => _FilterChip(
-              label: filter,
+            children: _roleFilters.map((filter) => ChoiceChip(
+              label: Text(filter),
               selected: _selectedRoleFilter == filter,
-              onSelected: () => setState(() => _selectedRoleFilter = filter),
+              onSelected: (selected) {
+                if (selected) setState(() => _selectedRoleFilter = filter);
+              },
+              selectedColor: AppColors.primaryPurple.withOpacity(0.2),
+              backgroundColor: AppColors.mainBackground,
+              labelStyle: TextStyle(
+                color: _selectedRoleFilter == filter ? AppColors.primaryText : AppColors.secondaryText,
+                fontWeight: _selectedRoleFilter == filter ? FontWeight.w600 : FontWeight.w400,
+              ),
+              side: BorderSide(
+                color: _selectedRoleFilter == filter
+                    ? AppColors.primaryPurple.withOpacity(0.6)
+                    : AppColors.divider.withOpacity(0.3),
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
             )).toList(),
           ),
           const SizedBox(height: 12),
@@ -320,41 +357,60 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: _statusFilters.map((filter) => _FilterChip(
-              label: filter,
+            children: _statusFilters.map((filter) => ChoiceChip(
+              label: Text(filter),
               selected: _selectedStatusFilter == filter,
-              onSelected: () => setState(() => _selectedStatusFilter = filter),
+              onSelected: (selected) {
+                if (selected) setState(() => _selectedStatusFilter = filter);
+              },
+              selectedColor: AppColors.primaryPurple.withOpacity(0.2),
+              backgroundColor: AppColors.mainBackground,
+              labelStyle: TextStyle(
+                color: _selectedStatusFilter == filter ? AppColors.primaryText : AppColors.secondaryText,
+                fontWeight: _selectedStatusFilter == filter ? FontWeight.w600 : FontWeight.w400,
+              ),
+              side: BorderSide(
+                color: _selectedStatusFilter == filter
+                    ? AppColors.primaryPurple.withOpacity(0.6)
+                    : AppColors.divider.withOpacity(0.3),
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
             )).toList(),
           ),
           const SizedBox(height: 16),
           // Search field with clear button
-          TextField(
-            controller: _searchController,
-            style: const TextStyle(color: AppColors.primaryText),
-            decoration: InputDecoration(
-              hintText: 'Search by name or email...',
-              hintStyle: const TextStyle(color: AppColors.disabledText),
-              prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, color: AppColors.secondaryText),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                        _refreshUsers();
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: AppColors.mainBackground,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  style: const TextStyle(color: AppColors.primaryText),
+                  decoration: InputDecoration(
+                    hintText: 'Search by name or email...',
+                    hintStyle: const TextStyle(color: AppColors.disabledText),
+                    prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, color: AppColors.secondaryText),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                              _refreshUsers();
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: AppColors.mainBackground,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-            ),
+            ],
           ),
-          const SizedBox(height: 12),
           if (_selectedRoleFilter != 'All' || _selectedStatusFilter != 'All' || _searchQuery.isNotEmpty)
             Align(
               alignment: Alignment.centerRight,
@@ -370,42 +426,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Widget _buildEmptyState() {
-    return _Panel(
-      child: const Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 40),
-          child: Text('No users found.', style: TextStyle(color: AppColors.secondaryText)),
-        ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(18),
       ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onSelected;
-  const _FilterChip({required this.label, required this.selected, required this.onSelected});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onSelected,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primaryPurple.withOpacity(0.2) : AppColors.mainBackground,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: selected ? AppColors.primaryPurple.withOpacity(0.6) : AppColors.divider.withOpacity(0.3)),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? AppColors.primaryText : AppColors.secondaryText,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            fontSize: 13,
-          ),
-        ),
+      child: const Column(
+        children: [
+          Icon(Icons.history_toggle_off, color: AppColors.secondaryText, size: 48),
+          SizedBox(height: 12),
+          Text('No users found', style: TextStyle(color: AppColors.secondaryText, fontSize: 15, fontWeight: FontWeight.w600)),
+          SizedBox(height: 4),
+          Text('Try adjusting your filters', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+        ],
       ),
     );
   }
@@ -415,7 +450,14 @@ class _UserCard extends StatelessWidget {
   final Map<String, dynamic> user;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  const _UserCard({required this.user, required this.onEdit, required this.onDelete});
+  final bool isSmallScreen;
+
+  const _UserCard({
+    required this.user,
+    required this.onEdit,
+    required this.onDelete,
+    this.isSmallScreen = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -423,101 +465,158 @@ class _UserCard extends StatelessWidget {
     final String fullName = '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
     final String displayName = fullName.isNotEmpty ? fullName : 'No name';
 
-    return _Panel(
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
-      child: Row(
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(radius: 28, backgroundColor: Colors.white24, child: Icon(Icons.person_outline, color: Colors.white, size: 28)),
-          const SizedBox(width: 20),
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(displayName, style: const TextStyle(color: AppColors.primaryText, fontSize: 16, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                Text(user['email'] ?? '', style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Row(
-              children: [
-                const Text('Role:', style: TextStyle(color: AppColors.secondaryText, fontSize: 13)),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(20)),
-                  child: Text(user['role'] ?? 'User', style: const TextStyle(color: AppColors.primaryText, fontSize: 12, fontWeight: FontWeight.w600)),
-                ),
-                const SizedBox(width: 12),
-                const Text('Status:', style: TextStyle(color: AppColors.secondaryText, fontSize: 13)),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: isActive ? AppColors.safe.withOpacity(0.2) : AppColors.highRisk.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: isActive ? AppColors.safe.withOpacity(0.5) : AppColors.highRisk.withOpacity(0.5)),
-                  ),
-                  child: Text(isActive ? 'Active' : 'Suspended', style: TextStyle(color: isActive ? AppColors.safe : AppColors.highRisk, fontSize: 12, fontWeight: FontWeight.w600)),
-                ),
-              ],
-            ),
-          ),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 70,
-                height: 38,
-                child: OutlinedButton(
-                  onPressed: onEdit,
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: AppColors.primaryPurple.withOpacity(0.6)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
+              const CircleAvatar(
+                radius: 28,
+                backgroundColor: Colors.white24,
+                child: Icon(Icons.person_outline, color: Colors.white, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      user['email'] ?? '',
+                      style: const TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 70,
-                height: 38,
-                child: OutlinedButton(
-                  onPressed: onDelete,
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.highRisk),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              // Role + Status chips (wrap to next line on small screens)
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  // Role chip
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      user['role'] ?? 'User',
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                  child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.highRisk)),
+                  // Status chip
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isActive ? AppColors.safe.withOpacity(0.15) : AppColors.highRisk.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isActive ? AppColors.safe.withOpacity(0.5) : AppColors.highRisk.withOpacity(0.5),
+                      ),
+                    ),
+                    child: Text(
+                      isActive ? 'Active' : 'Suspended',
+                      style: TextStyle(
+                        color: isActive ? AppColors.safe : AppColors.highRisk,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Action buttons (solid, gradient for edit, red for delete)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              // Edit button (gradient)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: AppColors.premiumGradient,
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: ElevatedButton(
+                  onPressed: onEdit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Edit',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Delete button (solid red)
+              ElevatedButton(
+                onPressed: onDelete,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.highRisk,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Panel extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry? padding;
-  const _Panel({required this.child, this.padding});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: padding ?? const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.3)),
-        boxShadow: [BoxShadow(color: AppColors.primaryPurple.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 4))],
-      ),
-      child: child,
     );
   }
 }

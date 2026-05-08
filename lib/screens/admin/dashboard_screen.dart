@@ -8,7 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
 // ============================================================================
-// Dashboard Content (unchanged except for stat cards – flaggedReports updated)
+// Dashboard Content (unchanged)
 // ============================================================================
 class _DashboardContent extends StatefulWidget {
   const _DashboardContent();
@@ -77,7 +77,6 @@ class _DashboardContentState extends State<_DashboardContent> {
     }
   }
 
-  // PHASE 1: Count pending reports from false_reports
   Future<int> _getFlaggedReports() async {
     try {
       final snapshot = await FirebaseFirestore.instance
@@ -100,7 +99,6 @@ class _DashboardContentState extends State<_DashboardContent> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top section: admin overview + stat cards (unchanged)
               LayoutBuilder(
                 builder: (context, constraints) {
                   final bool isWide = constraints.maxWidth > 1050;
@@ -153,8 +151,6 @@ class _DashboardContentState extends State<_DashboardContent> {
                 },
               ),
               const SizedBox(height: 18),
-
-              // PHASE 2: Replace hardcoded chart with dynamic scan activity
               LayoutBuilder(
                 builder: (context, constraints) {
                   final bool isWide = constraints.maxWidth > 1050;
@@ -178,8 +174,6 @@ class _DashboardContentState extends State<_DashboardContent> {
                 },
               ),
               const SizedBox(height: 18),
-
-              // PHASE 1: Replace hardcoded flagged reports with dynamic list from false_reports
               LayoutBuilder(
                 builder: (context, constraints) {
                   final bool isWide = constraints.maxWidth > 1050;
@@ -348,8 +342,7 @@ class _AdminProfileCard extends StatelessWidget {
 }
 
 // ============================================================================
-// PHASE 2: Dynamic Scan Activity Panel (last 7 days from scans collectionGroup)
-// FIXED: no num/double error
+// Dynamic Scan Activity Panel (unchanged)
 // ============================================================================
 class _DynamicScanActivityPanel extends StatefulWidget {
   const _DynamicScanActivityPanel();
@@ -371,7 +364,7 @@ class _DynamicScanActivityPanelState extends State<_DynamicScanActivityPanel> {
   Future<List<double>> _fetchDailyScanCounts() async {
     try {
       final now = DateTime.now();
-      final startOfWeek = now.subtract(Duration(days: now.weekday - 1)); // Monday
+      final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
       final List<double> counts = List.filled(7, 0.0);
 
       for (int i = 0; i < 7; i++) {
@@ -414,12 +407,10 @@ class _DynamicScanActivityPanelState extends State<_DynamicScanActivityPanel> {
                 );
               }
               final values = snapshot.data!;
-              // Find max value (as double)
               double maxVal = 0.0;
               for (final v in values) {
                 if (v > maxVal) maxVal = v;
               }
-              // Normalize to max 200
               final List<double> normalized = [];
               for (final v in values) {
                 if (maxVal > 0) {
@@ -496,7 +487,7 @@ class _Bar extends StatelessWidget {
 }
 
 // ============================================================================
-// System Status Panel (dynamic – checks live service health)
+// System Status Panel (unchanged)
 // ============================================================================
 class _SystemStatusPanel extends StatefulWidget {
   const _SystemStatusPanel();
@@ -546,7 +537,6 @@ class _SystemStatusPanelState extends State<_SystemStatusPanel> {
         }
       }(),
       () async {
-        // Threat engine is always embedded — check if it processed any scans today
         try {
           final now = DateTime.now();
           final startOfDay = DateTime(now.year, now.month, now.day);
@@ -558,12 +548,11 @@ class _SystemStatusPanelState extends State<_SystemStatusPanel> {
               .timeout(const Duration(seconds: 6));
           threatEngineOk = snap.docs.isNotEmpty;
         } catch (_) {
-          threatEngineOk = true; // engine is always available even if query fails
+          threatEngineOk = true;
         }
       }(),
       () async {
         try {
-          // Use Google's DNS-over-HTTPS as a reliable internet/API reachability check
           final res = await http
               .get(Uri.parse('https://dns.google/resolve?name=virustotal.com'))
               .timeout(const Duration(seconds: 6));
@@ -690,7 +679,7 @@ class _StatusRow extends StatelessWidget {
 }
 
 // ============================================================================
-// PHASE 1: Dynamic Flagged Reports Panel (from false_reports collection)
+// Dynamic Flagged Reports Panel (unchanged)
 // ============================================================================
 class _DynamicFlaggedReportsPanel extends StatelessWidget {
   const _DynamicFlaggedReportsPanel();
@@ -838,7 +827,7 @@ class _ReportRow extends StatelessWidget {
 }
 
 // ============================================================================
-// Recent System Activity Panel – dynamic, merged from 3 Firestore sources
+// Recent System Activity Panel (unchanged)
 // ============================================================================
 class _ActivityItem {
   final String title;
@@ -876,7 +865,6 @@ class _RecentSystemActivityPanelState extends State<_RecentSystemActivityPanel> 
     final items = <_ActivityItem>[];
 
     await Future.wait([
-      // Source 1: false_reports (submitted + reviewed)
       () async {
         try {
           final snap = await FirebaseFirestore.instance
@@ -913,7 +901,6 @@ class _RecentSystemActivityPanelState extends State<_RecentSystemActivityPanel> 
         } catch (_) {}
       }(),
 
-      // Source 2: high-risk scans (riskScore >= 50)
       () async {
         try {
           final snap = await FirebaseFirestore.instance
@@ -945,7 +932,6 @@ class _RecentSystemActivityPanelState extends State<_RecentSystemActivityPanel> 
         } catch (_) {}
       }(),
 
-      // Source 3: new user registrations
       () async {
         try {
           final snap = await FirebaseFirestore.instance
@@ -1100,7 +1086,7 @@ class _MiniActivityTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: (iconColor ?? AppColors.primaryPurple).withValues(alpha: 0.12),
+                color: (iconColor ?? AppColors.primaryPurple).withOpacity(0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: iconColor ?? AppColors.primaryPurple, size: 16),
@@ -1132,7 +1118,7 @@ class _MiniActivityTile extends StatelessWidget {
 }
 
 // ============================================================================
-// Shared Panel widget (unchanged)
+// Shared Panel widget
 // ============================================================================
 class _Panel extends StatelessWidget {
   final Widget child;
@@ -1155,7 +1141,7 @@ class _Panel extends StatelessWidget {
 }
 
 // ============================================================================
-// Main AdminDashboardScreen (unchanged except sidebar collapsible)
+// Main AdminDashboardScreen with IMPROVED COLLAPSIBLE SIDEBAR
 // ============================================================================
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -1170,7 +1156,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   final List<Widget> _screens = [
     const _DashboardContent(),
-    UserManagementScreen(),
+    const UserManagementScreen(),
     const FlaggedReviewsScreen(),
     const ScanStatisticsScreen(),
   ];
@@ -1189,7 +1175,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       body: SafeArea(
         child: Row(
           children: [
-            // Animated Sidebar
+            // Animated Sidebar with improved styling
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
@@ -1202,6 +1188,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 crossAxisAlignment: _isSidebarCollapsed ? CrossAxisAlignment.center : CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 24),
+                  // Header with logo and collapse toggle
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: _isSidebarCollapsed ? 12 : 20),
                     child: Row(
@@ -1214,101 +1201,139 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         IconButton(
                           icon: Icon(_isSidebarCollapsed ? Icons.menu_open : Icons.menu, color: AppColors.secondaryText),
                           onPressed: () => setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
+                          tooltip: _isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar',
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 32),
+                  // Navigation items with tooltips and improved active state
                   _buildNavItem(icon: Icons.dashboard_outlined, label: 'Dashboard', index: 0),
                   _buildNavItem(icon: Icons.people_outline, label: 'User Management', index: 1),
                   _buildNavItem(icon: Icons.flag_outlined, label: 'Flagged Reviews', index: 2),
                   _buildNavItem(icon: Icons.analytics_outlined, label: 'Scan Statistics', index: 3),
                   const Spacer(),
+                  // User profile + single logout button (improved UI)
                   Padding(
-                    padding: EdgeInsets.all(_isSidebarCollapsed ? 8 : 20),
-                    child: Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.symmetric(horizontal: _isSidebarCollapsed ? 8 : 14, vertical: _isSidebarCollapsed ? 8 : 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardBackground,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
-                        children: [
-                          const CircleAvatar(radius: 18, backgroundColor: Colors.white24, child: Icon(Icons.person_outline, color: Colors.white)),
-                          if (!_isSidebarCollapsed) const SizedBox(width: 12),
-                          if (!_isSidebarCollapsed)
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    FirebaseAuth.instance.currentUser?.displayName ?? 'Admin User',
-                                    style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600),
+                    padding: EdgeInsets.all(_isSidebarCollapsed ? 8 : 16),
+                    child: Column(
+                      children: [
+                        if (!_isSidebarCollapsed)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.cardBackground,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: AppColors.primaryPurple.withOpacity(0.2)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primaryPurple.withOpacity(0.08),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                )
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: Colors.white24,
+                                  child: Icon(Icons.person_outline, color: Colors.white, size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        FirebaseAuth.instance.currentUser?.displayName ?? 'Admin User',
+                                        style: const TextStyle(
+                                          color: AppColors.primaryText,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        FirebaseAuth.instance.currentUser?.email ?? '',
+                                        style: const TextStyle(
+                                          color: AppColors.secondaryText,
+                                          fontSize: 11,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    FirebaseAuth.instance.currentUser?.email ?? '',
-                                    style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        // Single logout button – centred when collapsed
+                        Container(
+                          width: _isSidebarCollapsed ? 40 : double.infinity,
+                          decoration: BoxDecoration(
+                            color: AppColors.highRisk.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: TextButton.icon(
+                            onPressed: () async => await FirebaseAuth.instance.signOut(),
+                            icon: const Icon(Icons.logout, color: AppColors.highRisk, size: 18),
+                            label: _isSidebarCollapsed
+                                ? const SizedBox.shrink()
+                                : const Text(
+                                    'Logout',
+                                    style: TextStyle(color: AppColors.highRisk),
                                   ),
-                                ],
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: _isSidebarCollapsed ? 0 : 12,
+                                vertical: 12,
                               ),
                             ),
-                          if (!_isSidebarCollapsed)
-                            IconButton(
-                              icon: const Icon(Icons.logout, color: AppColors.secondaryText, size: 20),
-                              onPressed: () async => await FirebaseAuth.instance.signOut(),
-                            ),
-                          if (_isSidebarCollapsed)
-                            IconButton(
-                              icon: const Icon(Icons.logout, color: AppColors.secondaryText, size: 20),
-                              onPressed: () async => await FirebaseAuth.instance.signOut(),
-                            ),
-                        ],
-                      ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),
                 ],
               ),
             ),
-            // Main content area
+            // Main content area – removed redundant search bar
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Clean top bar with only title
                   Container(
                     padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-                    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.divider.withOpacity(0.3)))),
+                    decoration: BoxDecoration(
+                      border: Border(bottom: BorderSide(color: AppColors.divider.withOpacity(0.3))),
+                    ),
                     child: Row(
                       children: [
-                        Text(_titles[_selectedIndex], style: const TextStyle(color: AppColors.primaryText, fontSize: 28, fontWeight: FontWeight.bold)),
-                        const Spacer(),
-                        Container(
-                          width: 280,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: AppColors.cardBackground,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.divider.withOpacity(0.3)),
-                          ),
-                          child: const TextField(
-                            style: TextStyle(color: AppColors.primaryText),
-                            decoration: InputDecoration(
-                              hintText: 'Search...',
-                              hintStyle: TextStyle(color: AppColors.disabledText),
-                              prefixIcon: Icon(Icons.search, color: AppColors.secondaryText),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(vertical: 10),
-                            ),
+                        Text(
+                          _titles[_selectedIndex],
+                          style: const TextStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
+                        const Spacer(),
+                        // Optional: you can add a context‑specific action button here later
                       ],
                     ),
                   ),
-                  Expanded(child: IndexedStack(index: _selectedIndex, children: _screens)),
+                  Expanded(
+                    child: IndexedStack(
+                      index: _selectedIndex,
+                      children: _screens,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1318,21 +1343,44 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildNavItem({required IconData icon, required String label, required int index}) {
+  // Improved navigation item with tooltip and proper padding for collapsed state
+  Widget _buildNavItem({
+    required IconData icon,
+    required String label,
+    required int index,
+  }) {
     final isSelected = _selectedIndex == index;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: isSelected ? AppColors.primaryPurple.withOpacity(0.15) : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        border: isSelected ? Border.all(color: AppColors.primaryPurple.withOpacity(0.5)) : null,
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: isSelected ? AppColors.primaryPurple : AppColors.secondaryText),
-        title: _isSidebarCollapsed
-            ? null
-            : Text(label, style: TextStyle(color: isSelected ? AppColors.primaryText : AppColors.secondaryText, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
-        onTap: () => setState(() => _selectedIndex = index),
+    return Tooltip(
+      message: _isSidebarCollapsed ? label : '',
+      waitDuration: const Duration(milliseconds: 500),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: isSelected ? AppColors.primaryPurple.withOpacity(0.12) : Colors.transparent,
+        ),
+        child: ListTile(
+          leading: Icon(
+            icon,
+            color: isSelected ? AppColors.primaryPurple : AppColors.secondaryText,
+          ),
+          title: _isSidebarCollapsed
+              ? null
+              : Text(
+                  label,
+                  style: TextStyle(
+                    color: isSelected ? AppColors.primaryText : AppColors.secondaryText,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+          onTap: () => setState(() => _selectedIndex = index),
+          dense: true,
+          horizontalTitleGap: _isSidebarCollapsed ? 0 : 12,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: _isSidebarCollapsed ? 0 : 16,
+            vertical: 8,
+          ),
+        ),
       ),
     );
   }
