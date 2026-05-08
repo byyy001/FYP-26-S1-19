@@ -7,10 +7,10 @@ class BehaviorEngine {
   late final List<RegExp> _adKeywordRegexes;
   late final double _adIntensityThreshold;
   late final int _pathDepthWarning;
+  late final Future<void> _initFuture;
 
   BehaviorEngine() {
-    // Load config asynchronously in constructor (non-blocking, but ensure it's ready before use)
-    _loadConfig();
+    _initFuture = _loadConfig();
   }
 
   Future<void> _loadConfig() async {
@@ -18,7 +18,6 @@ class BehaviorEngine {
     _adIntensityThreshold = _config.adIntensityThreshold;
     _pathDepthWarning = _config.pathDepthWarning;
 
-    // Build RegExp list from dynamic keywords
     final keywords = _config.trackerDetectionKeywords;
     _adKeywordRegexes = keywords.map((kw) => RegExp(
       RegExp.escape(kw),
@@ -91,10 +90,7 @@ class BehaviorEngine {
     UrlFeatures features, {
     Map<String, dynamic>? externalThreatData,
   }) async {
-    // Ensure config is loaded (if not, wait briefly)
-    if (_adKeywordRegexes.isEmpty) {
-      await _loadConfig();
-    }
+    await _initFuture;
 
     final double urlScore = _urlHeuristicScore(features);
     final List<String> matchedPatterns = [];

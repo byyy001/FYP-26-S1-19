@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DynamicConfig {
@@ -66,30 +67,37 @@ class DynamicConfig {
   }
 
   Future<void> _load() async {
+    // Wait for auth — Firestore rules require an authenticated user
+    final user = await FirebaseAuth.instance.authStateChanges().first;
+
     // 1. Try Firestore (direct, always fresh)
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('app_config')
-          .doc('threat_engine')
-          .get()
-          .timeout(const Duration(seconds: 3));
-      if (doc.exists) {
-        final data = doc.data()!;
-        print("✅ DynamicConfig: Loaded from Firestore");
-        print("   global_blacklist: ${data['global_blacklist']}");
-        _config = Map<String, dynamic>.from(_defaults);
-        _config.addAll(data);
-        _loaded = true;
-        await _saveToCache();
-        return;
-      } else {
-        print("⚠️ Firestore document does not exist, using defaults");
+    if (user != null) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('app_config')
+            .doc('threat_engine')
+            .get()
+            .timeout(const Duration(seconds: 3));
+        if (doc.exists) {
+          final data = doc.data()!;
+          print("✅ DynamicConfig: Loaded from Firestore");
+          print("   global_blacklist: ${data['global_blacklist']}");
+          _config = Map<String, dynamic>.from(_defaults);
+          _config.addAll(data);
+          _loaded = true;
+          await _saveToCache();
+          return;
+        } else {
+          print("⚠️ Firestore document does not exist, using defaults");
+        }
+      } catch (e) {
+        print("❌ DynamicConfig: Firestore fetch failed: $e");
       }
-    } catch (e) {
-      print("❌ DynamicConfig: Firestore fetch failed: $e");
+    } else {
+      print("⚠️ DynamicConfig: No authenticated user, skipping Firestore");
     }
 
-    // 2. Fallback to cache (only if Firestore fails)
+    // 2. Fallback to cache (only if Firestore fails or no user)
     try {
       final prefs = await SharedPreferences.getInstance();
       final cached = prefs.getString('threat_engine_config');
