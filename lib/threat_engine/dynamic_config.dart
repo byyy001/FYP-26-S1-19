@@ -164,4 +164,27 @@ class DynamicConfig {
   Future<void> refresh() async {
     await _load();
   }
+
+  /// Re-fetches only the blacklist and whitelist from Firestore.
+  /// Lightweight — called before every scan so changes take effect immediately.
+  Future<void> refreshBlacklist() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('app_config')
+          .doc('threat_engine')
+          .get()
+          .timeout(const Duration(seconds: 3));
+      if (doc.exists) {
+        final data = doc.data()!;
+        if (data.containsKey('global_blacklist')) {
+          _config['global_blacklist'] = data['global_blacklist'];
+        }
+        if (data.containsKey('global_whitelist')) {
+          _config['global_whitelist'] = data['global_whitelist'];
+        }
+      }
+    } catch (_) {}
+  }
 }

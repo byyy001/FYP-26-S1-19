@@ -122,18 +122,79 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
     }
   }
 
-  Future<void> _rescanUrl(String url) async {
+  Future<ScanSettings> _loadUserSettings() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return ScanSettings.forBeginner();
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('scan_preferences')
+          .get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        return ScanSettings(
+          phishingSensitivity: data['phishingSensitivity'] ?? true,
+          httpSitesWarning: false,
+          scriptAnalysis: data['scriptAnalysis'] ?? true,
+          adReductionAnalysis: false,
+          adDensityLevel: 1,
+          autoRecheckScans: false,
+          sharingConfiguration: false,
+          useExternalApis: data['useExternalApis'] ?? true,
+          isPremium: data['isPremium'] ?? true,
+          userLevel: data['userLevel'] ?? 'beginner',
+          enableMachineLearning: true,
+          useEnsemble: data['useEnsemble'] ?? true,
+          useLogisticRegression: data['useLogisticRegression'] ?? true,
+          useDecisionTree: data['useDecisionTree'] ?? true,
+          useXGBoost: data['useXGBoost'] ?? true,
+          useLightGBM: data['useLightGBM'] ?? true,
+          deepScan: data['deepScan'] ?? true,
+          adFilter: false,
+        );
+      }
+    } catch (_) {}
+    return ScanSettings.forBeginner();
+  }
+
+  Future<void> _rescanUrl(String url, DocumentReference docRef) async {
     setState(() => _isRescanning = true);
     try {
-      final settings = ScanSettings.defaultSettings();
+      final settings = await _loadUserSettings();
       final engine = await ThreatEngine.getInstance();
       final result = await engine.analyze(url, settings: settings);
+      final scanResult = result['scan_result'] as Map<String, dynamic>;
+
+      final double riskScore =
+          double.tryParse(scanResult['risk_score']?.toString() ?? '0') ?? 0.0;
+      final String verdict = _getStatusFromRiskScore(riskScore);
+
+      await docRef.update({
+        'riskScore': riskScore,
+        'risk_score': riskScore,
+        'verdict': verdict,
+        'threat_type': scanResult['threat_type'] ?? 'unknown',
+        'explanation': scanResult['explanation'] ?? '',
+        'detected_threats': scanResult['detected_threats'] ?? [],
+        'ml_confidence': scanResult['ml_confidence'] ?? 'low',
+        'ml_score': scanResult['ml_score'] ?? 0,
+        'ai_score': scanResult['ai_score'] ?? 0,
+        'behavior_score': scanResult['behavior_score'] ?? 0,
+        'external_score': scanResult['external_score'] ?? 0,
+        'external_sources': scanResult['external_sources'] ?? [],
+        'actions': scanResult['actions'] ?? [],
+        'safety_tips': scanResult['safety_tips'] ?? [],
+        'scannedAt': FieldValue.serverTimestamp(),
+      });
+
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (context) => ResultScreen.fromEngineResult(
-            engineResult: result['scan_result'],
+            engineResult: scanResult,
             settings: settings,
           ),
         ),
@@ -334,13 +395,13 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                                             builder: (context) => ScanResultDetailsScreen(
                                               scanResult: scanResult,
                                               onDelete: () => _deleteScan(doc),
-                                              onRescan: () => _rescanUrl(url),
+                                              onRescan: () => _rescanUrl(url, doc.reference),
                                             ),
                                           ),
                                         );
                                       },
                                       onDelete: () => _deleteScan(doc),
-                                      onRescan: () => _rescanUrl(url),
+                                      onRescan: () => _rescanUrl(url, doc.reference),
                                     );
                                   }).toList(),
                                 ],

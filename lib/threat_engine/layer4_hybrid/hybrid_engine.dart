@@ -47,6 +47,7 @@ class HybridEngine {
     // 1. LOAD DYNAMIC CONFIG (always fresh)
     // ----------------------------------------------------------------------
     final config = await DynamicConfig.getInstance();
+    await config.refreshBlacklist();
     print("✅ Config loaded. Blacklist: ${config.globalBlacklist}");
 
     // ----------------------------------------------------------------------

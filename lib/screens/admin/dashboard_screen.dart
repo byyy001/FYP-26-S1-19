@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
+import '../login_screen.dart';
 import 'user_management_screen.dart';
 import 'flagged_reviews_screen.dart';
 import 'scan_statistics_screen.dart';
@@ -1288,7 +1289,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: TextButton.icon(
-                            onPressed: () async => await FirebaseAuth.instance.signOut(),
+                            onPressed: () async {
+                              await FirebaseAuth.instance.signOut();
+                              if (context.mounted) {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                  (_) => false,
+                                );
+                              }
+                            },
                             icon: const Icon(Icons.logout, color: AppColors.highRisk, size: 18),
                             label: _isSidebarCollapsed
                                 ? const SizedBox.shrink()

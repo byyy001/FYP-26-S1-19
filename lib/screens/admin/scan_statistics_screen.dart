@@ -199,16 +199,6 @@ class _ScanStatisticsScreenState extends State<ScanStatisticsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Scan Statistics',
-                style: TextStyle(color: AppColors.primaryText, fontSize: 28, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'View scan trends, risk distribution, and activity over time.',
-                style: TextStyle(color: AppColors.secondaryText, fontSize: 14),
-              ),
-              const SizedBox(height: 24),
               _buildDateFilterCard(),
               const SizedBox(height: 20),
               FutureBuilder<Map<String, dynamic>>(
@@ -332,7 +322,7 @@ class _ScanStatisticsScreenState extends State<ScanStatisticsScreen> {
             decoration: BoxDecoration(
               color: AppColors.mainBackground,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
+              border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.35)),
             ),
             child: Column(
               children: [
@@ -390,7 +380,7 @@ class _ScanStatisticsScreenState extends State<ScanStatisticsScreen> {
             decoration: BoxDecoration(
               color: AppColors.mainBackground,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
+              border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.35)),
             ),
             child: Column(
               children: distribution.map((item) {
@@ -531,8 +521,8 @@ class _Panel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
-        boxShadow: [BoxShadow(color: AppColors.primaryPurple.withOpacity(0.14), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.35)),
+        boxShadow: [BoxShadow(color: AppColors.primaryPurple.withValues(alpha: 0.14), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: child,
     );

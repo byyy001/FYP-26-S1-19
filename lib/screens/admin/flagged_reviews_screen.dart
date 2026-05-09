@@ -20,23 +20,6 @@ class _FlaggedReviewsScreenState extends State<FlaggedReviewsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Flagged Reviews',
-                style: TextStyle(
-                  color: AppColors.primaryText,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Review suspicious links reported by users or automatically flagged by the scanner.',
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 24),
               // Summary strip with live counts
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance.collection('false_reports').snapshots(),
@@ -144,10 +127,10 @@ class _FlaggedReviewsScreenState extends State<FlaggedReviewsScreen> {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.3)),
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.3)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.1),
+            color: AppColors.primaryPurple.withValues(alpha: 0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -237,6 +220,21 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
           .collection('false_reports')
           .doc(widget.docId)
           .update({'status': newStatus});
+
+      if (newStatus == 'reviewed') {
+        final userId = widget.data['userId'] as String?;
+        if (userId != null && userId.isNotEmpty) {
+          await FirebaseFirestore.instance.collection('user_notifications').add({
+            'uid': userId,
+            'type': 'admin_reviewed',
+            'url': widget.data['url'] ?? '',
+            'reason': widget.data['reason'] ?? '',
+            'notifiedUser': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -259,6 +257,102 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
     }
   }
 
+  Future<void> _resolveWithBlacklist() async {
+    final url = widget.data['url'] as String? ?? '';
+    final rawHost = Uri.tryParse(url)?.host ?? '';
+    final domain = rawHost.startsWith('www.') ? rawHost.substring(4) : rawHost;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Add to Global Blacklist?',
+          style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          domain.isNotEmpty
+              ? 'Resolving this report will add "$domain" to the global blacklist. All future scans of this domain will be flagged as malicious.'
+              : 'Resolving this report will mark it as resolved.',
+          style: const TextStyle(color: AppColors.secondaryText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.highRisk,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isUpdating = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('false_reports')
+          .doc(widget.docId)
+          .update({'status': 'resolved'});
+
+      if (domain.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('app_config')
+            .doc('threat_engine')
+            .update({
+          'global_blacklist': FieldValue.arrayUnion([domain]),
+          'last_updated': FieldValue.serverTimestamp(),
+          'version': FieldValue.increment(1),
+        });
+      }
+
+      final userId = widget.data['userId'] as String?;
+      if (userId != null && userId.isNotEmpty) {
+        await FirebaseFirestore.instance.collection('user_notifications').add({
+          'uid': userId,
+          'type': 'admin_resolved',
+          'url': url,
+          'domain': domain,
+          'reason': widget.data['reason'] ?? '',
+          'notifiedUser': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              domain.isNotEmpty
+                  ? '"$domain" added to global blacklist'
+                  : 'Report resolved',
+            ),
+            backgroundColor: AppColors.safe,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.highRisk,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdating = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final url = widget.data['url'] ?? 'Unknown URL';
@@ -267,7 +361,7 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
     final submittedAt = (widget.data['submittedAt'] as Timestamp?)?.toDate();
     final scanResult = widget.data['scanResult'] as Map<String, dynamic>?;
     final verdict = scanResult?['verdict'] ?? 'Unknown';
-    final riskScore = scanResult?['riskScore'] ?? 0;
+    final riskScore = scanResult?['risk_score'] ?? 0;
 
     final String formattedDate = submittedAt != null
         ? '${submittedAt.day}/${submittedAt.month}/${submittedAt.year}'
@@ -294,10 +388,10 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.3)),
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.3)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.1),
+            color: AppColors.primaryPurple.withValues(alpha: 0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -373,9 +467,9 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: badgeColor.withOpacity(0.2),
+                  color: badgeColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: badgeColor.withOpacity(0.5)),
+                  border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
                 ),
                 child: Text(
                   reason,
@@ -413,7 +507,7 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
               ),
               const SizedBox(width: 12),
               ElevatedButton(
-                onPressed: _isUpdating ? null : () => _updateStatus('resolved'),
+                onPressed: _isUpdating ? null : _resolveWithBlacklist,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.safe,
                   shape: RoundedRectangleBorder(

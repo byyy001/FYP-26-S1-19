@@ -220,16 +220,6 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Security Management',
-                    style: TextStyle(color: AppColors.primaryText, fontSize: 28, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Manage all dynamic threat engine settings.',
-                    style: TextStyle(color: AppColors.secondaryText, fontSize: 14),
-                  ),
-                  const SizedBox(height: 20),
                   TabBar(
                     controller: _tabController,
                     isScrollable: true,

@@ -6,7 +6,7 @@ import '../constants/app_colors.dart';
 import '../services/scan_history_service.dart';
 import '../threat_engine/layer5_facade/threat_engine.dart';
 import '../threat_engine/scan_settings.dart';
-import 'notification_settings_screen.dart';
+import 'verdict_notifications_screen.dart';
 import 'help_screen.dart';
 import 'scan_settings_screen.dart';
 import 'security_insights_screen.dart';
@@ -292,6 +292,20 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
       'behaviorCategories': scanResult['behavior_categories'],
       'ensembleProbabilities': scanResult['ensemble_probabilities'],
     });
+
+    if (verdict == 'Safe') {
+      await FirebaseFirestore.instance.collection('safe_scans').add({
+        'uid': user.uid,
+        'url': url,
+        'verdict': verdict,
+        'riskScore': riskScore,
+        'scannedAt': FieldValue.serverTimestamp(),
+        'rescanned': false,
+        'rescannedAt': null,
+        'rescannedVerdict': null,
+        'notifiedUser': false,
+      });
+    }
   }
 
   String _normalizeUrl(String input) {
@@ -401,15 +415,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         titleSpacing: 22,
         title: Image.asset('assets/images/LinkSentryLogoTop.png', height: 48, fit: BoxFit.contain),
         actions: [
-          IconButton(
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-            icon: const Icon(Icons.notifications_none_rounded, color: AppColors.primaryText, size: 25),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const NotificationSettingsScreen()),
-            ),
-          ),
+          _buildBellWithBadge(context),
           const SizedBox(width: 4),
           Padding(
             padding: const EdgeInsets.only(right: 18),
@@ -529,6 +535,74 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
         },
       ),
       bottomNavigationBar: _buildCustomBottomNav(context),
+    );
+  }
+
+  Widget _buildBellWithBadge(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return IconButton(
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+        icon: const Icon(Icons.notifications_none_rounded, color: AppColors.primaryText, size: 25),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VerdictNotificationsScreen())),
+      );
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('user_notifications')
+          .where('uid', isEqualTo: user.uid)
+          .where('notifiedUser', isEqualTo: false)
+          .snapshots(),
+      builder: (context, adminSnapshot) {
+        final adminUnread = adminSnapshot.data?.docs.length ?? 0;
+
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('safe_scans')
+              .where('uid', isEqualTo: user.uid)
+              .where('rescanned', isEqualTo: true)
+              .where('notifiedUser', isEqualTo: false)
+              .snapshots(),
+          builder: (context, verdictSnapshot) {
+            final verdictUnread = (verdictSnapshot.data?.docs ?? []).where((doc) {
+              final verdict = (doc.data() as Map<String, dynamic>)['rescannedVerdict']?.toString().toLowerCase() ?? '';
+              return verdict.isNotEmpty && verdict != 'safe';
+            }).length;
+
+            final unreadCount = adminUnread + verdictUnread;
+
+            return GestureDetector(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VerdictNotificationsScreen())),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.notifications_none_rounded, color: AppColors.primaryText, size: 25),
+                    if (unreadCount > 0)
+                      Positioned(
+                        top: -4,
+                        right: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(color: AppColors.highRisk, shape: BoxShape.circle),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          child: Text(
+                            unreadCount > 9 ? '9+' : '$unreadCount',
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -654,7 +728,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: docs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final data = docs[index].data() as Map<String, dynamic>;
                   final riskScore = (data['riskScore'] as num?)?.toDouble() ?? 0.0;

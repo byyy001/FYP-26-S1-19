@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../constants/app_colors.dart';
+import '../login_screen.dart';
 import 'threat_engine_models_screen.dart';
 import 'system_performance_screen.dart';
 import 'system_settings_screen.dart';
@@ -914,40 +916,47 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Engineer User',
-                                  style: TextStyle(
+                                  FirebaseAuth.instance.currentUser?.displayName ?? 'Engineer User',
+                                  style: const TextStyle(
                                     color: AppColors.primaryText,
                                     fontWeight: FontWeight.w600,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                SizedBox(height: 2),
+                                const SizedBox(height: 2),
                                 Text(
-                                  'engineer@linksentry.com',
-                                  style: TextStyle(
+                                  FirebaseAuth.instance.currentUser?.email ?? '',
+                                  style: const TextStyle(
                                     color: AppColors.secondaryText,
                                     fontSize: 12,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
                           ),
                           IconButton(
-                            icon: Icon(
+                            icon: const Icon(
                               Icons.logout,
-                              color: AppColors.secondaryText,
+                              color: AppColors.highRisk,
                               size: 20,
                             ),
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Logout not implemented yet'),
-                                ),
-                              );
+                            onPressed: () async {
+                              await FirebaseAuth.instance.signOut();
+                              if (context.mounted) {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                  (_) => false,
+                                );
+                              }
                             },
                           ),
                         ],
