@@ -27,7 +27,7 @@ class AboutScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // App Logo (rectangular, no circle)
+              // App Logo
               Container(
                 width: 120,
                 height: 120,
@@ -131,35 +131,35 @@ class AboutScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // Team members – placeholders (replace with real names/roles)
+                    // All members now include "Documentation"
                     _buildTeamMember(
-                      name: 'Member 1',
-                      role: 'Role / Responsibility',
+                      name: 'Brandon Au Yong Kah Keat',
+                      role: 'Team Leader | Backend Developer | Admin Panel | Documentation',
                       icon: Icons.person,
                     ),
                     _buildTeamMember(
-                      name: 'Member 2',
-                      role: 'Role / Responsibility',
+                      name: 'Harsha Prasanna',
+                      role: 'Frontend & Backend | ML & Threat Engine | Admin Panel | Documentation',
                       icon: Icons.person,
                     ),
                     _buildTeamMember(
-                      name: 'Member 3',
-                      role: 'Role / Responsibility',
+                      name: 'Jerryck Wyly Koh Jarold',
+                      role: 'Frontend Developer | ML Developer | Documentation',
                       icon: Icons.person,
                     ),
                     _buildTeamMember(
-                      name: 'Member 4',
-                      role: 'Role / Responsibility',
+                      name: 'Beatrice Yong Ying Ying',
+                      role: 'Backend Developer | Notifications | Documentation Lead',
                       icon: Icons.person,
                     ),
                     _buildTeamMember(
-                      name: 'Member 5',
-                      role: 'Role / Responsibility',
+                      name: 'Oh Jing Ting',
+                      role: 'Backend Developer | Documentation',
                       icon: Icons.person,
                     ),
                     _buildTeamMember(
-                      name: 'Member 6',
-                      role: 'Role / Responsibility',
+                      name: 'Myat Thura Soe',
+                      role: 'Designer & Frontend | Backend | ML | Documentation',
                       icon: Icons.person,
                     ),
                   ],
@@ -167,7 +167,7 @@ class AboutScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // Licenses Button (now a consistent ElevatedButton)
+              // Licenses Button
               ElevatedButton.icon(
                 onPressed: () => _showLicensesDialog(context),
                 icon: const Icon(Icons.description, color: Colors.white),
@@ -223,26 +223,29 @@ class AboutScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                style: const TextStyle(
-                  color: AppColors.primaryText,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                role,
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 12,
+                const SizedBox(height: 2),
+                Text(
+                  role,
+                  style: TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 11,
+                    height: 1.3,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
