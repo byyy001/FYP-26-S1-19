@@ -15,6 +15,7 @@ import 'view_history_screen.dart';
 import 'profile_screen.dart';
 import 'result_screen.dart';
 import 'invalid_url_screen.dart';
+import '../services/notification_service.dart';
 
 String formatFirestoreTimestamp(Timestamp timestamp) {
   final DateTime dateTime = timestamp.toDate();
@@ -47,10 +48,59 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     _loadUserSettings();
     _statsFuture = _getScanStats();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.showLoginSuccess) _showLoginSuccessBanner();
-    });
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    if (widget.showLoginSuccess) _showLoginSuccessBanner();
+    await _checkAndFireRescanNotifications();
+  });
+}
+
+Future<void> _checkAndFireRescanNotifications() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  try {
+    // check notification preferences
+    final prefsDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('settings')
+        .doc('notification_preferences')
+        .get();
+
+    final prefs = prefsDoc.data();
+    final allowNotifications = prefs?['allowNotifications'] ?? false;
+    if (!allowNotifications) return;
+
+    // find rescanned URLs that changed verdict and havent fired a push yet
+    final snapshot = await FirebaseFirestore.instance
+        .collection('safe_scans')
+        .where('uid', isEqualTo: user.uid)
+        .where('rescanned', isEqualTo: true)
+        .where('notifiedUser', isEqualTo: false)
+        .get();
+
+    final changed = snapshot.docs.where((doc) {
+      final verdict = doc.data()['rescannedVerdict']?.toString().toLowerCase() ?? '';
+      return verdict.isNotEmpty && verdict != 'safe' && verdict != 'error';
+    }).toList();
+
+    if (changed.isEmpty) return;
+
+    // fire one local notification summarising the changes
+    final count = changed.length;
+    final firstUrl = changed.first.data()['url']?.toString() ?? '';
+    final shortUrl = firstUrl.length > 40 ? '${firstUrl.substring(0, 40)}…' : firstUrl;
+    final sound = prefs?['sound'] ?? false;
+
+    await NotificationService.instance.showRescanAlert(
+      count: count,
+      firstUrl: shortUrl,
+      playSound: sound,
+    );
+  } catch (e) {
+    debugPrint('Rescan notification check error: $e');
   }
+}
 
   void _showLoginSuccessBanner() {
     final overlay = Overlay.of(context, rootOverlay: true);

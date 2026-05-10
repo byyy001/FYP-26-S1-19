@@ -140,6 +140,23 @@ class NotificationService {
     }
   }
 
+  Future<void> showRescanAlert({
+    required int count,
+    required String firstUrl,
+    bool playSound = true,
+  }) async {
+    final body = count == 1
+      ? '$firstUrl has been flagged as unsafe since your last scan.'
+      : '$count previously safe URLs have been flagged as unsafe.';
+
+    await _show(
+      id: 2001,
+      title: 'Previously Safe URL Now Unsafe',
+      body: body,
+      playSound: playSound,
+    );
+  }
+
   // check if this threat type has appeared in user's history before
   Future<bool> _isNewThreatType(String uid, String threatType) async {
     try {
