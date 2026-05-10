@@ -1,5 +1,8 @@
 // lib/threat_engine/layer5_facade/threat_engine.dart
-import 'package:flutter/services.dart' show rootBundle;
+
+import 'dart:convert';
+import 'package:firebase_storage/firebase_storage.dart';
+
 import '../layer2_static_heuristics/static_rules.dart';
 import '../layer4_hybrid/hybrid_engine.dart';
 import '../layer3_ml/logistic_regression.dart';
@@ -11,45 +14,80 @@ import '../layer4_hybrid/rule_based_ai_engine.dart';
 import '../utils/scaler.dart';
 import '../scan_settings.dart';
 import '../layer1_feature_extraction/feature_extractor.dart';
-import '../dynamic_config.dart';
 
 class ThreatEngine {
   static ThreatEngine? _instance;
   late HybridEngine _engine;
-  late DynamicConfig _dynamicConfig;
 
   ThreatEngine._();
+
+  // --------------------------------------------------------------------------
+  // Load deployed active model JSON files from Firebase Storage
+  // --------------------------------------------------------------------------
+  static Future<String> _loadCloudModelJson(String storagePath) async {
+    try {
+      final ref = FirebaseStorage.instance.ref(storagePath);
+
+      // Downloads the JSON file into app memory.
+      // It does NOT save it as a local asset file.
+      final data = await ref.getData(50 * 1024 * 1024); // 50 MB max
+
+      if (data == null) {
+        throw Exception('No data returned from Firebase Storage: $storagePath');
+      }
+
+      print('Loaded cloud model: $storagePath');
+      return utf8.decode(data);
+    } catch (e) {
+      print('Failed to load cloud model: $storagePath');
+      print('Error: $e');
+      rethrow;
+    }
+  }
 
   static Future<ThreatEngine> getInstance() async {
     if (_instance != null) return _instance!;
 
-    final dynamicConfig = await DynamicConfig.getInstance();
+    // ------------------------------------------------------------------------
+    // Load ACTIVE deployed model files from Firebase Storage
+    // ------------------------------------------------------------------------
+    final lrWeightsJson = await _loadCloudModelJson(
+      'model_versions/active/logistic_regression/weights.json',
+    );
 
-    final lrWeightsJson = await rootBundle.loadString('assets/models/logistic_regression_weights.json');
-    final lrScalerJson = await rootBundle.loadString('assets/models/scaler_params.json');
-    final dtJson = await rootBundle.loadString('assets/models/decision_tree.json');
-    final xgbJson = await rootBundle.loadString('assets/models/xgboost_model.json');
-    String? lgbJson;
-    try {
-      lgbJson = await rootBundle.loadString('assets/models/lightgbm_model.json');
-    } catch (e) {
-      print('LightGBM model not found – continuing without it');
-    }
+    final lrScalerJson = await _loadCloudModelJson(
+      'model_versions/active/logistic_regression/scaler_params.json',
+    );
 
+    final dtJson = await _loadCloudModelJson(
+      'model_versions/active/decision_tree/model.json',
+    );
+
+    final xgbJson = await _loadCloudModelJson(
+      'model_versions/active/xgboost/model.json',
+    );
+
+    final lgbJson = await _loadCloudModelJson(
+      'model_versions/active/lightgbm/model.json',
+    );
+
+    // ------------------------------------------------------------------------
+    // Build model objects from downloaded cloud JSON
+    // ------------------------------------------------------------------------
     final lr = await LogisticRegression.fromJson(lrWeightsJson, lrScalerJson);
+
     final scaler = StandardScaler.fromJsonString(lrScalerJson);
+
     final dt = DecisionTree.fromJson(dtJson);
+
     final xgb = XGBoostModel.fromJson(xgbJson);
-    LightGBMModel? lgb;
-    if (lgbJson != null) {
-      lgb = await LightGBMModel.fromJson(lgbJson);
-    }
+
+    final lgb = await LightGBMModel.fromJson(lgbJson);
 
     final behavior = BehaviorEngine();
     final aiEngine = RuleBasedAIEngine();
 
     final engine = ThreatEngine._();
-    engine._dynamicConfig = dynamicConfig;
     engine._engine = HybridEngine(
       logisticModel: lr,
       decisionTree: dt,
@@ -64,20 +102,20 @@ class ThreatEngine {
     return engine;
   }
 
-  Future<Map<String, dynamic>> analyze(String url, {ScanSettings? settings}) async {
+  Future<Map<String, dynamic>> analyze(
+    String url, {
+    ScanSettings? settings,
+  }) async {
     final config = settings ?? ScanSettings.defaultSettings();
 
     final features = UrlFeatures(url);
-    final staticEngine = StaticRuleEngine(
-      features,
-      config,
-      enabledExternalSources: _dynamicConfig.enabledExternalSources,
-    );
+    final staticEngine = StaticRuleEngine(features, config);
     final externalResult = await staticEngine.checkExternalBlacklists();
 
     if (!config.isPremium && externalResult['is_malicious'] == true) {
       final score = (externalResult['score'] as double) * 100;
       final severity = _getSeverity(score);
+
       return {
         "url": url,
         "timestamp": DateTime.now().toIso8601String(),
@@ -87,7 +125,8 @@ class ThreatEngine {
           'risk_score': score.toStringAsFixed(1),
           'severity': severity,
           'threat_type': 'malicious',
-          'explanation': 'Flagged by external security sources: ${(externalResult['sources'] as List).join(', ')}. No further analysis performed.',
+          'explanation':
+              'Flagged by external security sources: ${(externalResult['sources'] as List).join(', ')}. No further analysis performed.',
           'detected_threats': [],
           'ml_confidence': 'none',
           'ml_score': '0.0000',
@@ -107,7 +146,7 @@ class ThreatEngine {
       settings: config,
       externalResult: externalResult,
     );
-    
+
     return {
       "url": url,
       "timestamp": DateTime.now().toIso8601String(),
@@ -123,9 +162,15 @@ class ThreatEngine {
   }
 
   List<String> _actions(double score) {
-    if (score >= 75) return ['Do not proceed', 'Close immediately', 'Report URL'];
-    if (score >= 50) return ['Avoid sensitive actions', 'Verify manually'];
-    if (score >= 25) return ['Proceed with caution'];
+    if (score >= 75) {
+      return ['Do not proceed', 'Close immediately', 'Report URL'];
+    }
+    if (score >= 50) {
+      return ['Avoid sensitive actions', 'Verify manually'];
+    }
+    if (score >= 25) {
+      return ['Proceed with caution'];
+    }
     return ['Safe to use'];
   }
 }

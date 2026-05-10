@@ -1042,14 +1042,6 @@ class _TrainingConfigPanel extends StatelessWidget {
           ),
 
           const SizedBox(height: 14),
-          const _FieldLabel('Feature Set'),
-          const SizedBox(height: 8),
-          const _FakeSelectField(value: 'Full Features'),
-          const SizedBox(height: 14),
-          const _FieldLabel('Export Format'),
-          const SizedBox(height: 8),
-          const _FakeSelectField(value: 'JSON for Mobile Threat Engine'),
-          const SizedBox(height: 14),
           const _FieldLabel('Training Notes'),
           const SizedBox(height: 8),
           TextField(
@@ -1935,43 +1927,6 @@ class _MetricCard extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FakeSelectField extends StatelessWidget {
-  final String value;
-
-  const _FakeSelectField({required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.mainBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.25)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.primaryText,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const Icon(
-            Icons.keyboard_arrow_down,
-            color: AppColors.secondaryText,
-            size: 18,
           ),
         ],
       ),
