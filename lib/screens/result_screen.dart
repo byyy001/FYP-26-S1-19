@@ -415,7 +415,7 @@ Explanation: ${_cleanText(widget.explanation)}
     }
   }
 
-  // ======================== IMPROVED REPORT FALSE POSITIVE ========================
+  // ======================== REPORT FALSE POSITIVE ========================
   Future<void> _showReportDialog(BuildContext context) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -446,7 +446,6 @@ Explanation: ${_cleanText(widget.explanation)}
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Scan summary
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
@@ -1066,7 +1065,7 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // ---------- REGISTERED DEFAULT SECTION (with report button) ----------
+  // ---------- REGISTERED DEFAULT SECTION ----------
   Widget _buildRegisteredDefaultSection(bool isSmall) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1135,7 +1134,7 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // ---------- ADVANCED REGISTERED SECTION (with report button) ----------
+  // ---------- ADVANCED REGISTERED SECTION ----------
   Widget _buildRegisteredAdvancedSection(bool isSmall) {
     final engine = widget.engineResult;
     final isEngineResult = engine != null;
@@ -1178,7 +1177,7 @@ Explanation: ${_cleanText(widget.explanation)}
           const SizedBox(height: 24),
           _buildSectionHeader('TECHNICAL ANALYSIS', Icons.code),
           const SizedBox(height: 16),
-         DefaultTabController(
+          DefaultTabController(
             length: 2,
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1193,13 +1192,15 @@ Explanation: ${_cleanText(widget.explanation)}
                   ],
                 ),
                 const SizedBox(height: 16),
-                const SizedBox(height: 16),
-                
-                _buildTechnicalDetailsTab(engine!),
-
-                const SizedBox(height: 16),
-
-                _buildExternalDataTab(engine),
+                SizedBox(
+                  height: 550, // Enough for individual models + ensemble
+                  child: TabBarView(
+                    children: [
+                      _buildTechnicalDetailsTab(engine!),
+                      _buildExternalDataTab(engine),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -1355,7 +1356,10 @@ Explanation: ${_cleanText(widget.explanation)}
     final cleanText = _cleanText(text);
     Color chipColor;
     IconData icon;
-    if (cleanText.toLowerCase().contains('malicious') || cleanText.toLowerCase().contains('phish')) {
+    if (cleanText.toLowerCase().contains('unencrypted http')) {
+      chipColor = AppColors.mediumRisk;
+      icon = Icons.lock_open;
+    } else if (cleanText.toLowerCase().contains('malicious') || cleanText.toLowerCase().contains('phish')) {
       chipColor = AppColors.highRisk;
       icon = Icons.warning;
     } else if (cleanText.toLowerCase().contains('suspicious')) {
@@ -1536,52 +1540,358 @@ Explanation: ${_cleanText(widget.explanation)}
     );
   }
 
-  // Technical Details Tab Content (simplified for brevity – copy from previous working version)
+  // ======================== TECHNICAL DETAILS TAB (with individual & ensemble) ========================
   Widget _buildTechnicalDetailsTab(Map<String, dynamic> engine) {
-    // If you need the full expanded technical details, keep the old implementation.
-    // For brevity, we'll keep the basic structure.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildExpandableSection(
-          title: 'Static Rules Fired',
-          icon: Icons.rule,
-          isExpanded: _showStaticRules,
-          onTap: () => setState(() => _showStaticRules = !_showStaticRules),
-          child: _buildEmptyMessage('No static rules fired'),
-        ),
-        const SizedBox(height: 16),
-        _buildExpandableSection(
-          title: 'Machine Learning Probabilities',
-          icon: Icons.show_chart,
-          isExpanded: _showMLDetails,
-          onTap: () => setState(() => _showMLDetails = !_showMLDetails),
-          child: _buildEmptyMessage('No probability data available.'),
-        ),
-        const SizedBox(height: 16),
-        _buildExpandableSection(
-          title: 'Behavior Analysis',
-          icon: Icons.insights,
-          isExpanded: _showBehaviorAnalysis,
-          onTap: () => setState(() => _showBehaviorAnalysis = !_showBehaviorAnalysis),
-          child: _buildEmptyMessage('No suspicious behavior patterns identified.'),
-        ),
-      ],
+    final staticThreats = engine['detailed_detected_threats'] as List? ?? [];
+    final behaviorPatterns = engine['behavior_matched_patterns'] as List? ?? [];
+    final behaviorCategories = engine['behavior_categories'] ?? {};
+
+    // Get individual model probabilities and ensemble probabilities
+    final individualModels = engine['individual_model_probabilities'] as Map<String, dynamic>?;
+    final ensembleProbs = (engine['ensemble_probabilities'] as List?) ?? [];
+
+    // List of class names
+    const classNames = ['Benign', 'Defacement', 'Phishing', 'Malware'];
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Static Rules Fired
+          _buildExpandableSection(
+            title: 'Static Rules Fired',
+            icon: Icons.rule,
+            isExpanded: _showStaticRules,
+            onTap: () => setState(() => _showStaticRules = !_showStaticRules),
+            child: staticThreats.isEmpty
+                ? _buildEmptyMessage('No static rules fired')
+                : Column(
+                    children: staticThreats.map<Widget>((threat) {
+                      final type = threat['type'] ?? 'unknown';
+                      final severity = threat['severity'] ?? 'low';
+                      final desc = threat['description'] ?? '';
+                      Color severityColor;
+                      switch (severity) {
+                        case 'high':
+                          severityColor = AppColors.highRisk;
+                          break;
+                        case 'medium':
+                          severityColor = AppColors.mediumRisk;
+                          break;
+                        default:
+                          severityColor = AppColors.safe;
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.warning, size: 16, color: severityColor),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    type.toUpperCase(),
+                                    style: TextStyle(
+                                      color: severityColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    desc,
+                                    style: const TextStyle(color: AppColors.primaryText, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+          ),
+          const SizedBox(height: 16),
+
+          // Machine Learning Probabilities – Individual Models + Ensemble
+          _buildExpandableSection(
+            title: 'Machine Learning Probabilities',
+            icon: Icons.show_chart,
+            isExpanded: _showMLDetails,
+            onTap: () => setState(() => _showMLDetails = !_showMLDetails),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Individual models (if available)
+                if (individualModels != null && individualModels.isNotEmpty) ...[
+                  const Text(
+                    'Individual Model Probabilities',
+                    style: TextStyle(
+                      color: AppColors.primaryPurple,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...individualModels.entries.map((entry) {
+                    final modelName = entry.key;
+                    final probs = entry.value as List?;
+                    if (probs == null || probs.length != 4) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 4),
+                          child: Text(
+                            modelName.replaceAll('_', ' ').toUpperCase(),
+                            style: const TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        ...classNames.asMap().entries.map((classEntry) {
+                          final idx = classEntry.key;
+                          final label = classEntry.value;
+                          final prob = (probs[idx] as num).toDouble();
+                          Color barColor;
+                          switch (idx) {
+                            case 2: // Phishing
+                              barColor = AppColors.highRisk;
+                              break;
+                            case 3: // Malware
+                              barColor = AppColors.mediumRisk;
+                              break;
+                            default:
+                              barColor = AppColors.safe;
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(label, style: const TextStyle(color: AppColors.primaryText, fontSize: 12)),
+                                    const Spacer(),
+                                    Text('${(prob * 100).toStringAsFixed(1)}%',
+                                        style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: prob,
+                                    backgroundColor: AppColors.divider,
+                                    color: barColor,
+                                    minHeight: 6,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        const SizedBox(height: 12),
+                      ],
+                    );
+                  }).toList(),
+                  const Divider(color: AppColors.divider, height: 24),
+                  const SizedBox(height: 8),
+                ],
+
+                // Ensemble probabilities
+                if (ensembleProbs.isNotEmpty) ...[
+                  const Text(
+                    'Ensemble (Final) Probabilities',
+                    style: TextStyle(
+                      color: AppColors.primaryPurple,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...classNames.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final label = entry.value;
+                    final prob = idx < ensembleProbs.length ? ensembleProbs[idx] : 0.0;
+                    Color barColor;
+                    switch (idx) {
+                      case 2:
+                        barColor = AppColors.highRisk;
+                        break;
+                      case 3:
+                        barColor = AppColors.mediumRisk;
+                        break;
+                      default:
+                        barColor = AppColors.safe;
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(label, style: const TextStyle(color: AppColors.primaryText, fontSize: 12)),
+                              const Spacer(),
+                              Text('${(prob * 100).toStringAsFixed(1)}%',
+                                  style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: prob,
+                              backgroundColor: AppColors.divider,
+                              color: barColor,
+                              minHeight: 6,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ],
+
+                if (individualModels == null && ensembleProbs.isEmpty)
+                  _buildEmptyMessage('No probability data available.'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Behavior Analysis
+          _buildExpandableSection(
+            title: 'Behavior Analysis',
+            icon: Icons.insights,
+            isExpanded: _showBehaviorAnalysis,
+            onTap: () => setState(() => _showBehaviorAnalysis = !_showBehaviorAnalysis),
+            child: behaviorPatterns.isEmpty
+                ? _buildEmptyMessage('No suspicious behavior patterns identified.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (behaviorCategories.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Categories: ${(behaviorCategories['categories'] as Map? ?? {}).keys.join(', ')}',
+                            style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                          ),
+                        ),
+                      ...behaviorPatterns.map((pattern) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: _buildInfoLine(pattern.toString(), Icons.code,
+                                iconColor: AppColors.mediumRisk),
+                          )),
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
+  // ======================== EXTERNAL DATA TAB ========================
   Widget _buildExternalDataTab(Map<String, dynamic> engine) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildExpandableSection(
-          title: 'External API Results',
-          icon: Icons.api,
-          isExpanded: _showExternalApiResults,
-          onTap: () => setState(() => _showExternalApiResults = !_showExternalApiResults),
-          child: _buildEmptyMessage('No external API data available.'),
-        ),
-      ],
+    final externalSources = List<String>.from(engine['external_sources'] ?? []);
+    final externalScore = _toDouble(engine['external_score']);
+    final externalDetails = engine['external_details'] as Map<String, dynamic>?;
+
+    Map<String, dynamic>? whoisDetails;
+    if (externalDetails != null && externalDetails.containsKey('whois')) {
+      whoisDetails = externalDetails['whois'] as Map<String, dynamic>?;
+    }
+
+    List<MapEntry<String, dynamic>> otherDetails = [];
+    if (externalDetails != null) {
+      for (final entry in externalDetails.entries) {
+        if (entry.key != 'whois') {
+          otherDetails.add(entry);
+        }
+      }
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildExpandableSection(
+            title: 'External API Results',
+            icon: Icons.api,
+            isExpanded: _showExternalApiResults,
+            onTap: () => setState(() => _showExternalApiResults = !_showExternalApiResults),
+            child: externalSources.isEmpty && otherDetails.isEmpty
+                ? _buildEmptyMessage('No external API data available.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (externalSources.isNotEmpty) ...[
+                        _buildInfoLine('External Score: ${(externalScore * 100).toStringAsFixed(0)}%',
+                            Icons.score, iconColor: AppColors.primaryPurple),
+                        _buildInfoLine('Sources: ${externalSources.join(', ')}', Icons.source,
+                            iconColor: AppColors.primaryPurple),
+                      ],
+                      if (otherDetails.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Other Details:',
+                          style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 4),
+                        ...otherDetails.map((entry) {
+                          final key = entry.key;
+                          final value = entry.value;
+                          String displayValue;
+                          if (value is Map) {
+                            displayValue = value.toString();
+                          } else {
+                            displayValue = value.toString();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: _buildInfoLine('$key: $displayValue', Icons.info_outline,
+                                iconColor: AppColors.secondaryText),
+                          );
+                        }),
+                      ],
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 16),
+
+          _buildExpandableSection(
+            title: 'Whois Domain Information',
+            icon: Icons.info_outline,
+            isExpanded: _showExternalDetails,
+            onTap: () => setState(() => _showExternalDetails = !_showExternalDetails),
+            child: whoisDetails == null
+                ? _buildEmptyMessage(
+                    'Domain info not obtained.\nPossible reasons: no WHOIS record, API limit, or domain registration hidden.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (whoisDetails.containsKey('age_days'))
+                        _buildInfoLine('Age: ${whoisDetails['age_days']} days', Icons.calendar_today,
+                            iconColor: AppColors.primaryPurple),
+                      if (whoisDetails.containsKey('warning') && whoisDetails['warning'] != null)
+                        _buildInfoLine('Warning: ${whoisDetails['warning']}', Icons.warning,
+                            iconColor: AppColors.highRisk),
+                      for (final entry in whoisDetails.entries)
+                        if (entry.key != 'age_days' && entry.key != 'warning')
+                          _buildInfoLine('${entry.key}: ${entry.value}', Icons.info,
+                              iconColor: AppColors.secondaryText),
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 

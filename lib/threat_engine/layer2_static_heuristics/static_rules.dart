@@ -1,6 +1,6 @@
 // ============================================================================
 // static_rules.dart – Layer 2: Static Rule Engine + Heuristic Scoring + External Blacklists
-// FIXED: Force external sources to be enabled when config doesn't provide them
+// FIXED: Always include Whois and IPQS details (even when score = 0)
 // ============================================================================
 import 'dart:math';
 import 'dart:io';
@@ -21,7 +21,7 @@ import '../dynamic_config.dart';
 class ApiKeys {
   static const String openPhishApiKey = '';
   static const String urlhausApiKey = '';
-  static const String ipQualityScoreApiKey = '8taF8VxvuRm7ymklzzA08AfM46X2fxxU';
+  static const String ipQualityScoreApiKey = 'coRmG2xZfUbzEqtzz61KbYOeStZ';
   static const String whoisApiKey = 'at_RL2ksZSnT1Lk6EdCG7tEZldd84gJi';
 }
 
@@ -155,7 +155,7 @@ class DynamicWhitelistManager {
 }
 
 // --------------------------------------------------------------------------
-// Static Rule Engine (WITH BLACKLIST + FIXED EXTERNAL SOURCES)
+// Static Rule Engine
 // --------------------------------------------------------------------------
 class StaticRuleEngine {
   List<String>? _suspiciousTlds;
@@ -208,10 +208,8 @@ class StaticRuleEngine {
     _pathDepthWarning = config.pathDepthWarning;
     _entropyThreshold = config.entropyThreshold;
 
-    // 🔥 FIX: Force external sources to be enabled if none are set
     final configuredSources = externalOverride ?? config.enabledExternalSources;
     if (configuredSources == null || configuredSources.isEmpty) {
-      // Default: enable all available external APIs
       _enabledExternalSources = [
         'google_sb',
         'virustotal',
@@ -227,7 +225,7 @@ class StaticRuleEngine {
     }
   }
 
-  // Fallbacks (original hardcoded values)
+  // Fallbacks
   List<String> get _fallbackSuspiciousTlds => const [
     'tk', 'xyz', 'top', 'club', 'work', 'date', 'stream', 'gq', 'ml', 'cf',
     'ga', 'ru', 'cn', 'pw', 'cc', 'bid', 'trade', 'webcam', 'science'
@@ -260,7 +258,6 @@ class StaticRuleEngine {
   };
   Set<String> get _fallbackBlacklist => const {};
 
-  // New: Check if domain is globally blacklisted
   Future<bool> get isBlacklisted async {
     await _ensureConfigLoaded();
     final domain = features.domain.toLowerCase();
@@ -272,7 +269,6 @@ class StaticRuleEngine {
     return false;
   }
 
-  // Core rule checks
   Future<bool> get isSuspiciousTld async {
     await _ensureConfigLoaded();
     final tld = features.tldSuffix;
@@ -298,13 +294,10 @@ class StaticRuleEngine {
     await _ensureConfigLoaded();
     final full = features.domain;
     if (full.isEmpty) return false;
-    
     if (await isBlacklisted) return false;
     if (await isShortenerDomain) return false;
-
     final dynamicManager = await DynamicWhitelistManager.getInstance();
     if (await dynamicManager.contains(full)) return true;
-
     final trustedSet = _staticTrustedDomains ?? _fallbackStaticTrustedDomains;
     if (trustedSet.contains(full)) return true;
     for (final trusted in trustedSet) {
@@ -367,7 +360,7 @@ class StaticRuleEngine {
   }
 
   // --------------------------------------------------------------------------
-  // External Blacklist Checks (now enforced to run)
+  // External Blacklist Checks (always collect details)
   // --------------------------------------------------------------------------
   Future<bool> _isInCsaOrSpfList() async {
     try {
@@ -523,6 +516,7 @@ class StaticRuleEngine {
       if (json['success'] == true) {
         final riskScore = (json['risk_score'] as num?)?.toDouble() ?? 0.0;
         final normalizedScore = riskScore / 100.0;
+        // Always return details, even if score is 0
         return {
           'score': normalizedScore,
           'details': {
@@ -530,10 +524,13 @@ class StaticRuleEngine {
             'domain_age_human': json['domain_age']?['human'] ?? 'unknown',
             'suspicious_tld': json['suspicious_tld'] ?? false,
             'redirect_risk': json['redirect_risk'] ?? false,
+            'unsafe': json['unsafe'] ?? false,
           }
         };
+      } else {
+        print('IPQualityScore API error: ${json['message']}');
+        return {'score': 0.0, 'details': null};
       }
-      return {'score': 0.0, 'details': null};
     } catch (e) {
       print('IPQualityScore error: $e');
       return {'score': 0.0, 'details': null};
@@ -557,27 +554,34 @@ class StaticRuleEngine {
       final response = await http.get(url).timeout(const Duration(seconds: 5));
       if (response.statusCode != 200) return {'score': 0.0, 'details': null};
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      if (json.containsKey('ErrorMessage')) return {'score': 0.0, 'details': null};
+      if (json.containsKey('ErrorMessage')) {
+        print('WhoisAPI error: ${json['ErrorMessage']}');
+        return {'score': 0.0, 'details': null};
+      }
       final whoisRecord = json['WhoisRecord'] as Map<String, dynamic>?;
       if (whoisRecord == null) return {'score': 0.0, 'details': null};
       final createdDateStr = whoisRecord['createdDate'] as String?;
-      if (createdDateStr == null) return {'score': 0.0, 'details': null};
+      if (createdDateStr == null) {
+        // No creation date – return basic details anyway
+        return {
+          'score': 0.0,
+          'details': {'error': 'No creation date found', 'registrar': whoisRecord['registrarName']}
+        };
+      }
       final created = DateTime.parse(createdDateStr);
       final ageDays = DateTime.now().difference(created).inDays;
       final threshold = _newDomainDaysThreshold ?? 30;
       print('WhoisAPI: Domain age $ageDays days (${ageDays < threshold ? "new" : "established"})');
-      if (ageDays < threshold) {
-        return {
-          'score': 0.8,
-          'details': {
-            'age_days': ageDays,
-            'warning': 'Domain registered less than $threshold days ago ($ageDays days)',
-          }
-        };
-      }
+      // Always return details, score is 0.8 if new, else 0.0
+      final score = (ageDays < threshold) ? 0.8 : 0.0;
       return {
-        'score': 0.0,
-        'details': {'age_days': ageDays, 'warning': null}
+        'score': score,
+        'details': {
+          'age_days': ageDays,
+          'warning': ageDays < threshold ? 'Domain registered less than $threshold days ago ($ageDays days)' : null,
+          'created_date': createdDateStr,
+          'registrar': whoisRecord['registrarName'],
+        }
       };
     } catch (e) {
       print('WhoisAPI error: $e');
@@ -604,7 +608,7 @@ class StaticRuleEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Main external check
+  // Main external check – ALWAYS include Whois and IPQS details if available
   // --------------------------------------------------------------------------
   Future<Map<String, dynamic>> checkExternalBlacklists() async {
     await _ensureConfigLoaded();
@@ -630,6 +634,9 @@ class StaticRuleEngine {
       maxScore = max(maxScore, vtResult['score'] as double);
       sources.add('VirusTotal');
       details['virustotal'] = vtResult['details'];
+    } else if (vtResult['details'] != null) {
+      // Still store details even if score 0
+      details['virustotal'] = vtResult['details'];
     }
 
     final opResult = await _checkOpenPhish();
@@ -650,13 +657,20 @@ class StaticRuleEngine {
     if (ipqsResult['score'] != null && (ipqsResult['score'] as double) > 0) {
       maxScore = max(maxScore, ipqsResult['score'] as double);
       sources.add('IPQualityScore');
+    }
+    // Always include IPQS details (if any) regardless of score
+    if (ipqsResult['details'] != null) {
       details['ipqualityscore'] = ipqsResult['details'];
     }
 
     final whoisResult = await _checkWhoisAPI();
+    // Add to sources only if score > 0 (new domain)
     if (whoisResult['score'] != null && (whoisResult['score'] as double) > 0) {
       maxScore = max(maxScore, whoisResult['score'] as double);
       sources.add('WhoisAPI');
+    }
+    // Always include Whois details (age, registrar, etc.) even if score 0
+    if (whoisResult['details'] != null) {
       details['whois'] = whoisResult['details'];
     }
 
