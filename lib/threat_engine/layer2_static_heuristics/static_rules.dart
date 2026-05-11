@@ -21,7 +21,7 @@ import '../dynamic_config.dart';
 class ApiKeys {
   static const String openPhishApiKey = '';
   static const String urlhausApiKey = '';
-  static const String ipQualityScoreApiKey = 'coRmG2xZfUbzEqtzz61KbYOeStZ';
+  static const String ipQualityScoreApiKey = 'wSefzuwEeVLGmEJ2adJHGhHBdaacAhcw';
   static const String whoisApiKey = 'at_RL2ksZSnT1Lk6EdCG7tEZldd84gJi';
 }
 
