@@ -27,15 +27,10 @@ class ThreatEngine {
   static Future<String> _loadCloudModelJson(String storagePath) async {
     try {
       final ref = FirebaseStorage.instance.ref(storagePath);
-
-      // Downloads the JSON file into app memory.
-      // It does NOT save it as a local asset file.
       final data = await ref.getData(50 * 1024 * 1024); // 50 MB max
-
       if (data == null) {
         throw Exception('No data returned from Firebase Storage: $storagePath');
       }
-
       print('Loaded cloud model: $storagePath');
       return utf8.decode(data);
     } catch (e) {
@@ -48,40 +43,27 @@ class ThreatEngine {
   static Future<ThreatEngine> getInstance() async {
     if (_instance != null) return _instance!;
 
-    // ------------------------------------------------------------------------
     // Load ACTIVE deployed model files from Firebase Storage
-    // ------------------------------------------------------------------------
     final lrWeightsJson = await _loadCloudModelJson(
       'model_versions/active/logistic_regression/weights.json',
     );
-
     final lrScalerJson = await _loadCloudModelJson(
       'model_versions/active/logistic_regression/scaler_params.json',
     );
-
     final dtJson = await _loadCloudModelJson(
       'model_versions/active/decision_tree/model.json',
     );
-
     final xgbJson = await _loadCloudModelJson(
       'model_versions/active/xgboost/model.json',
     );
-
     final lgbJson = await _loadCloudModelJson(
       'model_versions/active/lightgbm/model.json',
     );
 
-    // ------------------------------------------------------------------------
-    // Build model objects from downloaded cloud JSON
-    // ------------------------------------------------------------------------
     final lr = await LogisticRegression.fromJson(lrWeightsJson, lrScalerJson);
-
     final scaler = StandardScaler.fromJsonString(lrScalerJson);
-
     final dt = DecisionTree.fromJson(dtJson);
-
     final xgb = XGBoostModel.fromJson(xgbJson);
-
     final lgb = await LightGBMModel.fromJson(lgbJson);
 
     final behavior = BehaviorEngine();
@@ -107,39 +89,40 @@ class ThreatEngine {
     ScanSettings? settings,
   }) async {
     final config = settings ?? ScanSettings.defaultSettings();
-
     final features = UrlFeatures(url);
     final staticEngine = StaticRuleEngine(features, config);
-    final externalResult = await staticEngine.checkExternalBlacklists();
 
-    if (!config.isPremium && externalResult['is_malicious'] == true) {
-      final score = (externalResult['score'] as double) * 100;
-      final severity = _getSeverity(score);
-
+    // ----- PRE-CHECK: WHITELIST ONLY – SKIP FULL ANALYSIS -----
+    final isTrusted = await staticEngine.isTrustedDomain;
+    if (isTrusted) {
+      // Trusted domain → safe result, no ML / external analysis needed
       return {
         "url": url,
         "timestamp": DateTime.now().toIso8601String(),
         "scan_result": {
           'url': url,
           'scan_date': DateTime.now().toString(),
-          'risk_score': score.toStringAsFixed(1),
-          'severity': severity,
-          'threat_type': 'malicious',
-          'explanation':
-              'Flagged by external security sources: ${(externalResult['sources'] as List).join(', ')}. No further analysis performed.',
+          'risk_score': '0.0',
+          'severity': 'SAFE',
+          'threat_type': 'benign',
+          'explanation': 'This domain is trusted and considered safe.',
           'detected_threats': [],
           'ml_confidence': 'none',
           'ml_score': '0.0000',
           'ensemble_probs': [],
           'behavior_score': '0.00',
           'ai_score': '0.00',
-          'external_score': externalResult['score'].toStringAsFixed(2),
-          'external_sources': externalResult['sources'],
-          'actions': _actions(score),
-          'early_exit': true,
+          'external_score': '0.00',
+          'external_sources': [],
+          'actions': ['Safe to use'],
+          'early_exit': false,
         },
       };
     }
+
+    // ----- FOR ALL OTHER URLS (including free users + external malicious) -----
+    // Run full hybrid engine analysis (ML, behavior, external data all included)
+    final externalResult = await staticEngine.checkExternalBlacklists();
 
     final result = await _engine.analyze(
       url,

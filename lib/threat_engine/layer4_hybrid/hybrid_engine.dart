@@ -1,6 +1,7 @@
 // ============================================================================
 // hybrid_engine.dart – Layer 4: Threat Scoring & Intelligent Fusion (Final)
 // WITH DIRECT DYNAMIC CONFIG FETCH (FIXED BLACKLIST)
+// FREE USER EARLY EXIT REMOVED – ALL SCANS RUN FULL ANALYSIS
 // ============================================================================
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
@@ -75,11 +76,9 @@ class HybridEngine {
     }
 
     // ----------------------------------------------------------------------
-    // 3. FREE USER EARLY EXIT (if external already malicious)
+    // 3. FREE USER EARLY EXIT – REMOVED
+    // All URLs (including free users) now go through full analysis.
     // ----------------------------------------------------------------------
-    if (!settings.isPremium && externalResult['is_malicious'] == true) {
-      return _buildFreeEarlyExit(url, externalResult);
-    }
 
     // ----------------------------------------------------------------------
     // 4. STATIC RULE ENGINE
@@ -163,7 +162,7 @@ class HybridEngine {
 
     final staticScore = _computeStaticScore(staticThreats);
 
-    // ---- ML predictions (unchanged) ----
+    // ---- ML predictions ----
     List<double> lrProbs = [0.25, 0.25, 0.25, 0.25];
     List<double> dtProbs = [0.25, 0.25, 0.25, 0.25];
     List<double> xgbProbs = [0.25, 0.25, 0.25, 0.25];
@@ -251,15 +250,14 @@ class HybridEngine {
         ? 'low'
         : (mlScore >= 0.9 ? 'high' : 'medium');
 
-    // ========== AMBIGUITY PENALTY ==========
+    // Ambiguity penalty
     final sortedProbs = List<double>.from(ensembleProbs)..sort((a,b) => b.compareTo(a));
     if (sortedProbs.length >= 2 && (sortedProbs[0] - sortedProbs[1]) < 0.2) {
       mlScore *= 0.7;
       mlConfidence = 'low';
     }
-    // =====================================
 
-    // ---- Behavior & AI (unchanged) ----
+    // Behavior & AI
     double behaviorScore = 0.0;
     double aiScore = 0.0;
     double adDensity = 0.0;
@@ -289,7 +287,7 @@ class HybridEngine {
       mlConfidence: mlConfidence,
     );
 
-    // Domain age adjustment (keep hardcoded 7 and 365 for now)
+    // Domain age adjustment
     final whoisDetails = externalResult['details']?['whois'] as Map<String, dynamic>?;
     if (whoisDetails != null && whoisDetails['age_days'] != null) {
       final ageDays = whoisDetails['age_days'] as int;
@@ -541,7 +539,7 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Free user early exit
+  // Free user early exit – no longer used, kept only as a helper
   // --------------------------------------------------------------------------
   Map<String, dynamic> _buildFreeEarlyExit(String url, Map<String, dynamic> external) {
     final score = (external['score'] as double? ?? 0.0) * 100;

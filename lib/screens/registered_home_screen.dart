@@ -48,59 +48,56 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     _loadUserSettings();
     _statsFuture = _getScanStats();
 
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    if (widget.showLoginSuccess) _showLoginSuccessBanner();
-    await _checkAndFireRescanNotifications();
-  });
-}
-
-Future<void> _checkAndFireRescanNotifications() async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return;
-
-  try {
-    // check notification preferences
-    final prefsDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('settings')
-        .doc('notification_preferences')
-        .get();
-
-    final prefs = prefsDoc.data();
-    final allowNotifications = prefs?['allowNotifications'] ?? false;
-    if (!allowNotifications) return;
-
-    // find rescanned URLs that changed verdict and havent fired a push yet
-    final snapshot = await FirebaseFirestore.instance
-        .collection('safe_scans')
-        .where('uid', isEqualTo: user.uid)
-        .where('rescanned', isEqualTo: true)
-        .where('notifiedUser', isEqualTo: false)
-        .get();
-
-    final changed = snapshot.docs.where((doc) {
-      final verdict = doc.data()['rescannedVerdict']?.toString().toLowerCase() ?? '';
-      return verdict.isNotEmpty && verdict != 'safe' && verdict != 'error';
-    }).toList();
-
-    if (changed.isEmpty) return;
-
-    // fire one local notification summarising the changes
-    final count = changed.length;
-    final firstUrl = changed.first.data()['url']?.toString() ?? '';
-    final shortUrl = firstUrl.length > 40 ? '${firstUrl.substring(0, 40)}…' : firstUrl;
-    final sound = prefs?['sound'] ?? false;
-
-    await NotificationService.instance.showRescanAlert(
-      count: count,
-      firstUrl: shortUrl,
-      playSound: sound,
-    );
-  } catch (e) {
-    debugPrint('Rescan notification check error: $e');
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (widget.showLoginSuccess) _showLoginSuccessBanner();
+      await _checkAndFireRescanNotifications();
+    });
   }
-}
+
+  Future<void> _checkAndFireRescanNotifications() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final prefsDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('notification_preferences')
+          .get();
+
+      final prefs = prefsDoc.data();
+      final allowNotifications = prefs?['allowNotifications'] ?? false;
+      if (!allowNotifications) return;
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('safe_scans')
+          .where('uid', isEqualTo: user.uid)
+          .where('rescanned', isEqualTo: true)
+          .where('notifiedUser', isEqualTo: false)
+          .get();
+
+      final changed = snapshot.docs.where((doc) {
+        final verdict = doc.data()['rescannedVerdict']?.toString().toLowerCase() ?? '';
+        return verdict.isNotEmpty && verdict != 'safe' && verdict != 'error';
+      }).toList();
+
+      if (changed.isEmpty) return;
+
+      final count = changed.length;
+      final firstUrl = changed.first.data()['url']?.toString() ?? '';
+      final shortUrl = firstUrl.length > 40 ? '${firstUrl.substring(0, 40)}…' : firstUrl;
+      final sound = prefs?['sound'] ?? false;
+
+      await NotificationService.instance.showRescanAlert(
+        count: count,
+        firstUrl: shortUrl,
+        playSound: sound,
+      );
+    } catch (e) {
+      debugPrint('Rescan notification check error: $e');
+    }
+  }
 
   void _showLoginSuccessBanner() {
     final overlay = Overlay.of(context, rootOverlay: true);
@@ -152,39 +149,38 @@ Future<void> _checkAndFireRescanNotifications() async {
     Future.delayed(const Duration(seconds: 2), () => entry.remove());
   }
 
-
   void _showScanSuccessBanner() {
-  final overlay = Overlay.of(context, rootOverlay: true);
-  late OverlayEntry entry;
+    final overlay = Overlay.of(context, rootOverlay: true);
+    late OverlayEntry entry;
 
-  entry = OverlayEntry(
-    builder: (context) => Positioned(
-      left: 0,
-      right: 0,
-      bottom: 74,
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          height: 56,
-          color: AppColors.primaryPurple,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: const Text(
-            'Scan completed successfully.',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+    entry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: 0,
+        right: 0,
+        bottom: 74,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            height: 56,
+            color: AppColors.primaryPurple,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: const Text(
+              'Scan completed successfully.',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
 
-  overlay.insert(entry);
-  Future.delayed(const Duration(seconds: 2), () => entry.remove());
-}
+    overlay.insert(entry);
+    Future.delayed(const Duration(seconds: 2), () => entry.remove());
+  }
 
   Future<void> _initEngine() async {
     try {
@@ -224,6 +220,7 @@ Future<void> _checkAndFireRescanNotifications() async {
       }
       return;
     }
+
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
@@ -243,7 +240,8 @@ Future<void> _checkAndFireRescanNotifications() async {
           autoRecheckScans: false,
           sharingConfiguration: false,
           useExternalApis: data['useExternalApis'] ?? true,
-          isPremium: data['isPremium'] ?? false,
+          // FIX: Force isPremium = true for any logged‑in user
+          isPremium: true,
           userLevel: data['userLevel'] ?? 'beginner',
           enableMachineLearning: true,
           useEnsemble: data['useEnsemble'] ?? true,
@@ -254,19 +252,38 @@ Future<void> _checkAndFireRescanNotifications() async {
           deepScan: data['deepScan'] ?? true,
           adFilter: false,
         );
-      if (mounted) {
-        final user = FirebaseAuth.instance.currentUser;
-
-        setState(() {
-          _userSettings = user == null
-              ? ScanSettings.forBeginner()
-              : newSettings;
-        });
-      }
+        if (mounted) {
+          setState(() {
+            _userSettings = newSettings;
+          });
+        }
       } else {
-        if (mounted) setState(() => _userSettings = ScanSettings.forBeginner());
+        // No saved settings – create default premium settings
+        if (mounted) {
+          setState(() {
+            _userSettings = ScanSettings(
+              phishingSensitivity: true,
+              httpSitesWarning: false,
+              scriptAnalysis: true,
+              adReductionAnalysis: false,
+              adDensityLevel: 1,
+              autoRecheckScans: false,
+              sharingConfiguration: false,
+              useExternalApis: true,
+              isPremium: true,
+              userLevel: 'beginner',
+              enableMachineLearning: true,
+              useEnsemble: true,
+              useLogisticRegression: true,
+              useDecisionTree: true,
+              useXGBoost: true,
+              useLightGBM: true,
+              deepScan: true,
+              adFilter: false,
+            );
+          });
+        }
       }
-      
     } catch (e) {
       debugPrint('Error loading scan settings: $e');
     } finally {
@@ -414,7 +431,6 @@ Future<void> _checkAndFireRescanNotifications() async {
       if (!mounted) return;
       await _saveScanToFirestore(url: url, scanResult: result['scan_result']);
 
-
       if (!mounted) return;
 
       await Navigator.push(
@@ -434,8 +450,6 @@ Future<void> _checkAndFireRescanNotifications() async {
       });
 
       _showScanSuccessBanner();
-
-
     } catch (e, stack) {
       debugPrint('SCAN ERROR: $e');
       debugPrint('STACK: $stack');
@@ -443,7 +457,6 @@ Future<void> _checkAndFireRescanNotifications() async {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Scan error: $e'), backgroundColor: AppColors.highRisk),
       );
-
     } finally {
       if (mounted) setState(() => _isScanning = false);
     }
