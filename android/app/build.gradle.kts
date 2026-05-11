@@ -14,14 +14,14 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
 
         isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
-        jvmTarget = "21"
+        jvmTarget = "17"
     }
 
     defaultConfig {
@@ -59,6 +59,13 @@ dependencies {
   implementation("com.google.firebase:firebase-auth")
 
   coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+  implementation("com.google.mlkit:text-recognition:16.0.1")
+  implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+  implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+  implementation("com.google.mlkit:text-recognition-korean:16.0.1")   
+  implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")
+
 
   // Add the dependencies for any other desired Firebase products
   // https://firebase.google.com/docs/android/setup#available-libraries
