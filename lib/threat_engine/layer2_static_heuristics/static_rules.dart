@@ -1,6 +1,6 @@
 // ============================================================================
 // static_rules.dart – Layer 2: Static Rule Engine + Heuristic Scoring + External Blacklists
-// NOW INCLUDES GLOBAL BLACKLIST CHECK
+// FIXED: Force external sources to be enabled when config doesn't provide them
 // ============================================================================
 import 'dart:math';
 import 'dart:io';
@@ -155,15 +155,14 @@ class DynamicWhitelistManager {
 }
 
 // --------------------------------------------------------------------------
-// Static Rule Engine (WITH BLACKLIST)
+// Static Rule Engine (WITH BLACKLIST + FIXED EXTERNAL SOURCES)
 // --------------------------------------------------------------------------
 class StaticRuleEngine {
-  // Nullable fields – loaded asynchronously
   List<String>? _suspiciousTlds;
   List<String>? _phishingKeywords;
   List<String>? _shorteners;
   Set<String>? _staticTrustedDomains;
-  Set<String>? _globalBlacklist;                // <-- ADDED
+  Set<String>? _globalBlacklist;
   bool? _enableHomographCheck;
   bool? _enableTyposquatting;
   bool? _enableUnshorten;
@@ -200,7 +199,7 @@ class StaticRuleEngine {
     _phishingKeywords = config.phishingKeywords;
     _shorteners = config.urlShorteners;
     _staticTrustedDomains = config.globalWhitelist.toSet();
-    _globalBlacklist = config.globalBlacklist.toSet();   // <-- ADDED
+    _globalBlacklist = config.globalBlacklist.toSet();
     _enableHomographCheck = config.enableHomographCheck;
     _enableTyposquatting = config.enableTyposquatting;
     _enableUnshorten = config.enableUnshorten;
@@ -208,7 +207,24 @@ class StaticRuleEngine {
     _newDomainDaysThreshold = config.newDomainDaysThreshold;
     _pathDepthWarning = config.pathDepthWarning;
     _entropyThreshold = config.entropyThreshold;
-    _enabledExternalSources = externalOverride ?? config.enabledExternalSources;
+
+    // 🔥 FIX: Force external sources to be enabled if none are set
+    final configuredSources = externalOverride ?? config.enabledExternalSources;
+    if (configuredSources == null || configuredSources.isEmpty) {
+      // Default: enable all available external APIs
+      _enabledExternalSources = [
+        'google_sb',
+        'virustotal',
+        'openphish',
+        'urlhaus',
+        'ipqs',
+        'whois',
+      ];
+      print("⚠️ No external sources in config – using default: $_enabledExternalSources");
+    } else {
+      _enabledExternalSources = configuredSources;
+      print("✅ External sources from config: $_enabledExternalSources");
+    }
   }
 
   // Fallbacks (original hardcoded values)
@@ -242,7 +258,7 @@ class StaticRuleEngine {
     'aljazeera.com', 'theguardian.com', 'economist.com',
     'youtube.com',
   };
-  Set<String> get _fallbackBlacklist => const {}; // empty
+  Set<String> get _fallbackBlacklist => const {};
 
   // New: Check if domain is globally blacklisted
   Future<bool> get isBlacklisted async {
@@ -250,7 +266,6 @@ class StaticRuleEngine {
     final domain = features.domain.toLowerCase();
     final blacklist = _globalBlacklist ?? _fallbackBlacklist;
     if (blacklist.contains(domain)) return true;
-    // Also check subdomain matches (e.g., blacklist 'evil.com' matches 'sub.evil.com')
     for (final bl in blacklist) {
       if (domain == bl || domain.endsWith('.$bl')) return true;
     }
@@ -284,9 +299,7 @@ class StaticRuleEngine {
     final full = features.domain;
     if (full.isEmpty) return false;
     
-    // Blacklist overrides everything – never trust a blacklisted domain
     if (await isBlacklisted) return false;
-    
     if (await isShortenerDomain) return false;
 
     final dynamicManager = await DynamicWhitelistManager.getInstance();
@@ -354,7 +367,7 @@ class StaticRuleEngine {
   }
 
   // --------------------------------------------------------------------------
-  // External Blacklist Checks (unchanged but calls _ensureConfigLoaded)
+  // External Blacklist Checks (now enforced to run)
   // --------------------------------------------------------------------------
   Future<bool> _isInCsaOrSpfList() async {
     try {
@@ -647,6 +660,8 @@ class StaticRuleEngine {
       details['whois'] = whoisResult['details'];
     }
 
+    print("🔍 External check result: score=$maxScore, sources=$sources");
+
     return {
       'is_malicious': maxScore >= 0.8,
       'score': maxScore,
@@ -656,13 +671,12 @@ class StaticRuleEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Public API: Run full static + heuristic analysis (with BLACKLIST CHECK FIRST)
+  // Public API: Run full static + heuristic analysis
   // --------------------------------------------------------------------------
   Future<List<Map<String, dynamic>>> analyzeSync() async {
     await _ensureConfigLoaded();
     final threats = <Map<String, dynamic>>[];
 
-    // 🔴 BLACKLIST CHECK – HIGHEST PRIORITY
     if (await isBlacklisted) {
       threats.add({
         'type': 'global_blacklist',
@@ -670,12 +684,11 @@ class StaticRuleEngine {
         'description': 'Domain is globally blacklisted by administrator.',
         'score': 1.0,
       });
-      return threats; // Immediately return high threat, skip other checks
+      return threats;
     }
 
     if (await isTrustedDomain) return threats;
 
-    // ... rest of the checks (unchanged) ...
     if (features.isMalformed) {
       threats.add({
         'type': 'malformed_url',
