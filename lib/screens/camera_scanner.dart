@@ -26,19 +26,27 @@ class _CameraScannerState extends State<CameraScanner> {
 
   // ===================== QR DETECTION =====================
   void _onQRDetected(String code) {
-    if (!_qrDetecting) return;
+    if (!_qrDetecting || code.isEmpty) return;
     _qrDetecting = false;
-    Navigator.pop(context, code);
+    // Defer pop to after the current frame so it isn't called mid-camera-callback
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.pop(context, code);
+    });
   }
 
   // ===================== OCR USING CAMERA =====================
   Future<void> _extractTextFromCamera() async {
     if (_processingOCR) return;
 
-    setState(() => _processingOCR = true);
+    setState(() {
+      _processingOCR = true;
+      _qrDetecting = false; // prevent QR pop while OCR camera is open
+    });
+
+    // Release camera before opening image picker
+    await _cameraController.stop();
 
     try {
-      // Open camera and capture image
       final pickedFile = await _picker.pickImage(
         source: ImageSource.camera,
         imageQuality: 100,
@@ -49,33 +57,40 @@ class _CameraScannerState extends State<CameraScanner> {
         return;
       }
 
-      // Convert to ML Kit format
       final inputImage = InputImage.fromFile(File(pickedFile.path));
 
       final textRecognizer = TextRecognizer();
-      final recognizedText = await textRecognizer.processImage(inputImage);
-      await textRecognizer.close();
+      try {
+        final recognizedText = await textRecognizer.processImage(inputImage);
+        final urls = _extractUrls(recognizedText.text);
 
-      final urls = _extractUrls(recognizedText.text);
-
-      if (urls.isNotEmpty) {
-        Navigator.pop(context, urls.first);
-      } else if (recognizedText.text.isNotEmpty) {
-        Navigator.pop(context, recognizedText.text);
-      } else {
-        _showError('No text found');
+        if (!mounted) return;
+        if (urls.isNotEmpty) {
+          Navigator.pop(context, urls.first);
+        } else if (recognizedText.text.isNotEmpty) {
+          Navigator.pop(context, recognizedText.text);
+        } else {
+          _showError('No text found');
+        }
+      } finally {
+        await textRecognizer.close();
       }
     } catch (e) {
       _showError('OCR failed: $e');
     } finally {
-      if (mounted) setState(() => _processingOCR = false);
+      if (mounted) {
+        setState(() => _processingOCR = false);
+        _qrDetecting = true;
+        await _cameraController.start();
+      }
     }
   }
 
   // ===================== URL EXTRACTION =====================
   List<String> _extractUrls(String text) {
-    final pattern =
-        r'(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}[^\s]*)';
+    // Match explicit URLs (https/http) or www. prefixed domains only — avoids
+    // false positives from bare words with dots (e.g. file names, dates).
+    final pattern = r'https?:\/\/[^\s]+|www\.[^\s]+';
     final matches = RegExp(pattern, caseSensitive: false).allMatches(text);
     return matches.map((m) => m.group(0)!).toList();
   }

@@ -991,7 +991,16 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           Positioned(
             top: -2,
             child: GestureDetector(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const CameraScanner())),
+              onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final result = await Navigator.push<String>(context, MaterialPageRoute(builder: (context) => const CameraScanner()));
+                if (result != null && result.isNotEmpty && mounted) {
+                  setState(() => _urlController.text = result);
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Extracted: $result'), duration: const Duration(seconds: 2)),
+                  );
+                }
+              },
               child: Container(
                 width: 70,
                 height: 70,

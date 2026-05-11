@@ -52,22 +52,35 @@ class HybridEngine {
     print("✅ Config loaded. Blacklist: ${config.globalBlacklist}");
 
     // ----------------------------------------------------------------------
-    // 2. GLOBAL BLACKLIST / WHITELIST CHECKS (HIGHEST PRIORITY)
+    // 2. REDIRECT RESOLUTION — always runs, even on basic scans.
+    // The resolved URL is what gets analysed so a shortener/redirect pointing
+    // at a malicious page is not missed.
     // ----------------------------------------------------------------------
-    final features = UrlFeatures(url);
+    final String effectiveUrl = await _quickResolveUrl(url, config);
+    if (effectiveUrl != url) {
+      print("↪️ Redirect resolved: $url → $effectiveUrl");
+    }
+
+    // ----------------------------------------------------------------------
+    // 3. GLOBAL BLACKLIST / WHITELIST CHECKS (HIGHEST PRIORITY)
+    // Checks both the original URL and the redirect destination.
+    // ----------------------------------------------------------------------
+    final features = UrlFeatures(effectiveUrl);
     final domain = features.domain;
     final blacklist = config.globalBlacklist;
     final whitelist = config.globalWhitelist;
+    final originalDomain = effectiveUrl != url ? UrlFeatures(url).domain : domain;
 
-    // Check blacklist first
     bool isBlacklisted = blacklist.contains(domain) ||
-        blacklist.any((bl) => domain == bl || domain.endsWith('.$bl'));
+        blacklist.any((bl) => domain == bl || domain.endsWith('.$bl')) ||
+        (originalDomain != domain &&
+            (blacklist.contains(originalDomain) ||
+                blacklist.any((bl) => originalDomain == bl || originalDomain.endsWith('.$bl'))));
     if (isBlacklisted) {
       print("🚫 BLACKLIST HIT: $domain is in global blacklist");
       return _buildBlacklistResult(url);
     }
 
-    // Then check whitelist
     bool isWhitelisted = whitelist.contains(domain) ||
         whitelist.any((wl) => domain == wl || domain.endsWith('.$wl'));
     if (isWhitelisted) {
@@ -265,7 +278,7 @@ class HybridEngine {
 
     if (settings.deepScan && settings.scriptAnalysis) {
       final detailed = await behaviorEngine?.analyzeDetailed(
-        url,
+        effectiveUrl,
         features,
         externalThreatData: externalResult,
       ) ?? {'behaviorScore': 0.0, 'adDensity': 0.0, 'matchedPatterns': []};
@@ -403,6 +416,35 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
+  // Quick redirect resolution — follows up to 3 hops, always runs.
+  // Uses followRedirects=false so we control each hop manually.
+  // --------------------------------------------------------------------------
+  Future<String> _quickResolveUrl(String url, DynamicConfig config) async {
+    String current = url;
+    final maxHops = math.min(config.maxRedirectHops, 3);
+    try {
+      final client = http.Client();
+      for (int i = 0; i < maxHops; i++) {
+        final req = http.Request('GET', Uri.parse(current));
+        req.followRedirects = false;
+        final response = await client.send(req).timeout(const Duration(seconds: 3));
+        await response.stream.drain();
+        if (response.statusCode >= 300 && response.statusCode < 400) {
+          final location = response.headers['location'];
+          if (location == null) break;
+          final next = Uri.parse(current).resolve(location).toString();
+          if (next == current) break;
+          current = next;
+        } else {
+          break;
+        }
+      }
+      client.close();
+    } catch (_) {}
+    return current;
+  }
+
+  // --------------------------------------------------------------------------
   // Redirect chain analysis (uses config)
   // --------------------------------------------------------------------------
   Future<Map<String, dynamic>> _analyzeRedirectChain(
@@ -419,9 +461,12 @@ class HybridEngine {
     try {
       final client = http.Client();
       for (int i = 0; i < maxHops; i++) {
-        final request = await client.get(Uri.parse(currentUrl));
-        if (request.statusCode >= 300 && request.statusCode < 400) {
-          final location = request.headers['location'];
+        final req = http.Request('GET', Uri.parse(currentUrl));
+        req.followRedirects = false;
+        final response = await client.send(req).timeout(const Duration(seconds: 5));
+        await response.stream.drain();
+        if (response.statusCode >= 300 && response.statusCode < 400) {
+          final location = response.headers['location'];
           if (location == null) break;
           final nextUrl = Uri.parse(currentUrl).resolve(location).toString();
           if (chain.contains(nextUrl)) break;

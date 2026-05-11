@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../../constants/app_colors.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -152,13 +153,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Future<void> _deleteUser(String userId, String userName) async {
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.cardBackground,
         title: const Text('Delete User', style: TextStyle(color: AppColors.primaryText)),
-        content: Text('Are you sure you want to delete $userName? This action cannot be undone.',
-            style: const TextStyle(color: AppColors.secondaryText)),
+        content: Text(
+          'Are you sure you want to permanently delete $userName? This will remove their account and all data. This action cannot be undone.',
+          style: const TextStyle(color: AppColors.secondaryText),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -173,14 +177,24 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
     if (confirmed != true) return;
     try {
+      // Delete Firebase Auth account via Cloud Function
+      final callable = FirebaseFunctions.instance.httpsCallable('deleteAuthUser');
+      await callable.call({'uid': userId});
+
+      // Delete Firestore document
       await FirebaseFirestore.instance.collection('users').doc(userId).delete();
+
       setState(() => _users.removeWhere((u) => u['id'] == userId));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('User deleted successfully'), backgroundColor: AppColors.safe),
+      messenger.showSnackBar(
+        const SnackBar(content: Text('User deleted successfully'), backgroundColor: AppColors.safe),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Error: ${e.message}'), backgroundColor: AppColors.highRisk),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error deleting user: $e'), backgroundColor: AppColors.highRisk),
+      messenger.showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.highRisk),
       );
     }
   }

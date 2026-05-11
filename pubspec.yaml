@@ -41,6 +41,7 @@ dependencies:
   # Additional dependencies for the threat engine
   path: ^1.9.0
   crypto: ^3.0.3
+  cloud_functions: ^6.2.0
 
 dev_dependencies:
   flutter_test:
