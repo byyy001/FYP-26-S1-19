@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants/app_colors.dart';
 import '../login_screen.dart';
 import 'threat_engine_models_screen.dart';
@@ -22,154 +23,24 @@ class _EngineerDashboardContent extends StatelessWidget {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1380),
-          child: Column(
+          child: const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top section: engineer overview + stat cards
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final bool isWide = constraints.maxWidth > 1050;
+              _EngineerProfileCard(),
 
-                  if (isWide) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Expanded(flex: 5, child: _EngineerProfileCard()),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          flex: 7,
-                          child: GridView.count(
-                            crossAxisCount: 2,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            mainAxisSpacing: 14,
-                            crossAxisSpacing: 14,
-                            childAspectRatio: 2.5,
-                            children: const [
-                              _StatCard(
-                                title: 'System Uptime',
-                                value: '99.98%',
-                                icon: Icons.access_time_outlined,
-                              ),
-                              _StatCard(
-                                title: 'Active Scans',
-                                value: '256',
-                                icon: Icons.radar_outlined,
-                              ),
-                              _StatCard(
-                                title: 'Alerts Today',
-                                value: '12',
-                                icon: Icons.warning_amber_rounded,
-                              ),
-                              _StatCard(
-                                title: 'Queued Jobs',
-                                value: '43',
-                                icon: Icons.sync_outlined,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }
+              SizedBox(height: 18),
 
-                  return Column(
-                    children: [
-                      const _EngineerProfileCard(),
-                      const SizedBox(height: 16),
-                      GridView.count(
-                        crossAxisCount: 2,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 14,
-                        crossAxisSpacing: 14,
-                        childAspectRatio: 2.4,
-                        children: const [
-                          _StatCard(
-                            title: 'System Uptime',
-                            value: '99.98%',
-                            icon: Icons.access_time_outlined,
-                          ),
-                          _StatCard(
-                            title: 'Active Scans',
-                            value: '256',
-                            icon: Icons.radar_outlined,
-                          ),
-                          _StatCard(
-                            title: 'Alerts Today',
-                            value: '12',
-                            icon: Icons.warning_amber_rounded,
-                          ),
-                          _StatCard(
-                            title: 'Queued Jobs',
-                            value: '43',
-                            icon: Icons.sync_outlined,
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              ),
+              _ThreatEngineModelSummaryPanel(),
 
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
 
-              // Middle section: performance chart + service status
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final bool isWide = constraints.maxWidth > 1050;
+              _PeriodicRescanSummaryPanel(),
 
-                  if (isWide) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Expanded(flex: 8, child: _PerformanceTrendPanel()),
-                        SizedBox(width: 16),
-                        Expanded(flex: 5, child: _SystemHealthPanel()),
-                      ],
-                    );
-                  }
+              SizedBox(height: 18),
 
-                  return const Column(
-                    children: [
-                      _PerformanceTrendPanel(),
-                      SizedBox(height: 16),
-                      _SystemHealthPanel(),
-                    ],
-                  );
-                },
-              ),
+              _ModelTrainingSummaryPanel(),
 
-              const SizedBox(height: 18),
-
-              // Bottom section: alerts + recent activity
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final bool isWide = constraints.maxWidth > 1050;
-
-                  if (isWide) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Expanded(flex: 8, child: _RecentCriticalAlertsPanel()),
-                        SizedBox(width: 16),
-                        Expanded(
-                          flex: 5,
-                          child: _RecentEngineerActivityPanel(),
-                        ),
-                      ],
-                    );
-                  }
-
-                  return const Column(
-                    children: [
-                      _RecentCriticalAlertsPanel(),
-                      SizedBox(height: 16),
-                      _RecentEngineerActivityPanel(),
-                    ],
-                  );
-                },
-              ),
+              SizedBox(height: 24),
             ],
           ),
         ),
@@ -186,6 +57,12 @@ class _EngineerProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = user?.displayName?.trim().isNotEmpty == true
+        ? user!.displayName!
+        : 'Engineer User';
+    final email = user?.email ?? 'engineer@linksentry.com';
+
     return _Panel(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -200,9 +77,9 @@ class _EngineerProfileCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Row(
+          Row(
             children: [
-              CircleAvatar(
+              const CircleAvatar(
                 radius: 28,
                 backgroundColor: Colors.white24,
                 child: Icon(
@@ -211,29 +88,33 @@ class _EngineerProfileCard extends StatelessWidget {
                   size: 28,
                 ),
               ),
-              SizedBox(width: 14),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Full Name',
-                      style: TextStyle(
+                      displayName,
+                      style: const TextStyle(
                         color: AppColors.primaryText,
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 3),
+                    const SizedBox(height: 3),
                     Text(
-                      'engineer@linksentry.com',
-                      style: TextStyle(
+                      email,
+                      style: const TextStyle(
                         color: AppColors.secondaryText,
                         fontSize: 13,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 8),
-                    Text(
+                    const SizedBox(height: 8),
+                    const Text(
                       'Role: System Engineer',
                       style: TextStyle(
                         color: AppColors.secondaryText,
@@ -256,14 +137,14 @@ class _EngineerProfileCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Last Sync',
+                  'Dashboard Status',
                   style: TextStyle(
                     color: AppColors.secondaryText,
                     fontSize: 12.5,
                   ),
                 ),
                 Text(
-                  'Today, 09:15 AM',
+                  'Live engineer session',
                   style: TextStyle(
                     color: AppColors.primaryText,
                     fontWeight: FontWeight.w600,
@@ -340,417 +221,1035 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _PerformanceTrendPanel extends StatelessWidget {
-  const _PerformanceTrendPanel();
+class _ThreatEngineModelSummaryPanel extends StatelessWidget {
+  const _ThreatEngineModelSummaryPanel();
+
+  static const List<_DashboardModelInfo> _modelOrder = [
+    _DashboardModelInfo(
+      type: 'logistic_regression',
+      label: 'Logistic Regression',
+      icon: Icons.memory_outlined,
+    ),
+    _DashboardModelInfo(
+      type: 'decision_tree',
+      label: 'Decision Tree',
+      icon: Icons.account_tree_outlined,
+    ),
+    _DashboardModelInfo(
+      type: 'xgboost',
+      label: 'XGBoost',
+      icon: Icons.bolt_outlined,
+    ),
+    _DashboardModelInfo(
+      type: 'lightgbm',
+      label: 'LightGBM',
+      icon: Icons.flash_on_outlined,
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    const List<double> values = [85, 72, 90, 78, 96, 88, 92];
-    const List<String> days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-    return _Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Performance Trend (Last 7 Days)',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            height: 290,
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            decoration: BoxDecoration(
-              color: AppColors.mainBackground,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppColors.primaryPurple.withOpacity(0.35),
-              ),
-            ),
-            child: Column(
-              children: [
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: List.generate(
-                            5,
-                            (index) =>
-                                Container(height: 1, color: Colors.white10),
-                          ),
-                        ),
-                      ),
-                      Positioned.fill(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: List.generate(
-                            values.length,
-                            (index) => _Bar(height: values[index] * 2),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: days
-                      .map(
-                        (day) => SizedBox(
-                          width: 32,
-                          child: Text(
-                            day,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.secondaryText,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Bar extends StatelessWidget {
-  final double height;
-
-  const _Bar({required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 30,
-      height: height,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: AppColors.premiumGradient,
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-    );
-  }
-}
-
-class _SystemHealthPanel extends StatelessWidget {
-  const _SystemHealthPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    return _Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text(
-            'System Health',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          SizedBox(height: 16),
-          _StatusRow(label: 'Threat Engine', status: 'Online', good: true),
-          _StatusRow(label: 'Database', status: 'Connected', good: true),
-          _StatusRow(label: 'API Gateway', status: 'Healthy', good: true),
-          _StatusRow(label: 'Backup Service', status: 'Scheduled', good: true),
-          _StatusRow(label: 'Alert Queue', status: '12 Pending', good: false),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  final String label;
-  final String status;
-  final bool good;
-
-  const _StatusRow({
-    required this.label,
-    required this.status,
-    required this.good,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.mainBackground,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              color: good ? Colors.greenAccent : Colors.orangeAccent,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('model_versions')
+          .where('status', isEqualTo: 'active')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _Panel(
             child: Text(
-              label,
+              'Unable to load model summary: ${snapshot.error}',
               style: const TextStyle(
-                color: AppColors.primaryText,
-                fontWeight: FontWeight.w500,
+                color: AppColors.highRisk,
+                fontSize: 14,
               ),
             ),
-          ),
-          Text(status, style: const TextStyle(color: AppColors.secondaryText)),
-        ],
-      ),
-    );
-  }
-}
+          );
+        }
 
-class _RecentCriticalAlertsPanel extends StatelessWidget {
-  const _RecentCriticalAlertsPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    return _Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Recent Critical Alerts',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.mainBackground,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Column(
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _Panel(
+            child: Row(
               children: [
-                _AlertRow(
-                  title: 'High CPU Spike',
-                  level: 'High',
-                  date: 'Today, 10:45 AM',
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-                _AlertRow(
-                  title: 'API Timeout Error',
-                  level: 'Medium',
-                  date: 'Today, 09:12 AM',
-                ),
-                _AlertRow(
-                  title: 'Backup Delay Warning',
-                  level: 'Low',
-                  date: 'Yesterday, 8:40 PM',
-                ),
-                _AlertRow(
-                  title: 'Queue Congestion',
-                  level: 'Medium',
-                  date: 'Yesterday, 3:05 PM',
-                ),
-                _AlertRow(
-                  title: 'Sandbox Restart Required',
-                  level: 'High',
-                  date: 'Yesterday, 1:18 PM',
-                  isLast: true,
+                SizedBox(width: 12),
+                Text(
+                  'Loading threat engine model summary...',
+                  style: TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        final Map<String, Map<String, dynamic>> activeModels = {};
+
+        for (final doc in docs) {
+          final data = doc.data();
+          final modelType = data['modelType']?.toString();
+
+          if (modelType != null && modelType.isNotEmpty) {
+            activeModels[modelType] = data;
+          }
+        }
+
+        return _Panel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Threat Engine Model Summary',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Overview of the active machine learning models used by the scan engine.',
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final bool isWide = constraints.maxWidth > 900;
+                  final double cardWidth = isWide
+                      ? (constraints.maxWidth - 12) / 2
+                      : constraints.maxWidth;
+
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final model in _modelOrder)
+                        SizedBox(
+                          width: cardWidth,
+                          child: _DashboardModelCard(
+                            model: model,
+                            data: activeModels[model.type],
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+
+              const SizedBox(height: 14),
+
+              _EnsembleSummaryCard(
+                activeModelCount: activeModels.length,
+                totalModelCount: _modelOrder.length,
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-class _AlertRow extends StatelessWidget {
-  final String title;
-  final String level;
-  final String date;
-  final bool isLast;
+class _DashboardModelInfo {
+  final String type;
+  final String label;
+  final IconData icon;
 
-  const _AlertRow({
-    required this.title,
-    required this.level,
-    required this.date,
-    this.isLast = false,
+  const _DashboardModelInfo({
+    required this.type,
+    required this.label,
+    required this.icon,
+  });
+}
+
+class _DashboardModelCard extends StatelessWidget {
+  final _DashboardModelInfo model;
+  final Map<String, dynamic>? data;
+
+  const _DashboardModelCard({
+    required this.model,
+    required this.data,
   });
 
   @override
   Widget build(BuildContext context) {
-    Color badgeColor;
-    switch (level) {
-      case 'High':
-        badgeColor = AppColors.highRisk;
-        break;
-      case 'Medium':
-        badgeColor = AppColors.mediumRisk;
-        break;
-      case 'Low':
-        badgeColor = AppColors.safe;
-        break;
-      default:
-        badgeColor = AppColors.primaryPurple;
-    }
-
+    final bool isActive = data != null;
+    final accuracy = _formatAccuracy(data?['accuracy']);
+    final macroF1 = _formatMetric(data?['macroF1']);
+   
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        border: isLast
-            ? null
-            : const Border(bottom: BorderSide(color: Colors.white10)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  date,
-                  style: const TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: badgeColor.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: badgeColor.withOpacity(0.5)),
-            ),
-            child: Text(
-              level,
-              style: TextStyle(
-                color: badgeColor,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          TextButton(
-            onPressed: () {},
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.primaryPurple,
-            ),
-            child: const Text('View'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecentEngineerActivityPanel extends StatelessWidget {
-  const _RecentEngineerActivityPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    return _Panel(
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Recent Engineer Activity',
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          SizedBox(height: 16),
-          _MiniActivityTile(
-            title: 'Maintenance mode updated',
-            subtitle: 'System settings changed 24 mins ago',
-          ),
-          SizedBox(height: 12),
-          _MiniActivityTile(
-            title: 'Performance scan completed',
-            subtitle: 'CPU and memory audit finished successfully',
-          ),
-          SizedBox(height: 12),
-          _MiniActivityTile(
-            title: 'Backup schedule reviewed',
-            subtitle: 'Auto backup interval confirmed by engineer',
-          ),
-          SizedBox(height: 12),
-          _MiniActivityTile(
-            title: 'System update checked',
-            subtitle: 'No pending updates found for current version',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniActivityTile extends StatelessWidget {
-  final String title;
-  final String subtitle;
-
-  const _MiniActivityTile({required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.mainBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isActive
+              ? AppColors.primaryPurple.withOpacity(0.35)
+              : Colors.white10,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Icon(
+            model.icon,
+            color: isActive ? AppColors.primaryPurple : AppColors.disabledText,
+            size: 24,
+          ),
+          const SizedBox(height: 12),
           Text(
-            title,
+            model.label,
             style: const TextStyle(
               color: AppColors.primaryText,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            isActive ? 'Active' : 'Not active',
+            style: TextStyle(
+              color: isActive ? Colors.greenAccent : AppColors.disabledText,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
+          const SizedBox(height: 12),
+          _SmallModelMetric(label: 'Accuracy', value: accuracy),
+          const SizedBox(height: 6),
+          _SmallModelMetric(label: 'Macro F1', value: macroF1),
+        ],
+      ),
+    );
+  }
+
+  static String _formatAccuracy(dynamic value) {
+    if (value == null) return '-';
+
+    final number = value is num ? value.toDouble() : double.tryParse('$value');
+    if (number == null) return '-';
+
+    if (number <= 1) {
+      return '${(number * 100).toStringAsFixed(2)}%';
+    }
+
+    return '${number.toStringAsFixed(2)}%';
+  }
+
+  static String _formatMetric(dynamic value) {
+    if (value == null) return '-';
+
+    final number = value is num ? value.toDouble() : double.tryParse('$value');
+    if (number == null) return '-';
+
+    return number.toStringAsFixed(4);
+  }
+}
+
+class _SmallModelMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _SmallModelMetric({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
             style: const TextStyle(
               color: AppColors.secondaryText,
               fontSize: 12,
             ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.primaryText,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EnsembleSummaryCard extends StatelessWidget {
+  final int activeModelCount;
+  final int totalModelCount;
+
+  const _EnsembleSummaryCard({
+    required this.activeModelCount,
+    required this.totalModelCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool ready = activeModelCount == totalModelCount;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primaryPurple.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.45)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.hub_outlined,
+            color: AppColors.primaryPurple,
+            size: 26,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Ensemble Verdict Layer',
+                  style: TextStyle(
+                    color: AppColors.primaryText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  ready
+                      ? 'Combines all 4 active models to support the final scan verdict.'
+                      : '$activeModelCount of $totalModelCount models are currently active.',
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: ready
+                  ? Colors.greenAccent.withOpacity(0.16)
+                  : Colors.orangeAccent.withOpacity(0.16),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: ready
+                    ? Colors.greenAccent.withOpacity(0.55)
+                    : Colors.orangeAccent.withOpacity(0.55),
+              ),
+            ),
+            child: Text(
+              ready ? 'Ready' : 'Partial',
+              style: TextStyle(
+                color: ready ? Colors.greenAccent : Colors.orangeAccent,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+class _PeriodicRescanSummaryPanel extends StatelessWidget {
+  const _PeriodicRescanSummaryPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('safe_scans')
+          .orderBy('scannedAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _Panel(
+            child: Text(
+              'Unable to load periodic rescan summary: ${snapshot.error}',
+              style: const TextStyle(
+                color: AppColors.highRisk,
+                fontSize: 14,
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _Panel(
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Loading periodic rescan summary...',
+                  style: TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        final scans = docs.map((doc) => doc.data()).toList();
+
+        final totalSafeScans = scans.length;
+
+        final rescannedCount = scans.where((scan) {
+          return scan['rescanned'] == true;
+        }).length;
+
+        final changedVerdictCount = scans.where((scan) {
+          final verdict = scan['rescannedVerdict']?.toString().toLowerCase();
+          return verdict != null && verdict != 'safe' && verdict != 'error';
+        }).length;
+
+        final pendingCount = totalSafeScans - rescannedCount;
+
+        final latestRescan = _findLatestTimestamp(scans, 'rescannedAt');
+        final latestScan = _findLatestTimestamp(scans, 'scannedAt');
+
+        return _Panel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Periodic Rescan Summary',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Overview of saved safe URLs that are monitored for verdict changes during scheduled rescans.',
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final bool isWide = constraints.maxWidth > 900;
+                  final double cardWidth = isWide
+                      ? (constraints.maxWidth - 36) / 4
+                      : constraints.maxWidth;
+
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: cardWidth,
+                        child: _RescanMetricTile(
+                          icon: Icons.shield_outlined,
+                          label: 'Safe URLs Tracked',
+                          value: '$totalSafeScans',
+                          subtitle: 'Stored in safe scan records',
+                        ),
+                      ),
+                      SizedBox(
+                        width: cardWidth,
+                        child: _RescanMetricTile(
+                          icon: Icons.refresh_rounded,
+                          label: 'Already Rescanned',
+                          value: '$rescannedCount',
+                          subtitle: 'URLs checked again',
+                        ),
+                      ),
+                      SizedBox(
+                        width: cardWidth,
+                        child: _RescanMetricTile(
+                          icon: Icons.pending_actions_outlined,
+                          label: 'Pending Rescan',
+                          value: '$pendingCount',
+                          subtitle: 'URLs not rescanned yet',
+                        ),
+                      ),
+                      SizedBox(
+                        width: cardWidth,
+                        child: _RescanMetricTile(
+                          icon: Icons.warning_amber_rounded,
+                          label: 'Verdict Changes',
+                          value: '$changedVerdictCount',
+                          subtitle: 'Changed after rescan',
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+
+              const SizedBox(height: 14),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.mainBackground,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.primaryPurple.withOpacity(0.25),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.schedule_outlined,
+                      color: AppColors.primaryPurple,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Latest Rescan Activity',
+                            style: TextStyle(
+                              color: AppColors.primaryText,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            latestRescan == null
+                                ? 'No completed rescans recorded yet.'
+                                : 'Last rescan completed on ${_formatDateTime(latestRescan)}.',
+                            style: const TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      latestScan == null
+                          ? 'No scan date'
+                          : 'Latest safe scan: ${_formatDateTime(latestScan)}',
+                      style: const TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static DateTime? _findLatestTimestamp(
+    List<Map<String, dynamic>> scans,
+    String field,
+  ) {
+    DateTime? latest;
+
+    for (final scan in scans) {
+      final value = scan[field];
+      DateTime? date;
+
+      if (value is Timestamp) {
+        date = value.toDate();
+      } else if (value is DateTime) {
+        date = value;
+      }
+
+      if (date != null && (latest == null || date.isAfter(latest))) {
+        latest = date;
+      }
+    }
+
+    return latest;
+  }
+
+  static String _formatDateTime(DateTime date) {
+    final hour = date.hour > 12
+        ? date.hour - 12
+        : date.hour == 0
+            ? 12
+            : date.hour;
+
+    final minute = date.minute.toString().padLeft(2, '0');
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+
+    return '${date.day}/${date.month}/${date.year}, $hour:$minute $period';
+  }
+}
+
+class _RescanMetricTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String subtitle;
+
+  const _RescanMetricTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 155,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.mainBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            color: AppColors.primaryPurple,
+            size: 24,
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.primaryText,
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.primaryText,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 11.5,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModelTrainingSummaryPanel extends StatelessWidget {
+  const _ModelTrainingSummaryPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('model_versions').snapshots(),
+      builder: (context, modelSnapshot) {
+        if (modelSnapshot.hasError) {
+          return _Panel(
+            child: Text(
+              'Unable to load model training summary: ${modelSnapshot.error}',
+              style: const TextStyle(
+                color: AppColors.highRisk,
+                fontSize: 14,
+              ),
+            ),
+          );
+        }
+
+        if (modelSnapshot.connectionState == ConnectionState.waiting) {
+          return const _Panel(
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Loading model training summary...',
+                  style: TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final modelDocs = modelSnapshot.data?.docs ?? [];
+
+        final candidateModels = modelDocs.where((doc) {
+          final data = doc.data();
+          return data['status']?.toString().toLowerCase() == 'candidate';
+        }).toList();
+
+        candidateModels.sort((a, b) {
+          final aData = a.data();
+          final bData = b.data();
+
+          final aTime = _extractDateTime(aData['createdAt']) ??
+              _extractDateTime(aData['trainedAt']) ??
+              _extractDateTime(aData['deployedAt']) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+
+          final bTime = _extractDateTime(bData['createdAt']) ??
+              _extractDateTime(bData['trainedAt']) ??
+              _extractDateTime(bData['deployedAt']) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+
+          return bTime.compareTo(aTime);
+        });
+
+        final latestCandidate =
+            candidateModels.isNotEmpty ? candidateModels.first.data() : null;
+
+        final latestModelName =
+            latestCandidate?['modelDisplayName']?.toString() ??
+            _formatModelType(latestCandidate?['modelType']) ??
+            'No candidate model';
+
+        final latestModelVersion =
+            latestCandidate?['modelVersionId']?.toString() ??
+            latestCandidate?['activeModelVersionId']?.toString() ??
+            latestCandidate?['version']?.toString() ??
+            '-';
+
+        final accuracy = _formatPercent(latestCandidate?['accuracy']);
+        final macroF1 = _formatScore(latestCandidate?['macroF1']);
+        final candidateStatus = latestCandidate?['status']?.toString() ?? '-';
+
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('datasets')
+              .where('status', isEqualTo: 'uploaded')
+              .snapshots(),
+          builder: (context, datasetSnapshot) {
+            final datasetCount = datasetSnapshot.data?.docs.length ?? 0;
+            final datasetText = datasetSnapshot.connectionState ==
+                    ConnectionState.waiting
+                ? 'Loading...'
+                : '$datasetCount';
+
+            return _Panel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Model Training Summary',
+                    style: TextStyle(
+                      color: AppColors.primaryText,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Overview of uploaded datasets and candidate models prepared for deployment.',
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final bool isWide = constraints.maxWidth > 900;
+                      final double cardWidth = isWide
+                          ? (constraints.maxWidth - 36) / 4
+                          : constraints.maxWidth;
+
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          SizedBox(
+                            width: cardWidth,
+                            child: _TrainingMetricTile(
+                              icon: Icons.dataset_outlined,
+                              label: 'Uploaded Datasets',
+                              value: datasetText,
+                              subtitle: 'Ready for retraining',
+                            ),
+                          ),
+                          SizedBox(
+                            width: cardWidth,
+                            child: _TrainingMetricTile(
+                              icon: Icons.model_training_outlined,
+                              label: 'Candidate Models',
+                              value: '${candidateModels.length}',
+                              subtitle: 'Waiting for review',
+                            ),
+                          ),
+                          SizedBox(
+                            width: cardWidth,
+                            child: _TrainingMetricTile(
+                              icon: Icons.analytics_outlined,
+                              label: 'Candidate Accuracy',
+                              value: accuracy,
+                              subtitle: 'Latest candidate',
+                            ),
+                          ),
+                          SizedBox(
+                            width: cardWidth,
+                            child: _TrainingMetricTile(
+                              icon: Icons.score_outlined,
+                              label: 'Candidate Macro F1',
+                              value: macroF1,
+                              subtitle: 'Latest candidate',
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.mainBackground,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.primaryPurple.withOpacity(0.25),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.rocket_launch_outlined,
+                          color: AppColors.primaryPurple,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                latestModelName,
+                                style: const TextStyle(
+                                  color: AppColors.primaryText,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                latestCandidate == null
+                                    ? 'No candidate model has been generated yet.'
+                                    : 'Version: $latestModelVersion',
+                                style: const TextStyle(
+                                  color: AppColors.secondaryText,
+                                  fontSize: 12.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: latestCandidate == null
+                                ? Colors.orangeAccent.withOpacity(0.16)
+                                : AppColors.primaryPurple.withOpacity(0.16),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: latestCandidate == null
+                                  ? Colors.orangeAccent.withOpacity(0.55)
+                                  : AppColors.primaryPurple.withOpacity(0.55),
+                            ),
+                          ),
+                          child: Text(
+                            latestCandidate == null
+                                ? 'No Candidate'
+                                : candidateStatus,
+                            style: TextStyle(
+                              color: latestCandidate == null
+                                  ? Colors.orangeAccent
+                                  : AppColors.primaryPurple,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  static DateTime? _extractDateTime(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
+  }
+
+  static String? _formatModelType(dynamic value) {
+    final modelType = value?.toString();
+
+    if (modelType == null || modelType.isEmpty) return null;
+
+    switch (modelType) {
+      case 'logistic_regression':
+        return 'Logistic Regression';
+      case 'decision_tree':
+        return 'Decision Tree';
+      case 'xgboost':
+        return 'XGBoost';
+      case 'lightgbm':
+        return 'LightGBM';
+      default:
+        return modelType;
+    }
+  }
+
+  static String _formatPercent(dynamic value) {
+    if (value == null) return '-';
+
+    final number = value is num ? value.toDouble() : double.tryParse('$value');
+    if (number == null) return '-';
+
+    if (number <= 1) {
+      return '${(number * 100).toStringAsFixed(2)}%';
+    }
+
+    return '${number.toStringAsFixed(2)}%';
+  }
+
+  static String _formatScore(dynamic value) {
+    if (value == null) return '-';
+
+    final number = value is num ? value.toDouble() : double.tryParse('$value');
+    if (number == null) return '-';
+
+    return number.toStringAsFixed(4);
+  }
+}
+
+class _TrainingMetricTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String subtitle;
+
+  const _TrainingMetricTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 155,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.mainBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            color: AppColors.primaryPurple,
+            size: 24,
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.primaryText,
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.primaryText,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 11.5,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -847,50 +1346,56 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Image.asset(
                       'assets/images/LinkSentryLogoTop.png',
-                      height: 48,
+                      height: 130,
                       fit: BoxFit.contain,
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  _buildNavItem(
-                    icon: Icons.dashboard_outlined,
-                    label: 'Engineer Dashboard',
-                    index: 0,
-                  ),
-
-                  _buildNavItem(
-                    icon: Icons.monitor_heart_outlined,
-                    label: 'Threat Engine AI Models',
-                    index: 1,
-                  ),
-                  _buildNavItem(
-                    icon: Icons.monitor_heart_outlined,
-                    label: 'System Performance',
-                    index: 2,
-                  ),
-                  _buildNavItem(
-                    icon: Icons.settings_outlined,
-                    label: 'System Settings',
-                    index: 3,
-                  ),
-                  _buildNavItem(
-                    icon: Icons.refresh_outlined,
-                    label: 'Periodic Rescan',
-                    index: 4,
-                  ),
-                  _buildNavItem(
-                    icon: Icons.health_and_safety_outlined,
-                    label: 'Monthly App Health',
-                    index: 5,
-                  ),
-                  _buildNavItem(
-                    icon: Icons.model_training_outlined,
-                    label: 'Model Training',
-                    index: 6,
-                  ),
-
-                  const Spacer(),
-                  Padding(
+                  const SizedBox(height: 24),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Column(
+                          children: [
+                            _buildNavItem(
+                              icon: Icons.dashboard_outlined,
+                              label: 'Engineer Dashboard',
+                              index: 0,
+                            ),
+                            _buildNavItem(
+                              icon: Icons.monitor_heart_outlined,
+                              label: 'Threat Engine AI Models',
+                              index: 1,
+                            ),
+                            _buildNavItem(
+                              icon: Icons.monitor_heart_outlined,
+                              label: 'System Performance',
+                              index: 2,
+                            ),
+                            _buildNavItem(
+                              icon: Icons.settings_outlined,
+                              label: 'System Settings',
+                              index: 3,
+                            ),
+                            _buildNavItem(
+                              icon: Icons.refresh_outlined,
+                              label: 'Periodic Rescan',
+                              index: 4,
+                            ),
+                            _buildNavItem(
+                              icon: Icons.health_and_safety_outlined,
+                              label: 'Monthly App Health',
+                              index: 5,
+                            ),
+                            _buildNavItem(
+                              icon: Icons.model_training_outlined,
+                              label: 'Model Training',
+                              index: 6,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                   Padding(
                     padding: const EdgeInsets.all(20),
                     child: Container(
                       width: double.infinity,
@@ -984,7 +1489,7 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                     ),
                     child: Row(
                       children: [
-                        Text(
+                       Text(
                           _titles[_selectedIndex],
                           style: const TextStyle(
                             color: AppColors.primaryText,

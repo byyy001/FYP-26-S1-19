@@ -136,15 +136,6 @@ class ThreatEngineModelsScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Threat Engine AI Models',
-                      style: TextStyle(
-                        color: AppColors.primaryText,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
                       'View deployed threat detection models and their latest evaluation results.',
                       style: TextStyle(
                         color: AppColors.secondaryText,
