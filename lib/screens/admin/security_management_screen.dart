@@ -56,13 +56,27 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
   }
 
   void _disposeControllers() {
-    for (var c in _trackerKeywordControllers) c.dispose();
-    for (var c in _blacklistControllers) c.dispose();
-    for (var c in _whitelistControllers) c.dispose();
-    for (var c in _suspiciousTldControllers) c.dispose();
-    for (var c in _phishingKeywordControllers) c.dispose();
-    for (var c in _shortenerControllers) c.dispose();
-    for (var c in _externalSourceControllers) c.dispose();
+    for (var c in _trackerKeywordControllers) {
+      c.dispose();
+    }
+    for (var c in _blacklistControllers) {
+      c.dispose();
+    }
+    for (var c in _whitelistControllers) {
+      c.dispose();
+    }
+    for (var c in _suspiciousTldControllers) {
+      c.dispose();
+    }
+    for (var c in _phishingKeywordControllers) {
+      c.dispose();
+    }
+    for (var c in _shortenerControllers) {
+      c.dispose();
+    }
+    for (var c in _externalSourceControllers) {
+      c.dispose();
+    }
   }
 
   Future<void> _loadConfig() async {
@@ -398,7 +412,7 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _threatCategories.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, idx) {
               final cat = _threatCategories[idx];
               return Container(
@@ -417,7 +431,7 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
                         Switch(
                           value: cat['enabled'] ?? true,
                           onChanged: (val) => setState(() => cat['enabled'] = val),
-                          activeColor: Colors.greenAccent,
+                          activeThumbColor: Colors.greenAccent,
                         ),
                       ],
                     ),
@@ -579,7 +593,7 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
                 ),
               ),
             );
-          }).toList(),
+          }),
           const SizedBox(height: 8),
           const Text(
             'Weights are normalized automatically.',
@@ -615,7 +629,7 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: controllers.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (context, idx) {
               return Row(
                 children: [
@@ -691,7 +705,7 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
           Switch(
             value: _securityRules[key] ?? true,
             onChanged: (val) => setState(() => _securityRules[key] = val),
-            activeColor: Colors.greenAccent,
+            activeThumbColor: Colors.greenAccent,
           ),
         ],
       ),
@@ -775,18 +789,14 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
 // ==================== PANEL WIDGET ====================
 class _Panel extends StatelessWidget {
   final Widget child;
-  final EdgeInsetsGeometry? padding;
 
-  const _Panel({
-    required this.child,
-    this.padding,
-  });
+  const _Panel({required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: padding ?? const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),

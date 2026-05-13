@@ -280,7 +280,9 @@ class StaticRuleEngine {
         final cost = (s[i] == t[j]) ? 0 : 1;
         v1[j + 1] = [v1[j] + 1, v0[j + 1] + 1, v0[j] + cost].reduce(min);
       }
-      for (var j = 0; j <= t.length; j++) v0[j] = v1[j];
+      for (var j = 0; j <= t.length; j++) {
+        v0[j] = v1[j];
+      }
     }
     return v1[t.length];
   }

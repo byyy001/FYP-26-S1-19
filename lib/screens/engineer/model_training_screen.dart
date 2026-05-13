@@ -24,7 +24,7 @@ class _ModelTrainingScreenState extends State<ModelTrainingScreen> {
       'Waiting for engineer to upload dataset and start training.';
   double _progressValue = 0.0;
 
-  String _baseDatasetName = 'final_dataset_with_all_features_v3.1.csv';
+  final String _baseDatasetName = 'final_dataset_with_all_features_v3.1.csv';
   String _uploadedFileName = 'No file selected';
   String? _uploadedDatasetId;
   String? _uploadedStoragePath;
@@ -602,7 +602,7 @@ class _DatasetSourcePanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: selectedExistingDatasetId,
+                    initialValue: selectedExistingDatasetId,
                     dropdownColor: AppColors.cardBackground,
                     style: const TextStyle(color: AppColors.primaryText),
                     decoration: InputDecoration(
@@ -940,7 +940,7 @@ class _TrainingConfigPanel extends StatelessWidget {
           const _FieldLabel('Selected Model'),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: selectedModelType,
+            initialValue: selectedModelType,
             dropdownColor: AppColors.cardBackground,
             style: const TextStyle(
               color: AppColors.primaryText,
@@ -999,7 +999,7 @@ class _TrainingConfigPanel extends StatelessWidget {
           const _FieldLabel('Dataset Merge Mode'),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: selectedMergeMode,
+            initialValue: selectedMergeMode,
             dropdownColor: AppColors.cardBackground,
             style: const TextStyle(
               color: AppColors.primaryText,
@@ -2000,15 +2000,14 @@ class _DividerLine extends StatelessWidget {
 
 class _Panel extends StatelessWidget {
   final Widget child;
-  final EdgeInsetsGeometry? padding;
 
-  const _Panel({required this.child, this.padding});
+  const _Panel({required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: padding ?? const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),

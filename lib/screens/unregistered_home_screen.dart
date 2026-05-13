@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart'; // for WidgetsBindingObserver
+// for WidgetsBindingObserver
 import '../constants/app_colors.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';

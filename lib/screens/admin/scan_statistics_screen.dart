@@ -104,8 +104,9 @@ class _ScanStatisticsScreenState extends State<ScanStatisticsScreen> {
 
       for (var scan in scans) {
         final risk = (scan['riskScore'] as num?)?.toDouble() ?? 0;
-        if (risk >= 75) highRisk++;
-        else if (risk >= 50) mediumRisk++;
+        if (risk >= 75) {
+          highRisk++;
+        } else if (risk >= 50) mediumRisk++;
         else lowRisk++;
 
         final threat = scan['threatType']?.toString().toLowerCase() ?? 'unknown';

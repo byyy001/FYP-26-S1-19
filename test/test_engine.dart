@@ -1,6 +1,6 @@
 // test/test_threat_engine.dart
-import '../lib/threat_engine/layer5_facade/threat_engine.dart';
-import '../lib/threat_engine/scan_settings.dart';
+import 'package:linksentry/threat_engine/layer5_facade/threat_engine.dart';
+import 'package:linksentry/threat_engine/scan_settings.dart';
 
 void main() async {
   print('╔══════════════════════════════════════════════════════════════════╗');

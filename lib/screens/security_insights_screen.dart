@@ -480,7 +480,9 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
     double avgRisk = 0;
     if (_scans.isNotEmpty) {
       double sum = 0;
-      for (final scan in _scans) sum += scan.riskScore;
+      for (final scan in _scans) {
+        sum += scan.riskScore;
+      }
       avgRisk = sum / _scans.length;
     }
     final maxRisk = _insights?.riskScoreMax ?? 0;
@@ -847,7 +849,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
     final percentage = (top.count / totalScans * 100).toStringAsFixed(1);
     final count = top.count;
     final threat = _formatThreatLabel(top.threatType);
-    return '$threat appears $count time${count == 1 ? '' : 's'} (${percentage}% of scans). ${_getThreatAdvice(top.threatType)}';
+    return '$threat appears $count time${count == 1 ? '' : 's'} ($percentage% of scans). ${_getThreatAdvice(top.threatType)}';
   }
 
   String _getThreatAdvice(String threatType) {

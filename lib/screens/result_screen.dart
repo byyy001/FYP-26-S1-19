@@ -86,8 +86,8 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
   bool _showStaticRules = false;
   bool _showMLDetails = false;
   bool _showBehaviorAnalysis = false;
-  bool _showModelMetrics = false;
-  bool _showFusionDetails = false;
+  final bool _showModelMetrics = false;
+  final bool _showFusionDetails = false;
   bool _showExternalApiResults = false;
   bool _showExternalDetails = false;
 
@@ -607,8 +607,9 @@ Explanation: ${_cleanText(widget.explanation)}
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert, color: AppColors.primaryText),
                   onSelected: (value) async {
-                    if (value == 'share') await _shareResults();
-                    else if (value == 'copy') await _copyToClipboard();
+                    if (value == 'share') {
+                      await _shareResults();
+                    } else if (value == 'copy') await _copyToClipboard();
                     else if (value == 'pdf') await _downloadPDF();
                   },
                   itemBuilder: (context) => [
@@ -1196,7 +1197,7 @@ Explanation: ${_cleanText(widget.explanation)}
                   height: 550, // Enough for individual models + ensemble
                   child: TabBarView(
                     children: [
-                      _buildTechnicalDetailsTab(engine!),
+                      _buildTechnicalDetailsTab(engine),
                       _buildExternalDataTab(engine),
                     ],
                   ),
@@ -1695,11 +1696,11 @@ Explanation: ${_cleanText(widget.explanation)}
                               ],
                             ),
                           );
-                        }).toList(),
+                        }),
                         const SizedBox(height: 12),
                       ],
                     );
-                  }).toList(),
+                  }),
                   const Divider(color: AppColors.divider, height: 24),
                   const SizedBox(height: 8),
                 ],
@@ -1756,7 +1757,7 @@ Explanation: ${_cleanText(widget.explanation)}
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
 
                 if (individualModels == null && ensembleProbs.isEmpty)
