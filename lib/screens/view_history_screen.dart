@@ -77,7 +77,7 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
         ? '${_formatDateLabel(scannedAt.toDate())} at ${_formatTime(scannedAt.toDate())}'
         : 'Unknown date';
 
-    double _getDouble(String snakeKey, String camelKey) {
+    double getDouble(String snakeKey, String camelKey) {
       final value = data[snakeKey] ?? data[camelKey];
       if (value is num) return value.toDouble();
       if (value is String) return double.tryParse(value) ?? 0.0;
@@ -88,14 +88,14 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
       'url': data['url'] ?? '',
       'scan_date': scanDate,
       'threat_type': data['threat_type'] ?? data['threatType'] ?? 'unknown',
-      'risk_score': _getDouble('risk_score', 'riskScore'),
+      'risk_score': getDouble('risk_score', 'riskScore'),
       'explanation': data['explanation'] ?? '',
       'detected_threats': (data['detected_threats'] ?? data['detectedThreats'] as List?)?.cast<String>() ?? [],
       'ml_confidence': data['ml_confidence'] ?? data['mlConfidence'] ?? 'low',
-      'ml_score': _getDouble('ml_score', 'mlScore'),
-      'ai_score': _getDouble('ai_score', 'aiScore'),
-      'behavior_score': _getDouble('behavior_score', 'behaviorScore'),
-      'external_score': _getDouble('external_score', 'externalScore'),
+      'ml_score': getDouble('ml_score', 'mlScore'),
+      'ai_score': getDouble('ai_score', 'aiScore'),
+      'behavior_score': getDouble('behavior_score', 'behaviorScore'),
+      'external_score': getDouble('external_score', 'externalScore'),
       'external_sources': (data['external_sources'] ?? data['externalSources'] as List?)?.cast<String>() ?? [],
       'actions': (data['actions'] ?? data['recommendedActions'] as List?)?.cast<String>() ?? [],
       'safety_tips': (data['safety_tips'] ?? data['safetyTips'] as List?)?.cast<String>() ?? [],
@@ -278,7 +278,7 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         itemCount: _filters.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        separatorBuilder: (_, _) => const SizedBox(width: 10),
                         itemBuilder: (context, index) {
                           final filter = _filters[index];
                           final isSelected = _selectedFilter == filter;
@@ -403,7 +403,7 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                                       onDelete: () => _deleteScan(doc),
                                       onRescan: () => _rescanUrl(url, doc.reference),
                                     );
-                                  }).toList(),
+                                  }),
                                 ],
                               );
                             },

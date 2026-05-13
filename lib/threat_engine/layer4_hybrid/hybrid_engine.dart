@@ -624,8 +624,9 @@ class HybridEngine {
     double behaviorW = s.deepScan ? 0.2 : 0.0;
     double aiW = s.deepScan ? 0.1 : 0.0;
     double extW = 0.0;
-    if (extScore > 0.8) extW = 0.5;
-    else if (extScore > 0) extW = 0.3;
+    if (extScore > 0.8) {
+      extW = 0.5;
+    } else if (extScore > 0) extW = 0.3;
     final total = staticW + mlW + behaviorW + aiW + extW;
     return {
       'static': staticW / total,
@@ -678,8 +679,9 @@ class HybridEngine {
     double behaviorWeight = settings.deepScan ? 0.2 : 0.0;
     double aiWeight = settings.deepScan ? 0.1 : 0.0;
     double externalWeight = 0.0;
-    if (externalScore > 0.8) externalWeight = 0.5;
-    else if (externalScore > 0) externalWeight = 0.3;
+    if (externalScore > 0.8) {
+      externalWeight = 0.5;
+    } else if (externalScore > 0) externalWeight = 0.3;
     final total = staticWeight + mlWeight + behaviorWeight + aiWeight + externalWeight;
     double adjStatic = staticWeight / total;
     double adjMl = mlWeight / total;

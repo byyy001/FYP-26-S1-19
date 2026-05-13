@@ -470,7 +470,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
 
   // ================= THREAT SUMMARY CARD =================
   Widget _buildThreatSummaryCard(ScanResult scan) {
-    String _formatScore(double value) {
+    String formatScore(double value) {
       if (value == 0.0) return '—';
       return value.toStringAsFixed(value < 1 ? 4 : 2);
     }
@@ -478,10 +478,10 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
     final rows = [
       {'label': 'Threat Type', 'value': scan.threatType},
       {'label': 'ML Confidence', 'value': scan.mlConfidence},
-      {'label': 'ML Score', 'value': _formatScore(scan.mlScore)},
-      {'label': 'AI Score', 'value': _formatScore(scan.aiScore)},
-      {'label': 'Behavior Score', 'value': _formatScore(scan.behaviorScore)},
-      {'label': 'External Score', 'value': _formatScore(scan.externalScore)},
+      {'label': 'ML Score', 'value': formatScore(scan.mlScore)},
+      {'label': 'AI Score', 'value': formatScore(scan.aiScore)},
+      {'label': 'Behavior Score', 'value': formatScore(scan.behaviorScore)},
+      {'label': 'External Score', 'value': formatScore(scan.externalScore)},
       {'label': 'External Sources', 'value': scan.externalSources.isNotEmpty ? scan.externalSources.join(', ') : 'None'},
     ];
 
@@ -655,8 +655,9 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
   // ================= UTILITIES =================
   List<String> _generateDefaultActions(String threatType, double riskScore) {
     final actions = <String>[];
-    if (riskScore >= 76) actions.add('High risk – do not proceed under any circumstances');
-    else if (riskScore >= 51) actions.add('Medium risk – avoid entering personal information');
+    if (riskScore >= 76) {
+      actions.add('High risk – do not proceed under any circumstances');
+    } else if (riskScore >= 51) actions.add('Medium risk – avoid entering personal information');
     else if (riskScore >= 26) actions.add('Low risk – proceed with caution, but avoid sensitive actions');
     else actions.add('Safe – no significant threats detected');
 

@@ -84,8 +84,9 @@ class VirusTotal {
       // Compute score based on malicious and suspicious counts
       double score = 0.0;
       if (malicious > 0) {
-        if (malicious >= 10) score = 1.0;
-        else if (malicious >= 5) score = 0.9;
+        if (malicious >= 10) {
+          score = 1.0;
+        } else if (malicious >= 5) score = 0.9;
         else if (malicious >= 3) score = 0.8;
         else if (malicious >= 1) score = 0.6;
       } else if (suspicious > 0) {

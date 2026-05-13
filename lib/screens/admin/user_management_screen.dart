@@ -216,7 +216,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: selectedRole,
+                  initialValue: selectedRole,
                   dropdownColor: AppColors.cardBackground,
                   style: const TextStyle(color: AppColors.primaryText),
                   decoration: InputDecoration(
@@ -238,7 +238,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   title: const Text('Active', style: TextStyle(color: AppColors.primaryText)),
                   value: isActive,
                   onChanged: (value) => setStateDialog(() => isActive = value),
-                  activeColor: AppColors.safe,
+                  activeThumbColor: AppColors.safe,
                   secondary: Icon(isActive ? Icons.check_circle : Icons.cancel, color: isActive ? AppColors.safe : AppColors.highRisk),
                 ),
               ],

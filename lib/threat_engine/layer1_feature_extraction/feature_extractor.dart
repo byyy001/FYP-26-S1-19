@@ -233,8 +233,12 @@ class UrlFeatures {
   // ================================
   int _levenshtein(String s1, String s2) {
     final dp = List.generate(s1.length + 1, (_) => List<int>.filled(s2.length + 1, 0));
-    for (int i = 0; i <= s1.length; i++) dp[i][0] = i;
-    for (int j = 0; j <= s2.length; j++) dp[0][j] = j;
+    for (int i = 0; i <= s1.length; i++) {
+      dp[i][0] = i;
+    }
+    for (int j = 0; j <= s2.length; j++) {
+      dp[0][j] = j;
+    }
     for (int i = 1; i <= s1.length; i++) {
       for (int j = 1; j <= s2.length; j++) {
         final cost = s1[i - 1] == s2[j - 1] ? 0 : 1;

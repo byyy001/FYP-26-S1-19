@@ -1,4 +1,3 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:linksentry/screens/login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'onboarding_screen.dart';
 import 'unregistered_home_screen.dart';
 import 'registered_home_screen.dart';
-import 'admin/dashboard_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

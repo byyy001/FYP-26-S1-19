@@ -147,33 +147,49 @@ class HybridEngine {
       }
 
       if (settings.useEnsemble) {
-        for (int i = 0; i < 4; i++) ensembleProbs[i] = lrProbs[i] + dtProbs[i] + xgbProbs[i];
+        for (int i = 0; i < 4; i++) {
+          ensembleProbs[i] = lrProbs[i] + dtProbs[i] + xgbProbs[i];
+        }
         modelCount = 3;
         if (lgbUsed) {
-          for (int i = 0; i < 4; i++) ensembleProbs[i] += lgbProbs[i];
+          for (int i = 0; i < 4; i++) {
+            ensembleProbs[i] += lgbProbs[i];
+          }
           modelCount++;
         }
-        for (int i = 0; i < 4; i++) ensembleProbs[i] /= modelCount;
+        for (int i = 0; i < 4; i++) {
+          ensembleProbs[i] /= modelCount;
+        }
       } else {
         modelCount = 0;
         if (settings.useLogisticRegression) {
-          for (int i = 0; i < 4; i++) ensembleProbs[i] += lrProbs[i];
+          for (int i = 0; i < 4; i++) {
+            ensembleProbs[i] += lrProbs[i];
+          }
           modelCount++;
         }
         if (settings.useDecisionTree) {
-          for (int i = 0; i < 4; i++) ensembleProbs[i] += dtProbs[i];
+          for (int i = 0; i < 4; i++) {
+            ensembleProbs[i] += dtProbs[i];
+          }
           modelCount++;
         }
         if (settings.useXGBoost) {
-          for (int i = 0; i < 4; i++) ensembleProbs[i] += xgbProbs[i];
+          for (int i = 0; i < 4; i++) {
+            ensembleProbs[i] += xgbProbs[i];
+          }
           modelCount++;
         }
         if (lgbUsed && settings.useLightGBM) {
-          for (int i = 0; i < 4; i++) ensembleProbs[i] += lgbProbs[i];
+          for (int i = 0; i < 4; i++) {
+            ensembleProbs[i] += lgbProbs[i];
+          }
           modelCount++;
         }
         if (modelCount > 0) {
-          for (int i = 0; i < 4; i++) ensembleProbs[i] /= modelCount;
+          for (int i = 0; i < 4; i++) {
+            ensembleProbs[i] /= modelCount;
+          }
         } else {
           ensembleProbs = xgbProbs;
           modelCount = 1;
@@ -474,8 +490,9 @@ class HybridEngine {
     double behaviorW = s.deepScan ? 0.2 : 0.0;
     double aiW = s.deepScan ? 0.1 : 0.0;
     double extW = 0.0;
-    if (extScore > 0.8) extW = 0.5;
-    else if (extScore > 0) extW = 0.3;
+    if (extScore > 0.8) {
+      extW = 0.5;
+    } else if (extScore > 0) extW = 0.3;
     final total = staticW + mlW + behaviorW + aiW + extW;
     return {
       'static': staticW / total,
@@ -522,8 +539,9 @@ class HybridEngine {
     double behaviorWeight = settings.deepScan ? 0.2 : 0.0;
     double aiWeight = settings.deepScan ? 0.1 : 0.0;
     double externalWeight = 0.0;
-    if (externalScore > 0.8) externalWeight = 0.5;
-    else if (externalScore > 0) externalWeight = 0.3;
+    if (externalScore > 0.8) {
+      externalWeight = 0.5;
+    } else if (externalScore > 0) externalWeight = 0.3;
     final total = staticWeight + mlWeight + behaviorWeight + aiWeight + externalWeight;
     double adjStatic = staticWeight / total;
     double adjMl = mlWeight / total;

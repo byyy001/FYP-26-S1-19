@@ -330,9 +330,9 @@ class AIThreatAnalyzer {
       final count = top.count;
       final percent = (count / total * 100).toStringAsFixed(1);
       if (top.threatType == 'malware') {
-        addTip('Malware is your top threat (${count}/${total} scans, ${percent}%). Never download files from untrusted sources and keep your antivirus updated.', priority: 2);
+        addTip('Malware is your top threat ($count/$total scans, $percent%). Never download files from untrusted sources and keep your antivirus updated.', priority: 2);
       } else if (top.threatType == 'phishing') {
-        addTip('Phishing is your most common risk (${count}/${total} scans, ${percent}%). Always verify the sender before clicking links, even if they look legitimate.', priority: 2);
+        addTip('Phishing is your most common risk ($count/$total scans, $percent%). Always verify the sender before clicking links, even if they look legitimate.', priority: 2);
       } else if (top.threatType == 'ad_tracker') {
         addTip('Ad trackers appear frequently. Use an ad blocker and consider privacy‑focused browsers like Brave or Firefox.', priority: 1);
       } else if (top.threatType == 'benign') {
