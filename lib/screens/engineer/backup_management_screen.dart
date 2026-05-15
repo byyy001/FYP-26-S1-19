@@ -366,10 +366,10 @@ class _Panel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.35)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.10),
+            color: AppColors.primaryPurple.withValues(alpha: 0.10),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

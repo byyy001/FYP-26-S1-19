@@ -410,7 +410,7 @@ class _SystemPerformanceScreenState extends State<SystemPerformanceScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _recentScans.length,
-              separatorBuilder: (_, _x) => const SizedBox(height: 6),
+              separatorBuilder: (_, i) => const SizedBox(height: 6),
               itemBuilder: (context, index) {
                 final scan = _recentScans[index];
                 final verdict = scan['verdict'] as String;

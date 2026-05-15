@@ -119,10 +119,6 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
     return 'Safe';
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
-  }
-
   // ======================== IMPROVED REPORT FALSE POSITIVE ========================
   Future<void> _reportFalsePositive() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -399,10 +395,10 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [riskColor.withOpacity(0.15), AppColors.cardBackground], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: LinearGradient(colors: [riskColor.withValues(alpha: 0.15), AppColors.cardBackground], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: riskColor.withOpacity(0.3), width: 1),
-        boxShadow: [BoxShadow(color: riskColor.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 6))],
+        border: Border.all(color: riskColor.withValues(alpha: 0.3), width: 1),
+        boxShadow: [BoxShadow(color: riskColor.withValues(alpha: 0.2), blurRadius: 16, offset: const Offset(0, 6))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -434,9 +430,9 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.mainBackground.withOpacity(0.5),
+              color: AppColors.mainBackground.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.divider.withOpacity(0.2)),
+              border: Border.all(color: AppColors.divider.withValues(alpha: 0.2)),
             ),
             child: Text(scan.explanation, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14, height: 1.5)),
           ),
@@ -622,7 +618,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
   }
 
   // ================= HELPER WIDGETS =================
-  Widget _buildDivider() => Divider(height: 1, thickness: 1, color: AppColors.divider.withOpacity(0.3));
+  Widget _buildDivider() => Divider(height: 1, thickness: 1, color: AppColors.divider.withValues(alpha: 0.3));
   Widget _buildSectionHeader(String title, IconData icon) => Row(children: [Icon(icon, color: AppColors.primaryPurple, size: 22), const SizedBox(width: 10), Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.primaryText, letterSpacing: 0.5))]);
   Widget _buildIssueChip(String text) {
     Color chipColor;
@@ -638,7 +634,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
       icon = Icons.info_outline;
     }
     return Chip(
-      backgroundColor: chipColor.withOpacity(0.15),
+      backgroundColor: chipColor.withValues(alpha: 0.15),
       avatar: Icon(icon, size: 16, color: chipColor),
       label: Text(text, style: TextStyle(color: chipColor, fontSize: 13)),
       labelPadding: const EdgeInsets.symmetric(horizontal: 8),
@@ -648,7 +644,7 @@ class _ScanResultDetailsScreenState extends State<ScanResultDetailsScreen> {
   }
   Widget _buildEmptyMessage(String message) => Container(
     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-    decoration: BoxDecoration(color: AppColors.cardBackground, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.divider.withOpacity(0.3))),
+    decoration: BoxDecoration(color: AppColors.cardBackground, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.divider.withValues(alpha: 0.3))),
     child: Row(children: [Icon(Icons.info_outline, color: AppColors.secondaryText, size: 18), const SizedBox(width: 12), Expanded(child: Text(message, style: const TextStyle(color: AppColors.secondaryText, fontStyle: FontStyle.italic)))]),
   );
 
@@ -737,7 +733,7 @@ class _SemiCircularGaugePainter extends CustomPainter {
     final startAngle = -pi;
     final sweepAngle = pi;
     final backgroundPaint = Paint()
-      ..color = AppColors.divider.withOpacity(0.5)
+      ..color = AppColors.divider.withValues(alpha: 0.5)
       ..strokeWidth = 12
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;

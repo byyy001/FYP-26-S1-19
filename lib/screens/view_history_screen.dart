@@ -364,7 +364,7 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                           decoration: BoxDecoration(
-                                            color: AppColors.primaryPurple.withOpacity(0.2),
+                                            color: AppColors.primaryPurple.withValues(alpha: 0.2),
                                             borderRadius: BorderRadius.circular(10),
                                           ),
                                           child: Text(
@@ -421,7 +421,7 @@ class _ViewHistoryScreenState extends State<ViewHistoryScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.history_rounded, size: 64, color: AppColors.disabledText.withOpacity(0.5)),
+          Icon(Icons.history_rounded, size: 64, color: AppColors.disabledText.withValues(alpha: 0.5)),
           const SizedBox(height: 12),
           Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14)),
         ],
@@ -479,15 +479,15 @@ class _ScanHistoryCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider.withOpacity(0.3)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
+          border: Border.all(color: AppColors.divider.withValues(alpha: 0.3)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(
           children: [
             Container(
               width: 44,
               height: 44,
-              decoration: BoxDecoration(color: _statusColor.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: _statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
               child: Icon(_statusIcon, color: _statusColor, size: 24),
             ),
             const SizedBox(width: 14),
@@ -508,9 +508,9 @@ class _ScanHistoryCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _statusColor.withOpacity(0.2),
+                    color: _statusColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _statusColor.withOpacity(0.5)),
+                    border: Border.all(color: _statusColor.withValues(alpha: 0.5)),
                   ),
                   child: Text(status, style: TextStyle(color: _statusColor, fontSize: 12, fontWeight: FontWeight.w700)),
                 ),

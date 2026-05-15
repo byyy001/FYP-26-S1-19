@@ -38,7 +38,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   bool _settingsLoaded = false;
   String? _initError;
   late final ThreatEngine _engine;
-  late Future<Map<String, int>> _statsFuture;
   ScanSettings _userSettings = ScanSettings.forBeginner();
 
   @override
@@ -46,7 +45,6 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     super.initState();
     _initEngine();
     _loadUserSettings();
-    _statsFuture = _getScanStats();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (widget.showLoginSuccess) _showLoginSuccessBanner();
@@ -447,9 +445,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
       if (!mounted) return;
 
-      setState(() {
-        _statsFuture = _getScanStats();
-      });
+      setState(() {});
 
       _showScanSuccessBanner();
     } catch (e, stack) {
@@ -493,9 +489,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
                 if (!mounted) return;
                 if (deletedHistory == true) {
                   if (mounted) {
-                    setState(() {
-                      _statsFuture = _getScanStats();
-                    });
+                    setState(() {});
                   }
                   _showDeleteHistoryBanner();
                 }

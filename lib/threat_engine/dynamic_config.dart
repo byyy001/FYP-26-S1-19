@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class DynamicConfig {
   static DynamicConfig? _instance;
   late Map<String, dynamic> _config;
-  bool _loaded = false;
+
   late Future<void> _initialization;
 
   static const Map<String, dynamic> _defaults = {
@@ -85,7 +85,7 @@ class DynamicConfig {
           print("   global_blacklist: ${data['global_blacklist']}");
           _config = Map<String, dynamic>.from(_defaults);
           _config.addAll(data);
-          _loaded = true;
+    
           await _saveToCache();
           return;
         } else {
@@ -108,7 +108,7 @@ class DynamicConfig {
         print("   global_blacklist: ${cachedMap['global_blacklist']}");
         _config = Map<String, dynamic>.from(_defaults);
         _config.addAll(cachedMap);
-        _loaded = true;
+  
         return;
       }
     } catch (e) {
@@ -118,7 +118,7 @@ class DynamicConfig {
     // 3. Defaults
     print("⚠️ DynamicConfig: Using hardcoded defaults");
     _config = Map.from(_defaults);
-    _loaded = true;
+
   }
 
   /// Recursively converts non-JSON-serialisable values (e.g. Firestore Timestamps)

@@ -626,25 +626,6 @@ class HybridEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Free user early exit – no longer used, kept only as a helper
-  // --------------------------------------------------------------------------
-  Map<String, dynamic> _buildFreeEarlyExit(String url, Map<String, dynamic> external) {
-    final score = (external['score'] as double? ?? 0.0) * 100;
-    final severity = _getSeverity(score);
-    return {
-      'url': url,
-      'scan_date': DateTime.now().toIso8601String(),
-      'risk_score': score.toStringAsFixed(1),
-      'severity': severity,
-      'threat_type': 'malicious',
-      'explanation': 'Flagged by external security sources: ${(external['sources'] as List).join(', ')}. No further analysis performed.',
-      'detected_threats': [],
-      'actions': _actions(score),
-      'early_exit': true,
-    };
-  }
-
-  // --------------------------------------------------------------------------
   // Beginner guidance helpers
   // --------------------------------------------------------------------------
   String _getBeginnerGuidance(String threatType, String severity, String mlConfidence) {
@@ -781,13 +762,6 @@ class HybridEngine {
     if (score >= 50) return 'MEDIUM RISK';
     if (score >= 25) return 'LOW RISK';
     return 'SAFE';
-  }
-
-  List<String> _actions(double score) {
-    if (score >= 75) return ['Do not proceed', 'Close immediately', 'Report URL'];
-    if (score >= 50) return ['Avoid sensitive actions', 'Verify manually'];
-    if (score >= 25) return ['Proceed with caution'];
-    return ['Safe to use'];
   }
 
   // --------------------------------------------------------------------------

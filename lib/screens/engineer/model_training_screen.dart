@@ -488,7 +488,7 @@ class _DatasetSourcePanel extends StatelessWidget {
               color: AppColors.mainBackground,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: AppColors.primaryPurple.withOpacity(0.25),
+                color: AppColors.primaryPurple.withValues(alpha: 0.25),
               ),
             ),
             child: Column(
@@ -611,13 +611,13 @@ class _DatasetSourcePanel extends StatelessWidget {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: AppColors.primaryPurple.withOpacity(0.25),
+                          color: AppColors.primaryPurple.withValues(alpha: 0.25),
                         ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: AppColors.primaryPurple.withOpacity(0.25),
+                          color: AppColors.primaryPurple.withValues(alpha: 0.25),
                         ),
                       ),
                       focusedBorder: OutlineInputBorder(
@@ -770,7 +770,7 @@ class _TrainingStatusPanel extends StatelessWidget {
               color: AppColors.mainBackground,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: AppColors.primaryPurple.withOpacity(0.20),
+                color: AppColors.primaryPurple.withValues(alpha: 0.20),
               ),
             ),
             child: Column(
@@ -830,7 +830,7 @@ class _DatasetPreviewPanel extends StatelessWidget {
                 color: AppColors.mainBackground,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: AppColors.primaryPurple.withOpacity(0.20),
+                  color: AppColors.primaryPurple.withValues(alpha: 0.20),
                 ),
               ),
               child: DataTable(
@@ -952,13 +952,13 @@ class _TrainingConfigPanel extends StatelessWidget {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                  color: AppColors.primaryPurple.withOpacity(0.25),
+                  color: AppColors.primaryPurple.withValues(alpha: 0.25),
                 ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                  color: AppColors.primaryPurple.withOpacity(0.25),
+                  color: AppColors.primaryPurple.withValues(alpha: 0.25),
                 ),
               ),
               focusedBorder: OutlineInputBorder(
@@ -1011,13 +1011,13 @@ class _TrainingConfigPanel extends StatelessWidget {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                  color: AppColors.primaryPurple.withOpacity(0.25),
+                  color: AppColors.primaryPurple.withValues(alpha: 0.25),
                 ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                  color: AppColors.primaryPurple.withOpacity(0.25),
+                  color: AppColors.primaryPurple.withValues(alpha: 0.25),
                 ),
               ),
               focusedBorder: OutlineInputBorder(
@@ -1055,13 +1055,13 @@ class _TrainingConfigPanel extends StatelessWidget {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                  color: AppColors.primaryPurple.withOpacity(0.25),
+                  color: AppColors.primaryPurple.withValues(alpha: 0.25),
                 ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                  color: AppColors.primaryPurple.withOpacity(0.25),
+                  color: AppColors.primaryPurple.withValues(alpha: 0.25),
                 ),
               ),
               focusedBorder: OutlineInputBorder(
@@ -1145,9 +1145,10 @@ class _LatestModelResultsPanel extends StatelessWidget {
   ) async {
     const String deployUrl =
         'https://linksentry-training-backend-1071145926774.asia-southeast1.run.app/deploy-model';
+    final messenger = ScaffoldMessenger.of(context);
 
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Deploying latest model...')),
       );
 
@@ -1163,13 +1164,11 @@ class _LatestModelResultsPanel extends StatelessWidget {
         );
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Model deployed successfully.')),
       );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Deploy failed: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('Deploy failed: $e')));
     }
   }
 
@@ -1411,7 +1410,7 @@ class _LatestModelResultsPanel extends StatelessWidget {
                         onPressed: () {},
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(
-                            color: AppColors.primaryPurple.withOpacity(0.35),
+                            color: AppColors.primaryPurple.withValues(alpha: 0.35),
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -1584,7 +1583,7 @@ class _EvaluationImageCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.mainBackground,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primaryPurple.withOpacity(0.25)),
+          border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.25)),
         ),
         child: Row(
           children: [
@@ -1834,7 +1833,7 @@ class _PerformanceSummaryTableCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.mainBackground,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primaryPurple.withOpacity(0.25)),
+          border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.25)),
         ),
         child: Row(
           children: [
@@ -1899,7 +1898,7 @@ class _MetricCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.mainBackground,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.25)),
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
@@ -2011,10 +2010,10 @@ class _Panel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.35)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.14),
+            color: AppColors.primaryPurple.withValues(alpha: 0.14),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

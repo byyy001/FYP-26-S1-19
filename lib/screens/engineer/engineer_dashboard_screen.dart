@@ -160,67 +160,6 @@ class _EngineerProfileCard extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.18),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.primaryPurple, size: 22),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ThreatEngineModelSummaryPanel extends StatelessWidget {
   const _ThreatEngineModelSummaryPanel();
 
@@ -389,7 +328,7 @@ class _DashboardModelCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isActive
-              ? AppColors.primaryPurple.withOpacity(0.35)
+              ? AppColors.primaryPurple.withValues(alpha: 0.35)
               : Colors.white10,
         ),
       ),
@@ -500,9 +439,9 @@ class _EnsembleSummaryCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primaryPurple.withOpacity(0.12),
+        color: AppColors.primaryPurple.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.45)),
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.45)),
       ),
       child: Row(
         children: [
@@ -542,13 +481,13 @@ class _EnsembleSummaryCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
               color: ready
-                  ? Colors.greenAccent.withOpacity(0.16)
-                  : Colors.orangeAccent.withOpacity(0.16),
+                  ? Colors.greenAccent.withValues(alpha: 0.16)
+                  : Colors.orangeAccent.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
                 color: ready
-                    ? Colors.greenAccent.withOpacity(0.55)
-                    : Colors.orangeAccent.withOpacity(0.55),
+                    ? Colors.greenAccent.withValues(alpha: 0.55)
+                    : Colors.orangeAccent.withValues(alpha: 0.55),
               ),
             ),
             child: Text(
@@ -707,7 +646,7 @@ class _PeriodicRescanSummaryPanel extends StatelessWidget {
                   color: AppColors.mainBackground,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: AppColors.primaryPurple.withOpacity(0.25),
+                    color: AppColors.primaryPurple.withValues(alpha: 0.25),
                   ),
                 ),
                 child: Row(
@@ -1044,7 +983,7 @@ class _ModelTrainingSummaryPanel extends StatelessWidget {
                       color: AppColors.mainBackground,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: AppColors.primaryPurple.withOpacity(0.25),
+                        color: AppColors.primaryPurple.withValues(alpha: 0.25),
                       ),
                     ),
                     child: Row(
@@ -1092,13 +1031,13 @@ class _ModelTrainingSummaryPanel extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: latestCandidate == null
-                                ? Colors.orangeAccent.withOpacity(0.16)
-                                : AppColors.primaryPurple.withOpacity(0.16),
+                                ? Colors.orangeAccent.withValues(alpha: 0.16)
+                                : AppColors.primaryPurple.withValues(alpha: 0.16),
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(
                               color: latestCandidate == null
-                                  ? Colors.orangeAccent.withOpacity(0.55)
-                                  : AppColors.primaryPurple.withOpacity(0.55),
+                                  ? Colors.orangeAccent.withValues(alpha: 0.55)
+                                  : AppColors.primaryPurple.withValues(alpha: 0.55),
                             ),
                           ),
                           child: Text(
@@ -1251,10 +1190,10 @@ class _Panel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.35)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.14),
+            color: AppColors.primaryPurple.withValues(alpha: 0.14),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1313,7 +1252,7 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                 color: AppColors.mainBackground,
                 border: Border(
                   right: BorderSide(
-                    color: AppColors.divider.withOpacity(0.3),
+                    color: AppColors.divider.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -1387,7 +1326,7 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                         color: AppColors.cardBackground,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: AppColors.primaryPurple.withOpacity(0.3),
+                          color: AppColors.primaryPurple.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Row(
@@ -1470,7 +1409,7 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                     decoration: BoxDecoration(
                       border: Border(
                         bottom: BorderSide(
-                          color: AppColors.divider.withOpacity(0.3),
+                          color: AppColors.divider.withValues(alpha: 0.3),
                         ),
                       ),
                     ),
@@ -1492,7 +1431,7 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                             color: AppColors.cardBackground,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: AppColors.divider.withOpacity(0.3),
+                              color: AppColors.divider.withValues(alpha: 0.3),
                             ),
                           ),
                           child: const TextField(
@@ -1541,11 +1480,11 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: isSelected
-            ? AppColors.primaryPurple.withOpacity(0.15)
+            ? AppColors.primaryPurple.withValues(alpha: 0.15)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         border: isSelected
-            ? Border.all(color: AppColors.primaryPurple.withOpacity(0.5))
+            ? Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.5))
             : null,
       ),
       child: ListTile(

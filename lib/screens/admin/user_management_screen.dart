@@ -18,7 +18,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   String _selectedStatusFilter = 'All';
   bool _isLoading = false;
   bool _hasMore = true;
-  DocumentSnapshot? _lastDocument;
   final List<Map<String, dynamic>> _users = [];
   final int _pageSize = 10;
 
@@ -51,7 +50,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   void _refreshUsers() {
     setState(() {
       _users.clear();
-      _lastDocument = null;
       _hasMore = true;
     });
     _loadUsers();
@@ -72,6 +70,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (currentUser == null) return;
     if (_isLoading || !_hasMore) return;
     setState(() => _isLoading = true);
+    final messenger = ScaffoldMessenger.of(context);
 
     try {
       Query query = FirebaseFirestore.instance
@@ -106,12 +105,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
         setState(() {
           _users.addAll(newUsers);
-          _lastDocument = snapshot.docs.last;
           _hasMore = snapshot.docs.length == _pageSize;
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Error loading users: $e'), backgroundColor: AppColors.highRisk),
       );
     } finally {
@@ -136,17 +134,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Future<void> _updateUserField(String userId, String field, dynamic value) async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
       await FirebaseFirestore.instance.collection('users').doc(userId).update({field: value});
       setState(() {
         final index = _users.indexWhere((u) => u['id'] == userId);
         if (index != -1) _users[index][field] = value;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('User updated successfully'), backgroundColor: AppColors.safe),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Error updating user: $e'), backgroundColor: AppColors.highRisk),
       );
     }
@@ -312,7 +311,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: AppColors.primaryPurple.withOpacity(0.5)),
+                      side: BorderSide(color: AppColors.primaryPurple.withValues(alpha: 0.5)),
                     ),
                   ),
                   child: const Text('Load More'),
@@ -333,7 +332,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 4),
           )
@@ -352,7 +351,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               onSelected: (selected) {
                 if (selected) setState(() => _selectedRoleFilter = filter);
               },
-              selectedColor: AppColors.primaryPurple.withOpacity(0.2),
+              selectedColor: AppColors.primaryPurple.withValues(alpha: 0.2),
               backgroundColor: AppColors.mainBackground,
               labelStyle: TextStyle(
                 color: _selectedRoleFilter == filter ? AppColors.primaryText : AppColors.secondaryText,
@@ -360,8 +359,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
               side: BorderSide(
                 color: _selectedRoleFilter == filter
-                    ? AppColors.primaryPurple.withOpacity(0.6)
-                    : AppColors.divider.withOpacity(0.3),
+                    ? AppColors.primaryPurple.withValues(alpha: 0.6)
+                    : AppColors.divider.withValues(alpha: 0.3),
               ),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
             )).toList(),
@@ -377,7 +376,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               onSelected: (selected) {
                 if (selected) setState(() => _selectedStatusFilter = filter);
               },
-              selectedColor: AppColors.primaryPurple.withOpacity(0.2),
+              selectedColor: AppColors.primaryPurple.withValues(alpha: 0.2),
               backgroundColor: AppColors.mainBackground,
               labelStyle: TextStyle(
                 color: _selectedStatusFilter == filter ? AppColors.primaryText : AppColors.secondaryText,
@@ -385,8 +384,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
               side: BorderSide(
                 color: _selectedStatusFilter == filter
-                    ? AppColors.primaryPurple.withOpacity(0.6)
-                    : AppColors.divider.withOpacity(0.3),
+                    ? AppColors.primaryPurple.withValues(alpha: 0.6)
+                    : AppColors.divider.withValues(alpha: 0.3),
               ),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
             )).toList(),
@@ -485,10 +484,10 @@ class _UserCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider.withOpacity(0.2)),
+        border: Border.all(color: AppColors.divider.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 8,
             offset: const Offset(0, 2),
           )
@@ -554,10 +553,10 @@ class _UserCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: isActive ? AppColors.safe.withOpacity(0.15) : AppColors.highRisk.withOpacity(0.15),
+                      color: isActive ? AppColors.safe.withValues(alpha: 0.15) : AppColors.highRisk.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isActive ? AppColors.safe.withOpacity(0.5) : AppColors.highRisk.withOpacity(0.5),
+                        color: isActive ? AppColors.safe.withValues(alpha: 0.5) : AppColors.highRisk.withValues(alpha: 0.5),
                       ),
                     ),
                     child: Text(

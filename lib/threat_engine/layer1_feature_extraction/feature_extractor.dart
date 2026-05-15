@@ -2,7 +2,6 @@
 // feature_extractor.dart – Base Layer: Feature Extraction (Full 59 Features)
 // ============================================================================
 import 'dart:math';
-import 'package:tldts/tldts.dart' as tldts; // kept for compatibility
 
 class UrlFeatures {
   final String url;

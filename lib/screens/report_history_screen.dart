@@ -176,9 +176,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: statusColor.withOpacity(0.2),
+                                          color: statusColor.withValues(alpha: 0.2),
                                           borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: statusColor.withOpacity(0.5)),
+                                          border: Border.all(color: statusColor.withValues(alpha: 0.5)),
                                         ),
                                         child: Text(
                                           statusText,
@@ -229,7 +229,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         });
       },
       backgroundColor: AppColors.cardBackground,
-      selectedColor: AppColors.primaryPurple.withOpacity(0.2),
+      selectedColor: AppColors.primaryPurple.withValues(alpha: 0.2),
       checkmarkColor: AppColors.primaryPurple,
       labelStyle: TextStyle(
         color: isSelected ? AppColors.primaryPurple : AppColors.secondaryText,

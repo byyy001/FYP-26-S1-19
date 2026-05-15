@@ -419,8 +419,8 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
       borderRadius: BorderRadius.circular(12),
       border: Border.all(
         color: _canCustomize
-            ? Colors.white.withOpacity(0.05)
-            : Colors.white.withOpacity(0.08),
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.white.withValues(alpha: 0.08),
       ),
     ),
     child: Column(
@@ -628,8 +628,8 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: enabled
-                ? Colors.white.withOpacity(0.04)
-                : Colors.white.withOpacity(0.08),
+                ? Colors.white.withValues(alpha: 0.04)
+                : Colors.white.withValues(alpha: 0.08),
           ),
         ),
         child: SwitchListTile(

@@ -87,8 +87,6 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
   bool _showStaticRules = false;
   bool _showMLDetails = false;
   bool _showBehaviorAnalysis = false;
-  final bool _showModelMetrics = false;
-  final bool _showFusionDetails = false;
   bool _showExternalApiResults = false;
   bool _showExternalDetails = false;
   bool _showSandboxAnalysis = false;
@@ -419,9 +417,10 @@ Explanation: ${_cleanText(widget.explanation)}
 
   // ======================== REPORT FALSE POSITIVE ========================
   Future<void> _showReportDialog(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Please sign in to report.')),
       );
       return;
@@ -567,7 +566,7 @@ Explanation: ${_cleanText(widget.explanation)}
         'status': 'pending',
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Thank you! Report submitted for review.'),
           backgroundColor: AppColors.safe,
@@ -575,7 +574,7 @@ Explanation: ${_cleanText(widget.explanation)}
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Failed to submit report: $e'), backgroundColor: AppColors.highRisk),
       );
     }

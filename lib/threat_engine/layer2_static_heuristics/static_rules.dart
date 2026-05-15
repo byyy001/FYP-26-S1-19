@@ -166,9 +166,7 @@ class StaticRuleEngine {
   bool? _enableHomographCheck;
   bool? _enableTyposquatting;
   bool? _enableUnshorten;
-  int? _maxRedirectHops;
   int? _newDomainDaysThreshold;
-  int? _pathDepthWarning;
   double? _entropyThreshold;
   List<String>? _enabledExternalSources;
 
@@ -203,9 +201,7 @@ class StaticRuleEngine {
     _enableHomographCheck = config.enableHomographCheck;
     _enableTyposquatting = config.enableTyposquatting;
     _enableUnshorten = config.enableUnshorten;
-    _maxRedirectHops = config.maxRedirectHops;
     _newDomainDaysThreshold = config.newDomainDaysThreshold;
-    _pathDepthWarning = config.pathDepthWarning;
     _entropyThreshold = config.entropyThreshold;
 
     final configuredSources = externalOverride ?? config.enabledExternalSources;

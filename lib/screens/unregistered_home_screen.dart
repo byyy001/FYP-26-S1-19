@@ -38,6 +38,11 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> with Wi
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _urlController.dispose();
+    // Delete the anonymous account when the guest leaves so it doesn't accumulate in Firebase Auth
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && user.isAnonymous) {
+      user.delete();
+    }
     super.dispose();
   }
 

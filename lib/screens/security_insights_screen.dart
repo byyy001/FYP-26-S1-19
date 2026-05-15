@@ -230,7 +230,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
           Text(predictionText, style: const TextStyle(color: AppColors.secondaryText, fontSize: 14, height: 1.4)),
           const SizedBox(height: 8),
           Text('Stay vigilant – avoid clicking suspicious links.',
-              style: TextStyle(color: AppColors.primaryPurple.withOpacity(0.7), fontSize: 12)),
+              style: TextStyle(color: AppColors.primaryPurple.withValues(alpha: 0.7), fontSize: 12)),
         ],
       ),
     );
@@ -520,7 +520,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
       _ => AppColors.safe,
     };
     return _buildCard(
-      borderColor: accentColor.withOpacity(0.5),
+      borderColor: accentColor.withValues(alpha: 0.5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -652,7 +652,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
                 child: LineChart(
                   LineChartData(
                     gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (value) {
-                      return FlLine(color: AppColors.divider.withOpacity(0.3), strokeWidth: 1);
+                      return FlLine(color: AppColors.divider.withValues(alpha: 0.3), strokeWidth: 1);
                     }),
                     titlesData: FlTitlesData(
                       leftTitles: AxisTitles(
@@ -686,7 +686,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
                         isCurved: true,
                         color: AppColors.primaryPurple,
                         barWidth: 3,
-                        belowBarData: BarAreaData(show: true, color: AppColors.primaryPurple.withOpacity(0.1)),
+                        belowBarData: BarAreaData(show: true, color: AppColors.primaryPurple.withValues(alpha: 0.1)),
                         dotData: FlDotData(show: true, getDotPainter: (spot, percent, barData, index) {
                           return FlDotCirclePainter(
                             radius: 4,
@@ -937,8 +937,8 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor ?? AppColors.divider.withOpacity(0.3), width: 1),
-        boxShadow: [BoxShadow(color: AppColors.primaryPurple.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(color: borderColor ?? AppColors.divider.withValues(alpha: 0.3), width: 1),
+        boxShadow: [BoxShadow(color: AppColors.primaryPurple.withValues(alpha: 0.1), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: child,
     );

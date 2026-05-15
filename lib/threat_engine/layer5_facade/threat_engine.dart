@@ -139,23 +139,4 @@ class ThreatEngine {
     };
   }
 
-  String _getSeverity(double score) {
-    if (score >= 75) return 'HIGH RISK';
-    if (score >= 50) return 'MEDIUM RISK';
-    if (score >= 25) return 'LOW RISK';
-    return 'SAFE';
-  }
-
-  List<String> _actions(double score) {
-    if (score >= 75) {
-      return ['Do not proceed', 'Close immediately', 'Report URL'];
-    }
-    if (score >= 50) {
-      return ['Avoid sensitive actions', 'Verify manually'];
-    }
-    if (score >= 25) {
-      return ['Proceed with caution'];
-    }
-    return ['Safe to use'];
-  }
 }

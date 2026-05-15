@@ -26,6 +26,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkUserStatus() async {
     await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
 
     if (kIsWeb) {
       Navigator.pushReplacement(
@@ -36,6 +37,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     final bool hasSeenOnboarding = prefs.getBool('seenOnboarding') ?? false;
 
     final User? user = FirebaseAuth.instance.currentUser;

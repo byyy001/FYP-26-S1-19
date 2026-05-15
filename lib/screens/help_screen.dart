@@ -125,10 +125,10 @@ class HelpScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.cardBackground,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+                border: Border.all(color: AppColors.divider.withValues(alpha: 0.3)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -153,10 +153,11 @@ class HelpScreen extends StatelessWidget {
                         path: 'support@linksentry.com',
                         query: 'subject=LinkSentry Support Request',
                       );
+                      final messenger = ScaffoldMessenger.of(context);
                       if (await canLaunchUrl(emailUri)) {
                         await launchUrl(emailUri);
                       } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           const SnackBar(
                             content: Text('Could not launch email'),
                             backgroundColor: AppColors.highRisk,
@@ -199,7 +200,7 @@ class HelpScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.cardBackground,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+                border: Border.all(color: AppColors.divider.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,7 +336,7 @@ class HelpScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.cardBackground,
               borderRadius: BorderRadius.circular(12), // was 14 → 12
-              border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+              border: Border.all(color: AppColors.divider.withValues(alpha: 0.3)),
             ),
             child: Icon(icon, color: AppColors.primaryPurple, size: 24),
           ),
@@ -379,7 +380,7 @@ class HelpScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(12), // was 14 → 12
-        border: Border.all(color: AppColors.divider.withOpacity(0.3)),
+        border: Border.all(color: AppColors.divider.withValues(alpha: 0.3)),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(

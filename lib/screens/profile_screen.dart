@@ -111,15 +111,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _showComingSoon(String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label coming soon'),
-        backgroundColor: AppColors.primaryPurple,
-      ),
-    );
-  }
-
   Future<void> _deleteScanHistory() async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -372,10 +363,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.3), width: 1),
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.3), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -385,7 +376,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           CircleAvatar(
             radius: 32,
-            backgroundColor: AppColors.primaryPurple.withOpacity(0.2),
+            backgroundColor: AppColors.primaryPurple.withValues(alpha: 0.2),
             child: Icon(
               Icons.person,
               size: 32,
@@ -421,8 +412,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   decoration: BoxDecoration(
                     color: _isPremium
-                        ? AppColors.primaryPurple.withOpacity(0.15)
-                        : AppColors.disabledText.withOpacity(0.15),
+                        ? AppColors.primaryPurple.withValues(alpha: 0.15)
+                        : AppColors.disabledText.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: _isPremium
@@ -460,7 +451,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider.withOpacity(0.3), width: 1),
+        border: Border.all(color: AppColors.divider.withValues(alpha: 0.3), width: 1),
       ),
       child: Column(
         children: [
@@ -524,7 +515,7 @@ class _ProfileSettingTile extends StatelessWidget {
           trailing: Icon(
             Icons.chevron_right,
             color: isDestructive
-                ? AppColors.highRisk.withOpacity(0.7)
+                ? AppColors.highRisk.withValues(alpha: 0.7)
                 : AppColors.secondaryText,
           ),
           onTap: onTap,

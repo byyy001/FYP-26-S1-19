@@ -13,9 +13,10 @@ class ThreatEngineModelsScreen extends StatelessWidget {
   Future<void> _generateEnsembleEvaluation(BuildContext context) async {
     const String url =
         'https://linksentry-training-backend-1071145926774.asia-southeast1.run.app/evaluate-ensemble';
+    final messenger = ScaffoldMessenger.of(context);
 
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Generating ensemble evaluation...')),
       );
 
@@ -31,7 +32,7 @@ class ThreatEngineModelsScreen extends StatelessWidget {
         );
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
           content: Text(
             'Ensemble confusion matrix and performance summary updated.',
@@ -39,53 +40,9 @@ class ThreatEngineModelsScreen extends StatelessWidget {
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Failed to generate ensemble evaluation: $e')),
       );
-    }
-  }
-
-  String _formatPercent(dynamic value) {
-    if (value == null) return '-';
-    final double number = (value as num).toDouble();
-    return '${(number * 100).toStringAsFixed(2)}%';
-  }
-
-  String _formatScore(dynamic value) {
-    if (value == null) return '-';
-    final double number = (value as num).toDouble();
-    return number.toStringAsFixed(4);
-  }
-
-  String _formatTimestamp(dynamic value) {
-    if (value == null) return '-';
-
-    if (value is Timestamp) {
-      return value.toDate().toString();
-    }
-
-    return value.toString();
-  }
-
-  String _displayModelName(Map<String, dynamic> data) {
-    final displayName = data['modelDisplayName']?.toString();
-    if (displayName != null && displayName.isNotEmpty) {
-      return displayName;
-    }
-
-    final modelType = data['modelType']?.toString() ?? '-';
-
-    switch (modelType) {
-      case 'logistic_regression':
-        return 'Logistic Regression';
-      case 'decision_tree':
-        return 'Decision Tree';
-      case 'xgboost':
-        return 'XGBoost';
-      case 'lightgbm':
-        return 'LightGBM';
-      default:
-        return modelType;
     }
   }
 
@@ -253,7 +210,7 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.18),
+        color: statusColor.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: statusColor),
       ),
@@ -437,7 +394,7 @@ class _ModelVersionCard extends StatelessWidget {
                 color: AppColors.mainBackground,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: AppColors.primaryPurple.withOpacity(0.20),
+                  color: AppColors.primaryPurple.withValues(alpha: 0.20),
                 ),
               ),
               child: Column(
@@ -626,7 +583,7 @@ class _EvaluationImageCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.mainBackground,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primaryPurple.withOpacity(0.25)),
+          border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.25)),
         ),
         child: Row(
           children: [
@@ -874,7 +831,7 @@ class _PerformanceSummaryTableCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.mainBackground,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primaryPurple.withOpacity(0.25)),
+          border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.25)),
         ),
         child: Row(
           children: [
@@ -939,7 +896,7 @@ class _MetricCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.mainBackground,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.25)),
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
@@ -1037,10 +994,10 @@ class _Panel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryPurple.withOpacity(0.35)),
+        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.35)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryPurple.withOpacity(0.10),
+            color: AppColors.primaryPurple.withValues(alpha: 0.10),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
