@@ -44,7 +44,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   void _onSearchChanged() {
     setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
-    _refreshUsers();
   }
 
   void _refreshUsers() {
