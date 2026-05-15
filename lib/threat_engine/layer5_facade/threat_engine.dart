@@ -21,6 +21,8 @@ class ThreatEngine {
 
   ThreatEngine._();
 
+  static bool get isInitialized => _instance != null;
+
   // --------------------------------------------------------------------------
   // Load deployed active model JSON files from Firebase Storage
   // --------------------------------------------------------------------------

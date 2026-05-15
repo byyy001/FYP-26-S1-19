@@ -251,6 +251,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           useLightGBM: data['useLightGBM'] ?? true,
           deepScan: data['deepScan'] ?? true,
           adFilter: false,
+          sandboxAnalysis: data['sandboxAnalysis'] ?? true,
         );
         if (mounted) {
           setState(() {
@@ -280,6 +281,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
               useLightGBM: true,
               deepScan: true,
               adFilter: false,
+              sandboxAnalysis: true,
             );
           });
         }

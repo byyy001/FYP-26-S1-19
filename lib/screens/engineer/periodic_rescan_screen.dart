@@ -30,6 +30,8 @@ class _PeriodicRescanScreenState extends State<PeriodicRescanScreen> {
 
   // In-memory results keyed by document ID — mirrors what is written to Firestore
   final Map<String, Map<String, dynamic>> _rescanResults = {};
+  // IDs removed from safe_scans because verdict changed
+  final Set<String> _removedIds = {};
 
   @override
   void initState() {
@@ -53,13 +55,26 @@ class _PeriodicRescanScreenState extends State<PeriodicRescanScreen> {
         .orderBy('scannedAt', descending: true)
         .get();
 
-    return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+    final all = snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+
+    // Deduplicate by URL — keep the most recent entry, track duplicate IDs for bulk ops
+    final seen = <String, Map<String, dynamic>>{};
+    for (final scan in all) {
+      final url = scan['url']?.toString() ?? '';
+      if (!seen.containsKey(url)) {
+        seen[url] = {...scan, '_duplicateIds': <String>[scan['id'].toString()]};
+      } else {
+        (seen[url]!['_duplicateIds'] as List<String>).add(scan['id'].toString());
+      }
+    }
+    return seen.values.toList();
   }
 
   void _refresh() {
     setState(() {
       _safeScansFuture = _fetchSafeScans();
       _rescanResults.clear();
+      _removedIds.clear();
       _rescanComplete = false;
       _rescanChangesCount = 0;
     });
@@ -81,8 +96,8 @@ class _PeriodicRescanScreenState extends State<PeriodicRescanScreen> {
 
     for (final scan in scans) {
       final url = scan['url']?.toString() ?? '';
-      final docId = scan['id']?.toString() ?? '';
-      if (url.isEmpty || docId.isEmpty) {
+      final allIds = (scan['_duplicateIds'] as List<String>?) ?? [scan['id'].toString()];
+      if (url.isEmpty) {
         if (mounted) setState(() => _rescanProgress++);
         continue;
       }
@@ -97,31 +112,46 @@ class _PeriodicRescanScreenState extends State<PeriodicRescanScreen> {
             ? 'Malicious'
             : (riskScore >= 51 ? 'Suspicious' : (riskScore >= 26 ? 'Low Risk' : 'Safe'));
 
-        if (verdict.toLowerCase() != 'safe') changesFound++;
+        final isNowUnsafe = verdict.toLowerCase() != 'safe';
+        if (isNowUnsafe) changesFound++;
 
-        // Write result to Firestore immediately so progress is never lost
-        await FirebaseFirestore.instance.collection('safe_scans').doc(docId).update({
-          'rescanned': true,
-          'rescannedVerdict': verdict,
-          'rescannedRiskScore': riskScore,
-          'rescannedAt': FieldValue.serverTimestamp(),
-        });
-
-        if (mounted) {
-          setState(() {
-            _rescanResults[docId] = {
+        // Apply result to all duplicate docs in a single batch
+        final batch = FirebaseFirestore.instance.batch();
+        for (final id in allIds) {
+          final ref = FirebaseFirestore.instance.collection('safe_scans').doc(id);
+          if (isNowUnsafe) {
+            batch.delete(ref);
+          } else {
+            batch.update(ref, {
               'rescanned': true,
               'rescannedVerdict': verdict,
               'rescannedRiskScore': riskScore,
-              'rescannedAt': DateTime.now(),
-            };
+              'rescannedAt': FieldValue.serverTimestamp(),
+            });
+          }
+        }
+        await batch.commit();
+
+        if (mounted) {
+          setState(() {
+            final primaryId = allIds.first;
+            if (isNowUnsafe) {
+              for (final id in allIds) { _removedIds.add(id); }
+            } else {
+              _rescanResults[primaryId] = {
+                'rescanned': true,
+                'rescannedVerdict': verdict,
+                'rescannedRiskScore': riskScore,
+                'rescannedAt': DateTime.now(),
+              };
+            }
             _rescanProgress++;
           });
         }
       } catch (e) {
         if (mounted) {
           setState(() {
-            _rescanResults[docId] = {'rescanned': true, 'rescannedVerdict': 'Error', 'rescannedAt': DateTime.now()};
+            _rescanResults[allIds.first] = {'rescanned': true, 'rescannedVerdict': 'Error', 'rescannedAt': DateTime.now()};
             _rescanProgress++;
           });
         }
@@ -176,12 +206,14 @@ class _PeriodicRescanScreenState extends State<PeriodicRescanScreen> {
 
               final scans = snapshot.data ?? [];
 
-              // Merge in-memory rescan results so the table reflects live progress
-              final mergedScans = scans.map((scan) {
-                final inMemory = _rescanResults[scan['id']];
-                if (inMemory != null) return {...scan, ...inMemory};
-                return scan;
-              }).toList();
+              // Merge in-memory results and exclude any removed (verdict changed) entries
+              final mergedScans = scans
+                  .where((scan) => !_removedIds.contains(scan['id']))
+                  .map((scan) {
+                    final inMemory = _rescanResults[scan['id']];
+                    if (inMemory != null) return {...scan, ...inMemory};
+                    return scan;
+                  }).toList();
 
               final totalCount = mergedScans.length;
               final rescannedCount = mergedScans.where((s) => s['rescanned'] == true).length;

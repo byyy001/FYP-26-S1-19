@@ -17,6 +17,7 @@ import 'behavior_engine.dart';
 import 'rule_based_ai_engine.dart';
 import '../scan_settings.dart';
 import '../dynamic_config.dart';
+import '../services/urlscan.dart';
 
 class HybridEngine {
   final LogisticRegression logisticModel;
@@ -175,6 +176,15 @@ class HybridEngine {
 
     final staticScore = _computeStaticScore(staticThreats);
 
+    // ---- Sandbox analysis (started early so it runs in parallel with ML) ----
+    Future<Map<String, dynamic>?>? sandboxFuture;
+    if (settings.sandboxAnalysis) {
+      final apiKey = config.urlScanApiKey;
+      if (apiKey.isNotEmpty) {
+        sandboxFuture = UrlScanService(apiKey).analyze(effectiveUrl);
+      }
+    }
+
     // ---- ML predictions ----
     List<double> lrProbs = [0.25, 0.25, 0.25, 0.25];
     List<double> dtProbs = [0.25, 0.25, 0.25, 0.25];
@@ -184,16 +194,25 @@ class HybridEngine {
     List<double> ensembleProbs = List.filled(4, 0.0);
     int modelCount = 0;
     bool mlUsed = false;
+    bool runLR = false;
+    bool runDT = false;
+    bool runXGB = false;
 
     if (settings.enableMachineLearning) {
       mlUsed = true;
-      lrProbs = _safePredict(() => logisticModel.predictProbabilities(rawVector));
-      dtProbs = _safePredict(() {
-        final res = decisionTree.predictMultiClass(rawVector);
-        return (res['probabilities'] as List).cast<double>();
-      });
-      xgbProbs = _safePredict(() => xgboost.predictProbabilities(scaledVector));
-      if (lightGBM != null && settings.useLightGBM) {
+      runLR = settings.useEnsemble || settings.useLogisticRegression;
+      runDT = settings.useEnsemble || settings.useDecisionTree;
+      runXGB = settings.useEnsemble || settings.useXGBoost;
+
+      if (runLR) { lrProbs = _safePredict(() => logisticModel.predictProbabilities(rawVector)); }
+      if (runDT) {
+        dtProbs = _safePredict(() {
+          final res = decisionTree.predictMultiClass(rawVector);
+          return (res['probabilities'] as List).cast<double>();
+        });
+      }
+      if (runXGB) { xgbProbs = _safePredict(() => xgboost.predictProbabilities(scaledVector)); }
+      if (lightGBM != null && (settings.useEnsemble || settings.useLightGBM)) {
         lgbProbs = _safePredict(() => lightGBM!.predictProbabilities(rawVector));
         lgbUsed = true;
       }
@@ -254,14 +273,12 @@ class HybridEngine {
 
     final maxProb = ensembleProbs.reduce(math.max);
     final fusedClass = ensembleProbs.indexOf(maxProb);
-    const double confidenceThreshold = 0.85;
-    final lowConfidence = maxProb < confidenceThreshold;
     final adjustedClass = fusedClass;
     double mlScore = maxProb;
     String threatType = _classNames[adjustedClass];
-    String mlConfidence = (!mlUsed || lowConfidence)
+    String mlConfidence = !mlUsed
         ? 'low'
-        : (mlScore >= 0.9 ? 'high' : 'medium');
+        : (mlScore >= 0.85 ? 'high' : (mlScore >= 0.65 ? 'medium' : 'low'));
 
     // Ambiguity penalty
     final sortedProbs = List<double>.from(ensembleProbs)..sort((a,b) => b.compareTo(a));
@@ -286,6 +303,26 @@ class HybridEngine {
       adDensity = detailed['adDensity']!;
       behaviorPatterns = List<String>.from(detailed['matchedPatterns'] as List? ?? []);
       aiScore = aiEngine?.analyze(features) ?? 0.0;
+    }
+
+    // ---- Await sandbox result (likely already done by now) ----
+    double sandboxScore = 0.0;
+    Map<String, dynamic>? sandboxResult;
+    if (sandboxFuture != null) {
+      sandboxResult = await sandboxFuture;
+      if (sandboxResult != null && sandboxResult['status'] == 'ok') {
+        sandboxScore = (sandboxResult['score'] as int? ?? 0) / 100.0;
+        if (sandboxResult['malicious'] == true || sandboxScore >= 0.7) {
+          final tags = sandboxResult['tags'] as List?;
+          final tagStr = tags?.isNotEmpty == true ? ': ${tags!.join(', ')}' : '';
+          staticThreats.add({
+            'type': 'sandbox_detection',
+            'severity': 'high',
+            'description': 'URLScan sandbox detected malicious page behaviour$tagStr',
+            'score': sandboxScore,
+          });
+        }
+      }
     }
 
     final externalScore = externalScoreRaw;
@@ -326,7 +363,6 @@ class HybridEngine {
           externalSourcesList.contains('IPQualityScore')) {
         threatType = 'malicious';
       }
-      mlConfidence = 'low';
     }
 
     // 50% cap when no external evidence
@@ -335,7 +371,11 @@ class HybridEngine {
       if (threatType != 'benign') {
         threatType = 'suspicious';
       }
-      mlConfidence = 'low';
+    }
+
+    // Sandbox score blend (15 % weight when sandbox ran and found something)
+    if (sandboxResult != null && sandboxResult['status'] == 'ok' && sandboxScore > 0.3) {
+      hybridScore = (hybridScore * 0.85 + sandboxScore * 100 * 0.15).clamp(0, 100);
     }
 
     // Safety override
@@ -384,6 +424,8 @@ class HybridEngine {
       'safety_tips': actionsAndTips['safetyTips'],
     };
 
+    if (sandboxResult != null) result['sandbox_analysis'] = sandboxResult;
+
     if (settings.userLevel == 'beginner') {
       result['guidance'] = _getBeginnerGuidance(threatType, severity, mlConfidence);
       result['confidence_description'] = _confidenceDescription(mlConfidence);
@@ -394,12 +436,12 @@ class HybridEngine {
       result['behavior_matched_patterns'] = behaviorPatterns;
       result['behavior_categories'] = _categorizeBehaviorPatterns(behaviorPatterns);
       result['individual_model_probabilities'] = {
-        'logistic_regression': lrProbs,
-        'decision_tree': dtProbs,
-        'xgboost': xgbProbs,
+        if (runLR) 'logistic_regression': lrProbs,
+        if (runDT) 'decision_tree': dtProbs,
+        if (runXGB) 'xgboost': xgbProbs,
         if (lgbUsed) 'lightgbm': lgbProbs,
       };
-      result['ensemble_probabilities'] = ensembleProbs;
+      if (settings.useEnsemble) result['ensemble_probabilities'] = ensembleProbs;
       result['model_count'] = modelCount;
       result['raw_feature_vector'] = rawVector;
       result['static_score'] = staticScore;
