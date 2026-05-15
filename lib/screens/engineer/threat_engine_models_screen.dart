@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
-
+import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +9,41 @@ import '../../constants/app_colors.dart';
 
 class ThreatEngineModelsScreen extends StatelessWidget {
   const ThreatEngineModelsScreen({super.key});
+
+  Future<void> _generateEnsembleEvaluation(BuildContext context) async {
+    const String url =
+        'https://linksentry-training-backend-1071145926774.asia-southeast1.run.app/evaluate-ensemble';
+
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Generating ensemble evaluation...')),
+      );
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({}),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'Ensemble evaluation failed ${response.statusCode}: ${response.body}',
+        );
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Ensemble confusion matrix and performance summary updated.',
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to generate ensemble evaluation: $e')),
+      );
+    }
+  }
 
   String _formatPercent(dynamic value) {
     if (value == null) return '-';
@@ -98,6 +133,11 @@ class ThreatEngineModelsScreen extends StatelessWidget {
       },
       {'modelType': 'xgboost', 'displayName': 'XGBoost', 'shortName': 'XGB'},
       {'modelType': 'lightgbm', 'displayName': 'LightGBM', 'shortName': 'LGBM'},
+      {
+        'modelType': 'ensemble',
+        'displayName': 'Ensemble Method',
+        'shortName': 'ENS',
+      },
     ];
 
     return Scaffold(
@@ -142,6 +182,29 @@ class ThreatEngineModelsScreen extends StatelessWidget {
                         fontSize: 14,
                       ),
                     ),
+                    const SizedBox(height: 16),
+
+                    SizedBox(
+                      height: 44,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          await _generateEnsembleEvaluation(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryPurple,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.auto_graph_rounded),
+                        label: const Text(
+                          'Generate Ensemble Evaluation',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+
                     const SizedBox(height: 20),
 
                     for (final config in modelConfigs) ...[
