@@ -39,12 +39,14 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   String? _initError;
   late final ThreatEngine _engine;
   ScanSettings _userSettings = ScanSettings.forBeginner();
+  String _userName = 'User';
 
   @override
   void initState() {
     super.initState();
     _initEngine();
     _loadUserSettings();
+    _loadUserName();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (widget.showLoginSuccess) _showLoginSuccessBanner();
@@ -318,12 +320,14 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     super.dispose();
   }
 
-  Future<String> getUserFirstName() async {
+  Future<void> _loadUserName() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return 'User';
+    if (user == null) return;
     final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    if (userDoc.exists) return userDoc['firstName'] ?? 'User';
-    return 'User';
+    if (!mounted) return;
+    setState(() {
+      _userName = userDoc.exists ? (userDoc['firstName'] ?? 'User') : 'User';
+    });
   }
 
   Future<void> _saveScanToFirestore({required String url, required Map<String, dynamic> scanResult}) async {
@@ -503,13 +507,8 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
           child: Divider(color: AppColors.divider.withAlpha(60), thickness: 0.6, height: 1),
         ),
       ),
-      body: FutureBuilder<String>(
-        future: getUserFirstName(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final String userName = snapshot.data ?? 'User';
+      body: Builder(
+        builder: (context) {
           if (!_settingsLoaded || !_engineReady) {
             return Center(
               child: Column(
@@ -539,7 +538,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Ready To Scan $userName?',
+                  'Ready To Scan $_userName?',
                   style: TextStyle(fontSize: isSmall ? 20 : 24, fontWeight: FontWeight.bold, color: AppColors.primaryText),
                 ),
                 const SizedBox(height: 4),
