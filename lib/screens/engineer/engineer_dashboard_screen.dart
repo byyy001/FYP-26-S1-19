@@ -298,6 +298,9 @@ class _ThreatEngineModelSummaryPanel extends StatelessWidget {
             activeModels[modelType] = data;
           }
         }
+        final activeDisplayedModelCount = _modelOrder.where((model) {
+          return activeModels.containsKey(model.type);
+        }).length;
 
         return _Panel(
           child: Column(
@@ -345,7 +348,7 @@ class _ThreatEngineModelSummaryPanel extends StatelessWidget {
               const SizedBox(height: 14),
 
               _EnsembleSummaryCard(
-                activeModelCount: activeModels.length,
+                activeModelCount: activeDisplayedModelCount,
                 totalModelCount: _modelOrder.length,
               ),
             ],
