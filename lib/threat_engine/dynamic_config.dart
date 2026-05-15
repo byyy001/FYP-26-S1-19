@@ -45,6 +45,7 @@ class DynamicConfig {
     ],
     'url_shorteners': ['bit.ly', 'tinyurl', 'goo.gl', 'ow.ly', 'is.gd', 'buff.ly', 'short.link'],
     'enabled_external_sources': ['google_sb', 'virustotal', 'openphish', 'urlhaus', 'ipqs', 'whois'],
+    'urlscan_api_key': '',
     'fusion_weights': {
       'static': 0.35,
       'ml': 0.30,
@@ -120,10 +121,19 @@ class DynamicConfig {
     _loaded = true;
   }
 
+  /// Recursively converts non-JSON-serialisable values (e.g. Firestore Timestamps)
+  /// so the config can be written to SharedPreferences with jsonEncode.
+  dynamic _sanitise(dynamic value) {
+    if (value is Timestamp) return value.millisecondsSinceEpoch;
+    if (value is Map) return value.map((k, v) => MapEntry(k.toString(), _sanitise(v)));
+    if (value is List) return value.map(_sanitise).toList();
+    return value;
+  }
+
   Future<void> _saveToCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('threat_engine_config', jsonEncode(_config));
+      await prefs.setString('threat_engine_config', jsonEncode(_sanitise(_config)));
     } catch (e) {
       print("❌ DynamicConfig: Failed to save cache: $e");
     }
@@ -152,6 +162,7 @@ class DynamicConfig {
       List<String>.from(_config['enabled_external_sources'] ?? []);
   Map<String, dynamic> get fusionWeights =>
       Map<String, dynamic>.from(_config['fusion_weights'] ?? {});
+  String get urlScanApiKey => (_config['urlscan_api_key'] ?? '').toString();
 
   bool get enableHomographCheck => securityRules['enable_homograph_check'] ?? true;
   bool get enableTyposquatting => securityRules['enable_typosquatting'] ?? true;

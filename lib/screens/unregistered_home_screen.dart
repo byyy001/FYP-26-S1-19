@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 // for WidgetsBindingObserver
 import '../constants/app_colors.dart';
 import 'login_screen.dart';
@@ -21,8 +22,8 @@ class UnregisteredHomeScreen extends StatefulWidget {
 class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> with WidgetsBindingObserver {
   final TextEditingController _urlController = TextEditingController();
   bool _isScanning = false;
-  bool _engineReady = false;
-  bool _engineLoading = true;
+  bool _engineReady = ThreatEngine.isInitialized;
+  bool _engineLoading = !ThreatEngine.isInitialized;
   String? _engineError;
   late final ThreatEngine _engine;
 
@@ -49,11 +50,21 @@ class _UnregisteredHomeScreenState extends State<UnregisteredHomeScreen> with Wi
   }
 
   Future<void> _initEngine() async {
+    // If already initialized (e.g. after sign-out), grab the instance and return immediately
+    if (ThreatEngine.isInitialized) {
+      _engine = await ThreatEngine.getInstance();
+      if (mounted) setState(() { _engineReady = true; _engineLoading = false; });
+      return;
+    }
     setState(() {
       _engineLoading = true;
       _engineError = null;
     });
     try {
+      // Guest users need an anonymous auth token to access Firebase Storage
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance.signInAnonymously();
+      }
       _engine = await ThreatEngine.getInstance();
       if (mounted) {
         setState(() {

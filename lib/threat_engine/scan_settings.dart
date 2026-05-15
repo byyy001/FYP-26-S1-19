@@ -33,6 +33,7 @@ class ScanSettings {
   // Additional feature toggles
   final bool deepScan;             // script-level inspection (eval, redirects, etc.)
   final bool adFilter;             // ad-intensity reduction
+  final bool sandboxAnalysis;      // URLScan.io cloud sandbox (premium only)
 
   const ScanSettings({
     required this.phishingSensitivity,
@@ -56,6 +57,7 @@ class ScanSettings {
     this.useLightGBM = false,
     this.deepScan = false,
     this.adFilter = false,
+    this.sandboxAnalysis = false,
   });
 
   /// Default settings (free user)
@@ -81,6 +83,7 @@ class ScanSettings {
       useLightGBM: false,
       deepScan: false,
       adFilter: false,
+      sandboxAnalysis: false,
     );
   }
 
@@ -105,6 +108,7 @@ class ScanSettings {
       useLightGBM: false,
       deepScan: true,                 // script analysis on
       adFilter: false,
+      sandboxAnalysis: true,
     );
   }
 
@@ -129,6 +133,7 @@ class ScanSettings {
       useLightGBM: false,            // enable when LightGBM is added
       deepScan: true,
       adFilter: true,
+      sandboxAnalysis: true,
     );
   }
 
@@ -154,6 +159,7 @@ class ScanSettings {
     bool? useLightGBM,
     bool? deepScan,
     bool? adFilter,
+    bool? sandboxAnalysis,
   }) {
     return ScanSettings(
       phishingSensitivity: phishingSensitivity ?? this.phishingSensitivity,
@@ -176,6 +182,7 @@ class ScanSettings {
       useLightGBM: useLightGBM ?? this.useLightGBM,
       deepScan: deepScan ?? this.deepScan,
       adFilter: adFilter ?? this.adFilter,
+      sandboxAnalysis: sandboxAnalysis ?? this.sandboxAnalysis,
     );
   }
 }

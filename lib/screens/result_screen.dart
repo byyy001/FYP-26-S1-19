@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -90,6 +91,7 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
   final bool _showFusionDetails = false;
   bool _showExternalApiResults = false;
   bool _showExternalDetails = false;
+  bool _showSandboxAnalysis = false;
 
   late final ScrollController _scrollController;
   bool _showScrollTop = false;
@@ -1794,8 +1796,120 @@ Explanation: ${_cleanText(widget.explanation)}
                     ],
                   ),
           ),
+
+          // Sandbox Analysis — only shown when URLScan result is present
+          if (engine['sandbox_analysis'] != null) ...[
+            const SizedBox(height: 16),
+            _buildExpandableSection(
+              title: 'Sandbox Analysis',
+              icon: Icons.security,
+              isExpanded: _showSandboxAnalysis,
+              onTap: () => setState(() => _showSandboxAnalysis = !_showSandboxAnalysis),
+              child: _buildSandboxSection(
+                engine['sandbox_analysis'] as Map<String, dynamic>,
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  // ======================== SANDBOX SECTION ========================
+  Widget _buildSandboxSection(Map<String, dynamic> sandbox) {
+    final status = sandbox['status'] as String? ?? 'unknown';
+    final reportUrl = sandbox['report_url'] as String? ?? '';
+
+    if (status == 'timeout') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildInfoLine(
+            'Sandbox timed out — analysis may still be running.',
+            Icons.timer_off,
+            iconColor: AppColors.mediumRisk,
+          ),
+          if (reportUrl.isNotEmpty)
+            GestureDetector(
+              onTap: () => launchUrl(Uri.parse(reportUrl),
+                  mode: LaunchMode.externalApplication),
+              child: _buildInfoLine(
+                'View partial report on URLScan.io',
+                Icons.open_in_new,
+                iconColor: AppColors.primaryPurple,
+              ),
+            ),
+        ],
+      );
+    }
+
+    if (status != 'ok') {
+      return _buildEmptyMessage('Sandbox analysis unavailable.');
+    }
+
+    final verdict = sandbox['verdict'] as String? ?? 'unknown';
+    final score = sandbox['score'] as int? ?? 0;
+    final malicious = sandbox['malicious'] as bool? ?? false;
+    final tags = List<String>.from(sandbox['tags'] as List? ?? []);
+    final scriptsCount = sandbox['scripts_count'] as int? ?? 0;
+    final domainsCount = sandbox['domains_count'] as int? ?? 0;
+    final maliciousResources = sandbox['malicious_resources'] as int? ?? 0;
+
+    Color verdictColor;
+    IconData verdictIcon;
+    if (verdict == 'malicious') {
+      verdictColor = AppColors.highRisk;
+      verdictIcon = Icons.dangerous;
+    } else if (verdict == 'suspicious') {
+      verdictColor = AppColors.mediumRisk;
+      verdictIcon = Icons.warning_amber;
+    } else {
+      verdictColor = AppColors.safe;
+      verdictIcon = Icons.verified_user;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(verdictIcon, color: verdictColor, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              '${verdict.toUpperCase()}  ($score / 100)',
+              style: TextStyle(
+                  color: verdictColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _buildInfoLine('Scripts loaded: $scriptsCount', Icons.code,
+            iconColor: AppColors.secondaryText),
+        _buildInfoLine('Domains contacted: $domainsCount', Icons.language,
+            iconColor: AppColors.secondaryText),
+        if (maliciousResources > 0)
+          _buildInfoLine(
+            'Malicious resources detected: $maliciousResources',
+            Icons.bug_report,
+            iconColor: AppColors.highRisk,
+          ),
+        if (malicious && tags.isNotEmpty)
+          _buildInfoLine('Threat tags: ${tags.join(', ')}', Icons.label,
+              iconColor: AppColors.mediumRisk),
+        const SizedBox(height: 8),
+        if (reportUrl.isNotEmpty)
+          GestureDetector(
+            onTap: () => launchUrl(Uri.parse(reportUrl),
+                mode: LaunchMode.externalApplication),
+            child: _buildInfoLine(
+              'View full sandbox report on URLScan.io',
+              Icons.open_in_new,
+              iconColor: AppColors.primaryPurple,
+            ),
+          ),
+      ],
     );
   }
 
