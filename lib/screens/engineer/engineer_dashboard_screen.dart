@@ -9,6 +9,7 @@ import 'system_settings_screen.dart';
 import 'periodic_rescan_screen.dart';
 import 'monthly_app_health_screen.dart';
 import 'model_training_screen.dart';
+import 'backup_management_screen.dart';
 
 // ============================================================================
 // Engineer Dashboard Home Content
@@ -259,10 +260,7 @@ class _ThreatEngineModelSummaryPanel extends StatelessWidget {
           return _Panel(
             child: Text(
               'Unable to load model summary: ${snapshot.error}',
-              style: const TextStyle(
-                color: AppColors.highRisk,
-                fontSize: 14,
-              ),
+              style: const TextStyle(color: AppColors.highRisk, fontSize: 14),
             ),
           );
         }
@@ -316,10 +314,7 @@ class _ThreatEngineModelSummaryPanel extends StatelessWidget {
               const SizedBox(height: 4),
               const Text(
                 'Overview of the active machine learning models used by the scan engine.',
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 13,
-                ),
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
               ),
               const SizedBox(height: 18),
 
@@ -377,17 +372,14 @@ class _DashboardModelCard extends StatelessWidget {
   final _DashboardModelInfo model;
   final Map<String, dynamic>? data;
 
-  const _DashboardModelCard({
-    required this.model,
-    required this.data,
-  });
+  const _DashboardModelCard({required this.model, required this.data});
 
   @override
   Widget build(BuildContext context) {
     final bool isActive = data != null;
     final accuracy = _formatAccuracy(data?['accuracy']);
     final macroF1 = _formatMetric(data?['macroF1']);
-   
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -461,10 +453,7 @@ class _SmallModelMetric extends StatelessWidget {
   final String label;
   final String value;
 
-  const _SmallModelMetric({
-    required this.label,
-    required this.value,
-  });
+  const _SmallModelMetric({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -574,6 +563,7 @@ class _EnsembleSummaryCard extends StatelessWidget {
     );
   }
 }
+
 class _PeriodicRescanSummaryPanel extends StatelessWidget {
   const _PeriodicRescanSummaryPanel();
 
@@ -589,10 +579,7 @@ class _PeriodicRescanSummaryPanel extends StatelessWidget {
           return _Panel(
             child: Text(
               'Unable to load periodic rescan summary: ${snapshot.error}',
-              style: const TextStyle(
-                color: AppColors.highRisk,
-                fontSize: 14,
-              ),
+              style: const TextStyle(color: AppColors.highRisk, fontSize: 14),
             ),
           );
         }
@@ -653,10 +640,7 @@ class _PeriodicRescanSummaryPanel extends StatelessWidget {
               const SizedBox(height: 4),
               const Text(
                 'Overview of saved safe URLs that are monitored for verdict changes during scheduled rescans.',
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 13,
-                ),
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
               ),
               const SizedBox(height: 18),
 
@@ -806,8 +790,8 @@ class _PeriodicRescanSummaryPanel extends StatelessWidget {
     final hour = date.hour > 12
         ? date.hour - 12
         : date.hour == 0
-            ? 12
-            : date.hour;
+        ? 12
+        : date.hour;
 
     final minute = date.minute.toString().padLeft(2, '0');
     final period = date.hour >= 12 ? 'PM' : 'AM';
@@ -842,11 +826,7 @@ class _RescanMetricTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            color: AppColors.primaryPurple,
-            size: 24,
-          ),
+          Icon(icon, color: AppColors.primaryPurple, size: 24),
           const Spacer(),
           Text(
             value,
@@ -887,16 +867,15 @@ class _ModelTrainingSummaryPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('model_versions').snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('model_versions')
+          .snapshots(),
       builder: (context, modelSnapshot) {
         if (modelSnapshot.hasError) {
           return _Panel(
             child: Text(
               'Unable to load model training summary: ${modelSnapshot.error}',
-              style: const TextStyle(
-                color: AppColors.highRisk,
-                fontSize: 14,
-              ),
+              style: const TextStyle(color: AppColors.highRisk, fontSize: 14),
             ),
           );
         }
@@ -934,12 +913,14 @@ class _ModelTrainingSummaryPanel extends StatelessWidget {
           final aData = a.data();
           final bData = b.data();
 
-          final aTime = _extractDateTime(aData['createdAt']) ??
+          final aTime =
+              _extractDateTime(aData['createdAt']) ??
               _extractDateTime(aData['trainedAt']) ??
               _extractDateTime(aData['deployedAt']) ??
               DateTime.fromMillisecondsSinceEpoch(0);
 
-          final bTime = _extractDateTime(bData['createdAt']) ??
+          final bTime =
+              _extractDateTime(bData['createdAt']) ??
               _extractDateTime(bData['trainedAt']) ??
               _extractDateTime(bData['deployedAt']) ??
               DateTime.fromMillisecondsSinceEpoch(0);
@@ -947,8 +928,9 @@ class _ModelTrainingSummaryPanel extends StatelessWidget {
           return bTime.compareTo(aTime);
         });
 
-        final latestCandidate =
-            candidateModels.isNotEmpty ? candidateModels.first.data() : null;
+        final latestCandidate = candidateModels.isNotEmpty
+            ? candidateModels.first.data()
+            : null;
 
         final latestModelName =
             latestCandidate?['modelDisplayName']?.toString() ??
@@ -972,8 +954,8 @@ class _ModelTrainingSummaryPanel extends StatelessWidget {
               .snapshots(),
           builder: (context, datasetSnapshot) {
             final datasetCount = datasetSnapshot.data?.docs.length ?? 0;
-            final datasetText = datasetSnapshot.connectionState ==
-                    ConnectionState.waiting
+            final datasetText =
+                datasetSnapshot.connectionState == ConnectionState.waiting
                 ? 'Loading...'
                 : '$datasetCount';
 
@@ -1216,11 +1198,7 @@ class _TrainingMetricTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            color: AppColors.primaryPurple,
-            size: 24,
-          ),
+          Icon(icon, color: AppColors.primaryPurple, size: 24),
           const Spacer(),
           Text(
             value,
@@ -1307,6 +1285,7 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
     PeriodicRescanScreen(),
     MonthlyAppHealthScreen(),
     ModelTrainingScreen(),
+    BackupManagementScreen(),
   ];
 
   final List<String> _titles = [
@@ -1317,6 +1296,7 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
     'Periodic Rescan',
     'Monthly App Health',
     'Model Training',
+    'Backup Management',
   ];
 
   @override
@@ -1351,51 +1331,56 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Column(
-                          children: [
-                            _buildNavItem(
-                              icon: Icons.dashboard_outlined,
-                              label: 'Engineer Dashboard',
-                              index: 0,
-                            ),
-                            _buildNavItem(
-                              icon: Icons.monitor_heart_outlined,
-                              label: 'Threat Engine AI Models',
-                              index: 1,
-                            ),
-                            _buildNavItem(
-                              icon: Icons.monitor_heart_outlined,
-                              label: 'System Performance',
-                              index: 2,
-                            ),
-                            _buildNavItem(
-                              icon: Icons.settings_outlined,
-                              label: 'System Settings',
-                              index: 3,
-                            ),
-                            _buildNavItem(
-                              icon: Icons.refresh_outlined,
-                              label: 'Periodic Rescan',
-                              index: 4,
-                            ),
-                            _buildNavItem(
-                              icon: Icons.health_and_safety_outlined,
-                              label: 'Monthly App Health',
-                              index: 5,
-                            ),
-                            _buildNavItem(
-                              icon: Icons.model_training_outlined,
-                              label: 'Model Training',
-                              index: 6,
-                            ),
-                          ],
-                        ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Column(
+                        children: [
+                          _buildNavItem(
+                            icon: Icons.dashboard_outlined,
+                            label: 'Engineer Dashboard',
+                            index: 0,
+                          ),
+                          _buildNavItem(
+                            icon: Icons.monitor_heart_outlined,
+                            label: 'Threat Engine AI Models',
+                            index: 1,
+                          ),
+                          _buildNavItem(
+                            icon: Icons.monitor_heart_outlined,
+                            label: 'System Performance',
+                            index: 2,
+                          ),
+                          _buildNavItem(
+                            icon: Icons.settings_outlined,
+                            label: 'System Settings',
+                            index: 3,
+                          ),
+                          _buildNavItem(
+                            icon: Icons.refresh_outlined,
+                            label: 'Periodic Rescan',
+                            index: 4,
+                          ),
+                          _buildNavItem(
+                            icon: Icons.health_and_safety_outlined,
+                            label: 'Monthly App Health',
+                            index: 5,
+                          ),
+                          _buildNavItem(
+                            icon: Icons.model_training_outlined,
+                            label: 'Model Training',
+                            index: 6,
+                          ),
+                          _buildNavItem(
+                            icon: Icons.backup_outlined,
+                            label: 'Backup Management',
+                            index: 7,
+                          ),
+                        ],
                       ),
                     ),
-                   Padding(
+                  ),
+                  Padding(
                     padding: const EdgeInsets.all(20),
                     child: Container(
                       width: double.infinity,
@@ -1426,7 +1411,11 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  FirebaseAuth.instance.currentUser?.displayName ?? 'Engineer User',
+                                  FirebaseAuth
+                                          .instance
+                                          .currentUser
+                                          ?.displayName ??
+                                      'Engineer User',
                                   style: const TextStyle(
                                     color: AppColors.primaryText,
                                     fontWeight: FontWeight.w600,
@@ -1436,7 +1425,8 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  FirebaseAuth.instance.currentUser?.email ?? '',
+                                  FirebaseAuth.instance.currentUser?.email ??
+                                      '',
                                   style: const TextStyle(
                                     color: AppColors.secondaryText,
                                     fontSize: 12,
@@ -1458,7 +1448,9 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                               if (context.mounted) {
                                 Navigator.pushAndRemoveUntil(
                                   context,
-                                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                  MaterialPageRoute(
+                                    builder: (_) => const LoginScreen(),
+                                  ),
                                   (_) => false,
                                 );
                               }
@@ -1489,7 +1481,7 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                     ),
                     child: Row(
                       children: [
-                       Text(
+                        Text(
                           _titles[_selectedIndex],
                           style: const TextStyle(
                             color: AppColors.primaryText,
