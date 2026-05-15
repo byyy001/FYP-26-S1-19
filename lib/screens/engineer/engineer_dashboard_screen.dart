@@ -5,7 +5,6 @@ import '../../constants/app_colors.dart';
 import '../login_screen.dart';
 import 'threat_engine_models_screen.dart';
 import 'system_performance_screen.dart';
-import 'system_settings_screen.dart';
 import 'periodic_rescan_screen.dart';
 import 'monthly_app_health_screen.dart';
 import 'model_training_screen.dart';
@@ -1284,7 +1283,6 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
     _EngineerDashboardContent(),
     ThreatEngineModelsScreen(),
     SystemPerformanceScreen(),
-    SystemSettingsScreen(),
     PeriodicRescanScreen(),
     MonthlyAppHealthScreen(),
     ModelTrainingScreen(),
@@ -1295,7 +1293,6 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
     'Engineer Dashboard',
     'Threat Engine AI Models',
     'System Performance',
-    'System Settings',
     'Periodic Rescan',
     'Monthly App Health',
     'Model Training',
@@ -1355,29 +1352,24 @@ class _EngineerDashboardScreenState extends State<EngineerDashboardScreen> {
                             index: 2,
                           ),
                           _buildNavItem(
-                            icon: Icons.settings_outlined,
-                            label: 'System Settings',
-                            index: 3,
-                          ),
-                          _buildNavItem(
                             icon: Icons.refresh_outlined,
                             label: 'Periodic Rescan',
-                            index: 4,
+                            index: 3,
                           ),
                           _buildNavItem(
                             icon: Icons.health_and_safety_outlined,
                             label: 'Monthly App Health',
-                            index: 5,
+                            index: 4,
                           ),
                           _buildNavItem(
                             icon: Icons.model_training_outlined,
                             label: 'Model Training',
-                            index: 6,
+                            index: 5,
                           ),
                           _buildNavItem(
                             icon: Icons.backup_outlined,
                             label: 'Backup Management',
-                            index: 7,
+                            index: 6,
                           ),
                         ],
                       ),
