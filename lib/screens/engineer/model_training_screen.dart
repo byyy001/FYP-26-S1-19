@@ -611,13 +611,17 @@ class _DatasetSourcePanel extends StatelessWidget {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: AppColors.primaryPurple.withValues(alpha: 0.25),
+                          color: AppColors.primaryPurple.withValues(
+                            alpha: 0.25,
+                          ),
                         ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: AppColors.primaryPurple.withValues(alpha: 0.25),
+                          color: AppColors.primaryPurple.withValues(
+                            alpha: 0.25,
+                          ),
                         ),
                       ),
                       focusedBorder: OutlineInputBorder(
@@ -1172,6 +1176,58 @@ class _LatestModelResultsPanel extends StatelessWidget {
     }
   }
 
+  Future<void> _compareCandidateWithActiveModel(
+    BuildContext context,
+    Map<String, dynamic> candidateData,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    final String? modelType = candidateData['modelType']?.toString();
+
+    if (modelType == null || modelType.isEmpty || modelType == '-') {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Candidate model type not found.')),
+      );
+      return;
+    }
+
+    try {
+      final activeSnapshot = await FirebaseFirestore.instance
+          .collection('model_versions')
+          .where('modelType', isEqualTo: modelType)
+          .where('status', isEqualTo: 'active')
+          .limit(1)
+          .get();
+
+      if (activeSnapshot.docs.isEmpty) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('No active $modelType model found to compare with.'),
+          ),
+        );
+        return;
+      }
+
+      final activeData = activeSnapshot.docs.first.data();
+
+      if (!context.mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (_) {
+          return _ModelComparisonDialog(
+            candidateData: candidateData,
+            activeData: activeData,
+          );
+        },
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Failed to compare models: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
@@ -1407,10 +1463,14 @@ class _LatestModelResultsPanel extends StatelessWidget {
                     child: SizedBox(
                       height: 46,
                       child: OutlinedButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          _compareCandidateWithActiveModel(context, data);
+                        },
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(
-                            color: AppColors.primaryPurple.withValues(alpha: 0.35),
+                            color: AppColors.primaryPurple.withValues(
+                              alpha: 0.35,
+                            ),
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -1583,7 +1643,9 @@ class _EvaluationImageCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.mainBackground,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.25)),
+          border: Border.all(
+            color: AppColors.primaryPurple.withValues(alpha: 0.25),
+          ),
         ),
         child: Row(
           children: [
@@ -1833,7 +1895,9 @@ class _PerformanceSummaryTableCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.mainBackground,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.25)),
+          border: Border.all(
+            color: AppColors.primaryPurple.withValues(alpha: 0.25),
+          ),
         ),
         child: Row(
           children: [
@@ -1880,6 +1944,406 @@ class _PerformanceSummaryTableCard extends StatelessWidget {
   }
 }
 
+class _ModelComparisonDialog extends StatelessWidget {
+  final Map<String, dynamic> candidateData;
+  final Map<String, dynamic> activeData;
+
+  const _ModelComparisonDialog({
+    required this.candidateData,
+    required this.activeData,
+  });
+
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
+  String _formatPercent(dynamic value) {
+    final number = _toDouble(value);
+    if (number == null) return '-';
+
+    if (number <= 1) {
+      return '${(number * 100).toStringAsFixed(2)}%';
+    }
+
+    return '${number.toStringAsFixed(2)}%';
+  }
+
+  String _formatScore(dynamic value) {
+    final number = _toDouble(value);
+    if (number == null) return '-';
+
+    return number.toStringAsFixed(4);
+  }
+
+  String _formatDiff(
+    dynamic candidate,
+    dynamic active, {
+    bool percent = false,
+  }) {
+    final c = _toDouble(candidate);
+    final a = _toDouble(active);
+
+    if (c == null || a == null) return '-';
+
+    final diff = c - a;
+
+    if (percent) {
+      final value = diff.abs() <= 1 ? diff * 100 : diff;
+      final sign = value >= 0 ? '+' : '';
+      return '$sign${value.toStringAsFixed(2)}%';
+    }
+
+    final sign = diff >= 0 ? '+' : '';
+    return '$sign${diff.toStringAsFixed(4)}';
+  }
+
+  Color _diffColor(dynamic candidate, dynamic active) {
+    final c = _toDouble(candidate);
+    final a = _toDouble(active);
+
+    if (c == null || a == null) return AppColors.secondaryText;
+
+    if (c > a) return Colors.greenAccent;
+    if (c < a) return AppColors.highRisk;
+
+    return AppColors.secondaryText;
+  }
+
+  Widget _metricRow({
+    required String label,
+    required String candidate,
+    required String active,
+    required String difference,
+    required Color differenceColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              candidate,
+              style: const TextStyle(
+                color: AppColors.primaryText,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              active,
+              style: const TextStyle(
+                color: AppColors.primaryText,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              difference,
+              style: TextStyle(
+                color: differenceColor,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String candidateName =
+        candidateData['modelDisplayName']?.toString() ??
+        candidateData['modelType']?.toString() ??
+        'Candidate Model';
+
+    final String activeName =
+        activeData['modelDisplayName']?.toString() ??
+        activeData['modelType']?.toString() ??
+        'Active Model';
+
+    final String candidateVersion =
+        candidateData['modelVersionId']?.toString() ?? '-';
+
+    final String activeVersion =
+        activeData['modelVersionId']?.toString() ?? '-';
+
+    final candidateMacroF1 = _toDouble(candidateData['macroF1']);
+    final activeMacroF1 = _toDouble(activeData['macroF1']);
+
+    String recommendation = 'Review both models before deployment.';
+    Color recommendationColor = AppColors.secondaryText;
+
+    if (candidateMacroF1 != null && activeMacroF1 != null) {
+      if (candidateMacroF1 > activeMacroF1) {
+        recommendation =
+            'Candidate model performs better based on Macro F1-score.';
+        recommendationColor = Colors.greenAccent;
+      } else if (candidateMacroF1 < activeMacroF1) {
+        recommendation =
+            'Active model still performs better based on Macro F1-score.';
+        recommendationColor = AppColors.highRisk;
+      } else {
+        recommendation =
+            'Candidate and active models have the same Macro F1-score.';
+      }
+    }
+
+    return Dialog(
+      backgroundColor: AppColors.cardBackground,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Container(
+        width: 850,
+        constraints: const BoxConstraints(maxHeight: 720),
+        padding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Compare Candidate vs Active Model',
+                      style: TextStyle(
+                        color: AppColors.primaryText,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.close,
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.mainBackground,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.primaryPurple.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Candidate: $candidateName',
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Candidate Version: $candidateVersion',
+                      style: const TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Active: $activeName',
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Active Version: $activeVersion',
+                      style: const TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.mainBackground,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.primaryPurple.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    const Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            'Metric',
+                            style: TextStyle(
+                              color: AppColors.primaryText,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Candidate',
+                            style: TextStyle(
+                              color: AppColors.primaryText,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Active',
+                            style: TextStyle(
+                              color: AppColors.primaryText,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Difference',
+                            style: TextStyle(
+                              color: AppColors.primaryText,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const Divider(color: Colors.white12),
+
+                    _metricRow(
+                      label: 'Accuracy',
+                      candidate: _formatPercent(candidateData['accuracy']),
+                      active: _formatPercent(activeData['accuracy']),
+                      difference: _formatDiff(
+                        candidateData['accuracy'],
+                        activeData['accuracy'],
+                        percent: true,
+                      ),
+                      differenceColor: _diffColor(
+                        candidateData['accuracy'],
+                        activeData['accuracy'],
+                      ),
+                    ),
+                    _metricRow(
+                      label: 'Macro Precision',
+                      candidate: _formatScore(candidateData['macroPrecision']),
+                      active: _formatScore(activeData['macroPrecision']),
+                      difference: _formatDiff(
+                        candidateData['macroPrecision'],
+                        activeData['macroPrecision'],
+                      ),
+                      differenceColor: _diffColor(
+                        candidateData['macroPrecision'],
+                        activeData['macroPrecision'],
+                      ),
+                    ),
+                    _metricRow(
+                      label: 'Macro Recall',
+                      candidate: _formatScore(candidateData['macroRecall']),
+                      active: _formatScore(activeData['macroRecall']),
+                      difference: _formatDiff(
+                        candidateData['macroRecall'],
+                        activeData['macroRecall'],
+                      ),
+                      differenceColor: _diffColor(
+                        candidateData['macroRecall'],
+                        activeData['macroRecall'],
+                      ),
+                    ),
+                    _metricRow(
+                      label: 'Macro F1',
+                      candidate: _formatScore(candidateData['macroF1']),
+                      active: _formatScore(activeData['macroF1']),
+                      difference: _formatDiff(
+                        candidateData['macroF1'],
+                        activeData['macroF1'],
+                      ),
+                      differenceColor: _diffColor(
+                        candidateData['macroF1'],
+                        activeData['macroF1'],
+                      ),
+                    ),
+                    _metricRow(
+                      label: 'Weighted F1',
+                      candidate: _formatScore(candidateData['weightedF1']),
+                      active: _formatScore(activeData['weightedF1']),
+                      difference: _formatDiff(
+                        candidateData['weightedF1'],
+                        activeData['weightedF1'],
+                      ),
+                      differenceColor: _diffColor(
+                        candidateData['weightedF1'],
+                        activeData['weightedF1'],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: recommendationColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: recommendationColor.withValues(alpha: 0.45),
+                  ),
+                ),
+                child: Text(
+                  recommendation,
+                  style: TextStyle(
+                    color: recommendationColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MetricCard extends StatelessWidget {
   final String title;
   final String value;
@@ -1898,7 +2362,9 @@ class _MetricCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.mainBackground,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: AppColors.primaryPurple.withValues(alpha: 0.25),
+        ),
       ),
       child: Row(
         children: [
@@ -2010,7 +2476,9 @@ class _Panel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primaryPurple.withValues(alpha: 0.35)),
+        border: Border.all(
+          color: AppColors.primaryPurple.withValues(alpha: 0.35),
+        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.primaryPurple.withValues(alpha: 0.14),
