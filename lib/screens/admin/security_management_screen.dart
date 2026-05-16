@@ -218,72 +218,64 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: AppColors.mainBackground,
-        body: Center(child: CircularProgressIndicator(color: AppColors.primaryPurple)),
-      );
+      return const Center(child: CircularProgressIndicator(color: AppColors.primaryPurple));
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.mainBackground,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    labelColor: AppColors.primaryPurple,
-                    unselectedLabelColor: AppColors.secondaryText,
-                    indicatorColor: AppColors.primaryPurple,
-                    tabs: const [
-                      Tab(text: 'Categories & Rules'),
-                      Tab(text: 'Thresholds'),
-                      Tab(text: 'Black/White Lists'),
-                      Tab(text: 'Keywords & Shorteners'),
-                      Tab(text: 'External & Fusion'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: TabBarView(
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TabBar(
                 controller: _tabController,
-                children: [
-                  _buildCategoriesAndRulesTab(),
-                  _buildThresholdsTab(),
-                  _buildBlackWhiteListsTab(),
-                  _buildKeywordsShortenersTab(),
-                  _buildExternalFusionTab(),
+                isScrollable: true,
+                labelColor: AppColors.primaryPurple,
+                unselectedLabelColor: AppColors.secondaryText,
+                indicatorColor: AppColors.primaryPurple,
+                tabs: const [
+                  Tab(text: 'Categories & Rules'),
+                  Tab(text: 'Thresholds'),
+                  Tab(text: 'Black/White Lists'),
+                  Tab(text: 'Keywords & Shorteners'),
+                  Tab(text: 'External & Fusion'),
                 ],
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _saveConfig,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryPurple,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Save Configuration', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildCategoriesAndRulesTab(),
+              _buildThresholdsTab(),
+              _buildBlackWhiteListsTab(),
+              _buildKeywordsShortenersTab(),
+              _buildExternalFusionTab(),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _isSaving ? null : _saveConfig,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryPurple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: _isSaving
+                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Save Configuration', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -801,11 +793,11 @@ class _Panel extends StatelessWidget {
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: AppColors.primaryPurple.withAlpha(35),
+          color: AppColors.primaryPurple.withValues(alpha: 0.35),
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryPurple.withAlpha(14),
+            color: AppColors.primaryPurple.withValues(alpha: 0.14),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

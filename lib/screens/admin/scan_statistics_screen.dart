@@ -186,7 +186,7 @@ class _ScanStatisticsScreenState extends State<ScanStatisticsScreen> {
       case 'malware': return 'Malware';
       case 'defacement': return 'Defacement';
       case 'benign': return 'Benign';
-      default: return type[0].toUpperCase() + type.substring(1);
+      default: return type.isEmpty ? 'Unknown' : type[0].toUpperCase() + type.substring(1);
     }
   }
 

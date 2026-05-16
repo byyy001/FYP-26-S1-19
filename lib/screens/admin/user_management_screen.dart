@@ -20,6 +20,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   bool _hasMore = true;
   final List<Map<String, dynamic>> _users = [];
   final int _pageSize = 10;
+  DocumentSnapshot? _lastDoc;
 
   final List<String> _roleFilters = ['All', 'User', 'Admin', 'Engineer'];
   final List<String> _statusFilters = ['All', 'Active', 'Suspended'];
@@ -50,6 +51,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     setState(() {
       _users.clear();
       _hasMore = true;
+      _lastDoc = null;
     });
     _loadUsers();
   }
@@ -83,6 +85,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (_selectedStatusFilter != 'All') {
         query = query.where('isActive', isEqualTo: _selectedStatusFilter == 'Active');
       }
+      if (_lastDoc != null) {
+        query = query.startAfterDocument(_lastDoc!);
+      }
 
       final snapshot = await query.get();
       if (snapshot.docs.isEmpty) {
@@ -105,6 +110,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         setState(() {
           _users.addAll(newUsers);
           _hasMore = snapshot.docs.length == _pageSize;
+          _lastDoc = snapshot.docs.last;
         });
       }
     } catch (e) {

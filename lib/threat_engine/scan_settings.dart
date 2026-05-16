@@ -35,6 +35,9 @@ class ScanSettings {
   final bool adFilter;             // ad-intensity reduction
   final bool sandboxAnalysis;      // URLScan.io cloud sandbox (premium only)
 
+  // Scan sensitivity: 'low' | 'medium' | 'high' (registered users only)
+  final String sensitivityLevel;
+
   const ScanSettings({
     required this.phishingSensitivity,
     required this.httpSitesWarning,
@@ -58,6 +61,7 @@ class ScanSettings {
     this.deepScan = false,
     this.adFilter = false,
     this.sandboxAnalysis = false,
+    this.sensitivityLevel = 'medium',
   });
 
   /// Default settings (free user)
@@ -84,6 +88,7 @@ class ScanSettings {
       deepScan: false,
       adFilter: false,
       sandboxAnalysis: false,
+      sensitivityLevel: 'medium',
     );
   }
 
@@ -101,14 +106,15 @@ class ScanSettings {
       isPremium: true,
       userLevel: 'beginner',
       enableMachineLearning: true,
-      useEnsemble: true,              // use all models (ensemble)
+      useEnsemble: true,
       useLogisticRegression: false,
       useDecisionTree: false,
       useXGBoost: false,
       useLightGBM: false,
-      deepScan: true,                 // script analysis on
+      deepScan: true,
       adFilter: false,
       sandboxAnalysis: true,
+      sensitivityLevel: 'medium',
     );
   }
 
@@ -126,14 +132,15 @@ class ScanSettings {
       isPremium: true,
       userLevel: 'advanced',
       enableMachineLearning: true,
-      useEnsemble: false,             // let user pick models individually
+      useEnsemble: false,
       useLogisticRegression: true,
       useDecisionTree: true,
       useXGBoost: true,
-      useLightGBM: false,            // enable when LightGBM is added
+      useLightGBM: false,
       deepScan: true,
       adFilter: true,
       sandboxAnalysis: true,
+      sensitivityLevel: 'medium',
     );
   }
 
@@ -160,6 +167,7 @@ class ScanSettings {
     bool? deepScan,
     bool? adFilter,
     bool? sandboxAnalysis,
+    String? sensitivityLevel,
   }) {
     return ScanSettings(
       phishingSensitivity: phishingSensitivity ?? this.phishingSensitivity,
@@ -183,6 +191,7 @@ class ScanSettings {
       deepScan: deepScan ?? this.deepScan,
       adFilter: adFilter ?? this.adFilter,
       sandboxAnalysis: sandboxAnalysis ?? this.sandboxAnalysis,
+      sensitivityLevel: sensitivityLevel ?? this.sensitivityLevel,
     );
   }
 }

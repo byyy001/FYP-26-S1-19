@@ -353,24 +353,19 @@ class HybridEngine {
       if (mlScore > 0.98) hybridScore = math.min(100, hybridScore + 15);
     }
 
-    // External override (continuous boost)
+    // External override (continuous boost) — only adjust score, keep ML threat type
     if (externalScore >= 0.8) {
       double boost = (externalScore - 0.8) * 100;
-      hybridScore = hybridScore + boost;
-      hybridScore = hybridScore.clamp(0, 100);
-      if (externalSourcesList.contains('VirusTotal') ||
-          externalSourcesList.contains('OpenPhish') ||
-          externalSourcesList.contains('IPQualityScore')) {
-        threatType = 'malicious';
+      hybridScore = (hybridScore + boost).clamp(0, 100);
+      if (threatType == 'benign') {
+        threatType = 'malware';
       }
     }
 
-    // 50% cap when no external evidence
-    if (externalScore == 0.0 && hybridScore > 50.0) {
-      hybridScore = 50.0;
-      if (threatType != 'benign') {
-        threatType = 'suspicious';
-      }
+    // Cap score when no external evidence — threshold varies by sensitivity level
+    final noExternalCap = _noExternalCapFor(settings);
+    if (externalScore == 0.0 && hybridScore > noExternalCap) {
+      hybridScore = noExternalCap;
     }
 
     // Sandbox score blend (15 % weight when sandbox ran and found something)
@@ -378,8 +373,8 @@ class HybridEngine {
       hybridScore = (hybridScore * 0.85 + sandboxScore * 100 * 0.15).clamp(0, 100);
     }
 
-    // Safety override
-    if (hybridScore < 25.0 && externalScore < 0.5) {
+    // Safety override — threshold varies by sensitivity level
+    if (hybridScore < _benignThresholdFor(settings) && externalScore < 0.5) {
       threatType = 'benign';
     }
 
@@ -562,7 +557,7 @@ class HybridEngine {
       'scan_date': DateTime.now().toIso8601String(),
       'risk_score': '100.0',
       'severity': 'HIGH RISK',
-      'threat_type': 'malicious',
+      'threat_type': 'malware',
       'explanation': 'This domain is globally blacklisted by administrator.',
       'detected_threats': ['Domain is in global blacklist'],
       'ml_confidence': 'none',
@@ -641,8 +636,32 @@ class HybridEngine {
     return 'Low confidence – consider manual verification.';
   }
 
+  double _staticWeightFor(ScanSettings s) {
+    switch (s.sensitivityLevel) {
+      case 'low':  return 0.20;
+      case 'high': return s.phishingSensitivity ? 0.45 : 0.40;
+      default:     return s.phishingSensitivity ? 0.35 : 0.25; // medium
+    }
+  }
+
+  double _benignThresholdFor(ScanSettings s) {
+    switch (s.sensitivityLevel) {
+      case 'low':  return 35.0;
+      case 'high': return 15.0;
+      default:     return 25.0; // medium
+    }
+  }
+
+  double _noExternalCapFor(ScanSettings s) {
+    switch (s.sensitivityLevel) {
+      case 'low':  return 40.0;
+      case 'high': return 65.0;
+      default:     return 50.0; // medium
+    }
+  }
+
   Map<String, double> _getFusionWeights(ScanSettings s, String mlConf, double extScore) {
-    double staticW = s.phishingSensitivity ? 0.35 : 0.25;
+    double staticW = _staticWeightFor(s);
     double mlW = mlConf == 'high' ? 0.3 : (mlConf == 'medium' ? 0.2 : 0.1);
     double behaviorW = s.deepScan ? 0.2 : 0.0;
     double aiW = s.deepScan ? 0.1 : 0.0;
@@ -697,7 +716,7 @@ class HybridEngine {
     required ScanSettings settings,
     required String mlConfidence,
   }) {
-    double staticWeight = settings.phishingSensitivity ? 0.35 : 0.25;
+    double staticWeight = _staticWeightFor(settings);
     double mlWeight = mlConfidence == 'high' ? 0.3 : (mlConfidence == 'medium' ? 0.2 : 0.0);
     double behaviorWeight = settings.deepScan ? 0.2 : 0.0;
     double aiWeight = settings.deepScan ? 0.1 : 0.0;

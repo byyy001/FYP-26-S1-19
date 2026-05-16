@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../constants/app_colors.dart';
 import '../services/scan_history_service.dart';
 import '../threat_engine/layer5_facade/threat_engine.dart';
@@ -24,7 +26,8 @@ String formatFirestoreTimestamp(Timestamp timestamp) {
 
 class RegisteredHomeScreen extends StatefulWidget {
   final bool showLoginSuccess;
-  const RegisteredHomeScreen({super.key, this.showLoginSuccess = false});
+  final String? initialUrl;
+  const RegisteredHomeScreen({super.key, this.showLoginSuccess = false, this.initialUrl});
 
   @override
   State<RegisteredHomeScreen> createState() => _RegisteredHomeScreenState();
@@ -33,6 +36,7 @@ class RegisteredHomeScreen extends StatefulWidget {
 class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   final TextEditingController _urlController = TextEditingController();
   final ScanHistoryService _scanHistoryService = ScanHistoryService();
+  StreamSubscription<List<SharedMediaFile>>? _intentSub;
   bool _isScanning = false;
   bool _engineReady = false;
   bool _settingsLoaded = false;
@@ -47,11 +51,47 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
     _initEngine();
     _loadUserSettings();
     _loadUserName();
+    _initSharingIntent();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (widget.showLoginSuccess) _showLoginSuccessBanner();
       await _checkAndFireRescanNotifications();
+      if (widget.initialUrl != null && widget.initialUrl!.isNotEmpty) {
+        _handleSharedText(widget.initialUrl!);
+      }
     });
+  }
+
+  void _initSharingIntent() {
+    // Cold start: app opened via share
+    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> files) {
+      for (final file in files) {
+        if (file.type == SharedMediaType.text || file.type == SharedMediaType.url) {
+          _handleSharedText(file.path);
+          break;
+        }
+      }
+      ReceiveSharingIntent.instance.reset();
+    });
+
+    // Hot start: app already running when share is triggered
+    _intentSub = ReceiveSharingIntent.instance.getMediaStream().listen((List<SharedMediaFile> files) {
+      for (final file in files) {
+        if (file.type == SharedMediaType.text || file.type == SharedMediaType.url) {
+          _handleSharedText(file.path);
+          break;
+        }
+      }
+    });
+  }
+
+  void _handleSharedText(String text) {
+    final urlRegex = RegExp(r'https?://[^\s]+|www\.[^\s]+', caseSensitive: false);
+    final match = urlRegex.firstMatch(text);
+    final url = (match?.group(0) ?? text).trim();
+    if (url.isEmpty) return;
+    setState(() => _urlController.text = url);
+    if (_engineReady) _scanURL(url);
   }
 
   Future<void> _checkAndFireRescanNotifications() async {
@@ -316,6 +356,7 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
 
   @override
   void dispose() {
+    _intentSub?.cancel();
     _urlController.dispose();
     super.dispose();
   }
@@ -390,24 +431,67 @@ class _RegisteredHomeScreenState extends State<RegisteredHomeScreen> {
   List<String>? _validateUrl(String rawUrl) {
     final String trimmed = rawUrl.trim();
     final List<String> reasons = [];
+
     if (trimmed.isEmpty) return ['URL is empty'];
+
+    if (trimmed.length > 2048) {
+      return ['URL is too long (max 2048 characters)'];
+    }
+
+    if (trimmed.contains(RegExp(r'[\x00-\x1F\x7F]'))) {
+      reasons.add('URL contains invalid control characters');
+    }
+
+    if (trimmed.contains('%00') || trimmed.contains('\x00')) {
+      reasons.add('URL contains null bytes');
+    }
+
+    if (trimmed.contains(RegExp(r'\s'))) {
+      reasons.add('URL contains spaces');
+    }
+
+    if (reasons.isNotEmpty) return reasons;
+
     String urlForCheck = trimmed;
     if (!urlForCheck.contains('://')) urlForCheck = 'https://$urlForCheck';
+
     try {
       final uri = Uri.parse(urlForCheck);
+
       if (uri.scheme.isEmpty || (uri.scheme != 'http' && uri.scheme != 'https')) {
         reasons.add('Missing or invalid protocol (use http:// or https://)');
       }
+
       if (uri.host.isEmpty) {
         reasons.add('Domain name not recognised');
-      } else if (!uri.host.contains('.')) {
-        reasons.add('Domain must contain a dot (e.g., example.com)');
+      } else {
+        if (!uri.host.contains('.')) {
+          reasons.add('Domain must contain a dot (e.g., example.com)');
+        }
+        if (uri.host.endsWith('.')) {
+          reasons.add('Domain has a trailing dot');
+        }
+        if (uri.host.contains('..')) {
+          reasons.add('Domain contains consecutive dots');
+        }
+        final host = uri.host.toLowerCase();
+        if (host == 'localhost' ||
+            host == '127.0.0.1' ||
+            host == '0.0.0.0' ||
+            host.startsWith('192.168.') ||
+            host.startsWith('10.') ||
+            RegExp(r'^172\.(1[6-9]|2[0-9]|3[01])\.').hasMatch(host)) {
+          reasons.add('Local or private network addresses are not allowed');
+        }
       }
-      if (trimmed.contains(RegExp(r'\s'))) reasons.add('URL contains spaces');
-      if (trimmed.contains('//') && !trimmed.startsWith('http')) reasons.add('Invalid double slash');
+
+      if (uri.path.startsWith('//')) {
+        reasons.add('URL path contains an invalid double slash');
+      }
     } catch (e) {
       reasons.add('URL format not recognised');
     }
+
     return reasons.isEmpty ? null : reasons;
   }
 

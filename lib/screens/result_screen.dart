@@ -94,7 +94,7 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
   late final ScrollController _scrollController;
   bool _showScrollTop = false;
 
-  static const double adIntensityThreshold = 0.3;
+  static const double adIntensityThreshold = 0.5;
 
   @override
   void initState() {
@@ -181,8 +181,8 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
   }
 
   Widget _buildAdIntensityWarning() {
-    final adDensity = widget.engineResult?['ad_density'];
-    final bool isAdIntensive = (adDensity is double && adDensity > adIntensityThreshold);
+    final double adDensityValue = _toDouble(widget.engineResult?['ad_density']);
+    final bool isAdIntensive = adDensityValue > adIntensityThreshold;
     if (!isAdIntensive) return const SizedBox.shrink();
 
     return Container(

@@ -251,7 +251,7 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
 
     String similarityReason;
     if (byDomain.keys.length == 1) {
-      similarityReason = 'All these links share the same domain "$_extractDomain(groupedScans.first.url)".';
+      similarityReason = 'All these links share the same domain "${_extractDomain(groupedScans.first.url)}".';
     } else {
       similarityReason = 'These links were all classified as $threatType by our threat engine.';
     }
@@ -314,20 +314,51 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
                     margin: const EdgeInsets.only(bottom: 10),
                     color: AppColors.mainBackground,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      title: Text(_extractDomain(scan.url),
-                          style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600)),
-                      subtitle: Text(scan.url,
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-                      trailing: const Icon(Icons.chevron_right, color: AppColors.secondaryText),
-                      onTap: () {
-                        // Navigate to scan details – you can push ScanResultDetailsScreen here
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Open scan details – feature coming soon')),
-                        );
-                      },
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 8, height: 8,
+                                decoration: BoxDecoration(
+                                  color: _threatColor(threatType),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _extractDomain(scan.url),
+                                  style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w600, fontSize: 14),
+                                ),
+                              ),
+                              Text(
+                                '${scan.riskScore.toStringAsFixed(0)}%',
+                                style: TextStyle(color: _threatColor(threatType), fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            scan.url,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                          ),
+                          if (scan.explanation.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              scan.explanation,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: AppColors.primaryText, fontSize: 13, height: 1.4),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -982,14 +1013,20 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
 
   List<ThreatCount> _buildThreatPie(List<ScanResult> scans) {
     if (scans.isEmpty) return [];
-    final counts = <String, int>{'safe': 0, 'suspicious': 0, 'malicious': 0};
+    final counts = <String, int>{};
     for (final scan in scans) {
-      final key = _pieChartCategory(scan.threatType);
+      final key = scan.threatType.isEmpty ? 'benign' : scan.threatType;
       counts[key] = (counts[key] ?? 0) + 1;
     }
     final total = scans.length;
-    final entries = counts.entries.toList()..removeWhere((entry) => entry.value == 0)..sort((a, b) => b.value.compareTo(a.value));
-    return entries.map((entry) => ThreatCount(threatType: entry.key, count: entry.value, percentage: (entry.value / total) * 100)).toList();
+    final entries = counts.entries.toList()
+      ..removeWhere((entry) => entry.value == 0)
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return entries.map((entry) => ThreatCount(
+      threatType: entry.key,
+      count: entry.value,
+      percentage: (entry.value / total) * 100,
+    )).toList();
   }
 
   List<ScanResult> _oldestSafeLinksNotRescanned(List<ScanResult> scans) {
@@ -1026,24 +1063,6 @@ class _SecurityInsightsScreenState extends State<SecurityInsightsScreen>
       case 'ad_tracker': return AppColors.primaryBlue;
       case 'benign': return AppColors.safe;
       default: return AppColors.primaryPurple;
-    }
-  }
-
-  String _pieChartCategory(String threatType) {
-    switch (threatType.toLowerCase()) {
-      case 'benign':
-      case 'safe':
-        return 'safe';
-      case 'malware':
-      case 'malicious':
-      case 'unsafe':
-        return 'malicious';
-      case 'phishing':
-      case 'suspicious':
-      case 'ad_tracker':
-      case 'defacement':
-      default:
-        return 'suspicious';
     }
   }
 

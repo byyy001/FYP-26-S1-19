@@ -21,6 +21,9 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
   // Scan mode
   String _userLevel = 'beginner'; 
 
+  // Scan sensitivity level (registered users only)
+  String _sensitivityLevel = 'medium';
+
   // Threat detection toggles
   bool _phishingSensitivity = true;
   bool _deepScan = true;
@@ -35,7 +38,10 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
   bool _useLightGBM = true;
 
   bool _isLoading = false;
-  bool get _canCustomize => FirebaseAuth.instance.currentUser != null;
+  bool get _canCustomize {
+    final user = FirebaseAuth.instance.currentUser;
+    return user != null && !user.isAnonymous;
+  }
 
   @override
   void initState() {
@@ -47,8 +53,8 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
     final user = FirebaseAuth.instance.currentUser;
 
     setState(() {
-      _isLoggedIn = user != null;
-      _isPremium = user != null;
+      _isLoggedIn = user != null && !user.isAnonymous;
+      _isPremium = user != null && !user.isAnonymous;
     });
 
     if (_isLoggedIn) {
@@ -57,6 +63,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
       // Guest / free defaults
       setState(() {
         _userLevel = 'beginner';
+        _sensitivityLevel = 'medium';
         _phishingSensitivity = true;
         _deepScan = false;
         _scriptAnalysis = false;
@@ -82,6 +89,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
       if (data != null) {
         setState(() {
           _userLevel = data['userLevel'] ?? 'beginner';
+          _sensitivityLevel = data['sensitivityLevel'] ?? 'medium';
           _phishingSensitivity = data['phishingSensitivity'] ?? true;
           _deepScan = data['deepScan'] ?? true;
           _scriptAnalysis = data['scriptAnalysis'] ?? true;
@@ -99,10 +107,11 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
         if (!mounted || fallbackData == null) {
           return;
         }
-        
+
         // Default for registered / paid users
         setState(() {
           _userLevel = 'beginner';
+          _sensitivityLevel = 'medium';
           _phishingSensitivity = true;
           _deepScan = true;
           _scriptAnalysis = true;
@@ -110,7 +119,6 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
           _useEnsemble = true;
           _useLogisticRegression = true;
           _useDecisionTree = true;
-          _useXGBoost = true;
           _useLightGBM = true;
         });
       }
@@ -137,6 +145,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
         userId: user.uid,
         settings: {
         'userLevel': _userLevel,
+        'sensitivityLevel': _sensitivityLevel,
         'phishingSensitivity': _phishingSensitivity,
         'deepScan': _deepScan,
         'scriptAnalysis': _scriptAnalysis,
@@ -306,6 +315,14 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
                   const SizedBox(height: 24),
 
                   _buildSectionHeader(
+                    icon: Icons.tune,
+                    title: 'SCAN SENSITIVITY',
+                  ),
+                  const SizedBox(height: 8),
+                  _buildSensitivityCard(),
+                  const SizedBox(height: 24),
+
+                  _buildSectionHeader(
                     icon: Icons.memory,
                     title: 'MACHINE LEARNING MODELS',
                   ),
@@ -408,7 +425,7 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
 
   Widget _buildPlanAndModeCard() {
   final user = FirebaseAuth.instance.currentUser;
-  final isGuest = user == null;
+  final isGuest = user == null || user.isAnonymous;
   final double disabledOpacity = _canCustomize ? 1.0 : 0.55;
 
   return Container(
@@ -587,6 +604,82 @@ class _ScanSettingsScreenState extends State<ScanSettingsScreen> {
     ),
   );
 }
+
+  Widget _buildSensitivityCard() {
+    const levels = [
+      {'value': 'low',    'label': 'Low',    'desc': 'Fewer flags, lower false positives'},
+      {'value': 'medium', 'label': 'Medium', 'desc': 'Balanced detection (default)'},
+      {'value': 'high',   'label': 'High',   'desc': 'Strict scanning, may flag borderline sites'},
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!_canCustomize)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Sign in to adjust scan sensitivity',
+                style: TextStyle(fontSize: 12, color: AppColors.disabledText),
+              ),
+            ),
+          Row(
+            children: levels.map((level) {
+              final selected = _sensitivityLevel == level['value'];
+              final enabled = _canCustomize;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: enabled
+                      ? () => setState(() => _sensitivityLevel = level['value']!)
+                      : null,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.primaryPurple.withValues(alpha: enabled ? 1.0 : 0.4)
+                          : Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: selected
+                            ? AppColors.primaryPurple
+                            : Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: Text(
+                      level['label']!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: enabled
+                            ? AppColors.primaryText
+                            : AppColors.disabledText,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            levels.firstWhere((l) => l['value'] == _sensitivityLevel)['desc']!,
+            style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildSectionHeader({
     required IconData icon,
