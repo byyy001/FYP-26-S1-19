@@ -26,7 +26,18 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkUserStatus() async {
-    // Run the 2s delay and auth/shared-URL fetch in parallel
+    // Web: skip sharing intent entirely and go straight to LoginScreen
+    if (kIsWeb) {
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+      return;
+    }
+
+    // Mobile: fetch auth state and shared URL in parallel
     final results = await Future.wait([
       Future.delayed(const Duration(seconds: 2)),
       FirebaseAuth.instance.authStateChanges().first,
@@ -34,14 +45,6 @@ class _SplashScreenState extends State<SplashScreen> {
     ]);
 
     if (!mounted) return;
-
-    if (kIsWeb) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => LoginScreen()),
-      );
-      return;
-    }
 
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
