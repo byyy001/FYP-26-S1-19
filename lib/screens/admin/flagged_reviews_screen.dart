@@ -25,13 +25,14 @@ class _FlaggedReviewsScreenState extends State<FlaggedReviewsScreen> {
                 stream: FirebaseFirestore.instance.collection('false_reports').snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
-                    return _buildSummaryStrip(pending: 0, reviewedToday: 0, falsePositives: 0);
+                    return _buildSummaryStrip(pending: 0, reviewedToday: 0, whitelisted: 0, falsePositives: 0);
                   }
                   final docs = snapshot.data!.docs;
                   final now = DateTime.now();
                   final startOfDay = DateTime(now.year, now.month, now.day);
                   int pending = 0;
                   int reviewedToday = 0;
+                  int whitelisted = 0;
                   int falsePositives = 0;
                   for (final doc in docs) {
                     final data = doc.data() as Map<String, dynamic>;
@@ -39,16 +40,18 @@ class _FlaggedReviewsScreenState extends State<FlaggedReviewsScreen> {
                     final reason = (data['reason'] ?? '').toLowerCase();
                     final submittedAt = data['submittedAt'] as Timestamp?;
                     if (status == 'pending') pending++;
+                    if (status == 'whitelisted') whitelisted++;
                     if (status == 'reviewed' &&
                         submittedAt != null &&
                         submittedAt.toDate().isAfter(startOfDay)) {
                       reviewedToday++;
                     }
-                    if (reason == 'false positive') falsePositives++;
+                    if (reason.contains('false positive')) falsePositives++;
                   }
                   return _buildSummaryStrip(
                     pending: pending,
                     reviewedToday: reviewedToday,
+                    whitelisted: whitelisted,
                     falsePositives: falsePositives,
                   );
                 },
@@ -120,6 +123,7 @@ class _FlaggedReviewsScreenState extends State<FlaggedReviewsScreen> {
   Widget _buildSummaryStrip({
     required int pending,
     required int reviewedToday,
+    required int whitelisted,
     required int falsePositives,
   }) {
     return Container(
@@ -138,17 +142,13 @@ class _FlaggedReviewsScreenState extends State<FlaggedReviewsScreen> {
       ),
       child: Row(
         children: [
-          Expanded(
-            child: _MiniSummary(label: 'Pending Reviews', value: pending.toString()),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _MiniSummary(label: 'Reviewed Today', value: reviewedToday.toString()),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _MiniSummary(label: 'False Positives', value: falsePositives.toString()),
-          ),
+          Expanded(child: _MiniSummary(label: 'Pending Reviews', value: pending.toString())),
+          const SizedBox(width: 12),
+          Expanded(child: _MiniSummary(label: 'Reviewed Today', value: reviewedToday.toString())),
+          const SizedBox(width: 12),
+          Expanded(child: _MiniSummary(label: 'Whitelisted', value: whitelisted.toString(), valueColor: AppColors.safe)),
+          const SizedBox(width: 12),
+          Expanded(child: _MiniSummary(label: 'False Positives', value: falsePositives.toString())),
         ],
       ),
     );
@@ -158,10 +158,12 @@ class _FlaggedReviewsScreenState extends State<FlaggedReviewsScreen> {
 class _MiniSummary extends StatelessWidget {
   final String label;
   final String value;
+  final Color? valueColor;
 
   const _MiniSummary({
     required this.label,
     required this.value,
+    this.valueColor,
   });
 
   @override
@@ -185,8 +187,8 @@ class _MiniSummary extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
-              color: AppColors.primaryText,
+            style: TextStyle(
+              color: valueColor ?? AppColors.primaryText,
               fontSize: 28,
               fontWeight: FontWeight.bold,
             ),
@@ -250,6 +252,97 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
             content: Text('Error updating report: $e'),
             backgroundColor: AppColors.highRisk,
           ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdating = false);
+    }
+  }
+
+  Future<void> _resolveWithWhitelist() async {
+    final url = widget.data['url'] as String? ?? '';
+    final rawHost = Uri.tryParse(url)?.host ?? '';
+    final domain = rawHost.startsWith('www.') ? rawHost.substring(4) : rawHost;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Add to Global Whitelist?',
+          style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          domain.isNotEmpty
+              ? 'Adding "$domain" to the global whitelist will mark it as safe. All future scans of this domain will pass without being flagged.'
+              : 'This report will be marked as whitelisted.',
+          style: const TextStyle(color: AppColors.secondaryText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.safe,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isUpdating = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('false_reports')
+          .doc(widget.docId)
+          .update({'status': 'whitelisted'});
+
+      if (domain.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('app_config')
+            .doc('threat_engine')
+            .update({
+          'global_whitelist': FieldValue.arrayUnion([domain]),
+          'last_updated': FieldValue.serverTimestamp(),
+          'version': FieldValue.increment(1),
+        });
+      }
+
+      final userId = widget.data['userId'] as String?;
+      if (userId != null && userId.isNotEmpty) {
+        await FirebaseFirestore.instance.collection('user_notifications').add({
+          'uid': userId,
+          'type': 'admin_whitelisted',
+          'url': url,
+          'domain': domain,
+          'reason': widget.data['reason'] ?? '',
+          'notifiedUser': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              domain.isNotEmpty ? '"$domain" added to global whitelist' : 'Report whitelisted',
+            ),
+            backgroundColor: AppColors.safe,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.highRisk),
         );
       }
     } finally {
@@ -357,7 +450,9 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
   Widget build(BuildContext context) {
     final url = widget.data['url'] ?? 'Unknown URL';
     final reason = widget.data['reason'] ?? 'No reason provided';
-    final reportedBy = widget.data['userId'] ?? 'Unknown user';
+    final reportedBy = widget.data['userEmail'] as String?
+        ?? widget.data['userId'] as String?
+        ?? 'Unknown user';
     final submittedAt = (widget.data['submittedAt'] as Timestamp?)?.toDate();
     final scanResult = widget.data['scanResult'] as Map<String, dynamic>?;
     final verdict = scanResult?['verdict'] ?? 'Unknown';
@@ -367,21 +462,22 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
         ? '${submittedAt.day}/${submittedAt.month}/${submittedAt.year}'
         : 'Unknown date';
 
-    // Determine badge color based on reason
-    Color badgeColor;
-    switch (reason.toLowerCase()) {
-      case 'phishing':
-        badgeColor = AppColors.mediumRisk;
-        break;
-      case 'malware':
-        badgeColor = AppColors.highRisk;
-        break;
-      case 'false positive':
-        badgeColor = AppColors.safe;
-        break;
-      default:
-        badgeColor = AppColors.primaryPurple;
+    // Badge colour reflects the scan verdict, not the user's reason text
+    final Color badgeColor;
+    final verdictLower = verdict.toString().toLowerCase();
+    if (verdictLower == 'malicious' || verdictLower == 'malware') {
+      badgeColor = AppColors.highRisk;
+    } else if (verdictLower == 'suspicious' || verdictLower == 'phishing') {
+      badgeColor = AppColors.mediumRisk;
+    } else {
+      badgeColor = AppColors.primaryPurple;
     }
+
+    final Widget loadingSpinner = const SizedBox(
+      width: 18,
+      height: 18,
+      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+    );
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -400,33 +496,33 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header row: reporter + date
           Row(
             children: [
-              const Icon(
-                Icons.flag_outlined,
-                color: AppColors.primaryPurple,
-                size: 22,
-              ),
+              const Icon(Icons.flag_outlined, color: AppColors.primaryPurple, size: 22),
               const SizedBox(width: 10),
-              Text(
-                'Reported by: $reportedBy',
-                style: const TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+              Expanded(
+                child: Text(
+                  'Reported by: $reportedBy',
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 formattedDate,
-                style: const TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 14,
-                ),
+                style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
               ),
             ],
           ),
           const SizedBox(height: 12),
+
+          // URL
           Text(
             url,
             style: const TextStyle(
@@ -434,11 +530,12 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 12),
+
+          // Verdict row + badge
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(
@@ -452,12 +549,35 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      'Reason: $reason',
-                      style: const TextStyle(
-                        color: AppColors.secondaryText,
-                        fontSize: 13,
-                        fontStyle: FontStyle.italic,
+                    // Full evidence/reason text from the user
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.mainBackground,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'User Evidence',
+                            style: TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            reason,
+                            style: const TextStyle(
+                              color: AppColors.primaryText,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -472,7 +592,7 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
                   border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
                 ),
                 child: Text(
-                  reason,
+                  verdict,
                   style: TextStyle(
                     color: badgeColor,
                     fontSize: 12,
@@ -482,46 +602,54 @@ class _FlaggedReviewCardState extends State<_FlaggedReviewCard> {
               ),
             ],
           ),
+
           const SizedBox(height: 16),
           const Divider(color: AppColors.divider, thickness: 0.5),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+
+          // Action buttons — wrap so they reflow on narrow screens
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 10,
+            runSpacing: 10,
             children: [
+              // Mark as reviewed (no list change)
               OutlinedButton(
                 onPressed: _isUpdating ? null : () => _updateStatus('reviewed'),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppColors.primaryPurple),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 ),
-                child: _isUpdating
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Mark as Reviewed'),
+                child: _isUpdating ? loadingSpinner : const Text('Mark as Reviewed'),
               ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: _isUpdating ? null : _resolveWithBlacklist,
+              // Add to whitelist (URL is safe)
+              ElevatedButton.icon(
+                onPressed: _isUpdating ? null : _resolveWithWhitelist,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.safe,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 ),
-                child: _isUpdating
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Resolve'),
+                icon: _isUpdating
+                    ? loadingSpinner
+                    : const Icon(Icons.verified_outlined, size: 16),
+                label: _isUpdating ? const SizedBox.shrink() : const Text('Add to Whitelist'),
+              ),
+              // Add to blacklist (URL is genuinely malicious)
+              ElevatedButton.icon(
+                onPressed: _isUpdating ? null : _resolveWithBlacklist,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.highRisk,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                ),
+                icon: _isUpdating
+                    ? loadingSpinner
+                    : const Icon(Icons.block_outlined, size: 16),
+                label: _isUpdating ? const SizedBox.shrink() : const Text('Add to Blacklist'),
               ),
             ],
           ),
