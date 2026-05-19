@@ -1178,52 +1178,47 @@ class _LatestModelResultsPanel extends StatelessWidget {
 
   Future<void> _compareCandidateWithActiveModel(
     BuildContext context,
-    Map<String, dynamic> candidateData,
+    String modelVersionId,
   ) async {
+    const String compareUrl =
+        'https://linksentry-training-backend-1071145926774.asia-southeast1.run.app/compare-models';
+
     final messenger = ScaffoldMessenger.of(context);
 
-    final String? modelType = candidateData['modelType']?.toString();
-
-    if (modelType == null || modelType.isEmpty || modelType == '-') {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Candidate model type not found.')),
-      );
-      return;
-    }
-
     try {
-      final activeSnapshot = await FirebaseFirestore.instance
-          .collection('model_versions')
-          .where('modelType', isEqualTo: modelType)
-          .where('status', isEqualTo: 'active')
-          .limit(1)
-          .get();
-
-      if (activeSnapshot.docs.isEmpty) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('No active $modelType model found to compare with.'),
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Comparing candidate and active model on same dataset...',
           ),
+        ),
+      );
+
+      final response = await http.post(
+        Uri.parse(compareUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'candidateModelVersionId': modelVersionId}),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'Compare failed ${response.statusCode}: ${response.body}',
         );
-        return;
       }
 
-      final activeData = activeSnapshot.docs.first.data();
+      final result = jsonDecode(response.body) as Map<String, dynamic>;
 
       if (!context.mounted) return;
 
       showDialog(
         context: context,
         builder: (_) {
-          return _ModelComparisonDialog(
-            candidateData: candidateData,
-            activeData: activeData,
-          );
+          return _FairModelComparisonDialog(result: result);
         },
       );
     } catch (e) {
       messenger.showSnackBar(
-        SnackBar(content: Text('Failed to compare models: $e')),
+        SnackBar(content: Text('Model comparison failed: $e')),
       );
     }
   }
@@ -1464,7 +1459,10 @@ class _LatestModelResultsPanel extends StatelessWidget {
                       height: 46,
                       child: OutlinedButton(
                         onPressed: () {
-                          _compareCandidateWithActiveModel(context, data);
+                          _compareCandidateWithActiveModel(
+                            context,
+                            modelVersionId,
+                          );
                         },
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(
@@ -1944,14 +1942,10 @@ class _PerformanceSummaryTableCard extends StatelessWidget {
   }
 }
 
-class _ModelComparisonDialog extends StatelessWidget {
-  final Map<String, dynamic> candidateData;
-  final Map<String, dynamic> activeData;
+class _FairModelComparisonDialog extends StatelessWidget {
+  final Map<String, dynamic> result;
 
-  const _ModelComparisonDialog({
-    required this.candidateData,
-    required this.activeData,
-  });
+  const _FairModelComparisonDialog({required this.result});
 
   double? _toDouble(dynamic value) {
     if (value == null) return null;
@@ -1962,51 +1956,35 @@ class _ModelComparisonDialog extends StatelessWidget {
   String _formatPercent(dynamic value) {
     final number = _toDouble(value);
     if (number == null) return '-';
-
-    if (number <= 1) {
-      return '${(number * 100).toStringAsFixed(2)}%';
-    }
-
-    return '${number.toStringAsFixed(2)}%';
+    return '${(number * 100).toStringAsFixed(2)}%';
   }
 
   String _formatScore(dynamic value) {
     final number = _toDouble(value);
     if (number == null) return '-';
-
     return number.toStringAsFixed(4);
   }
 
-  String _formatDiff(
-    dynamic candidate,
-    dynamic active, {
-    bool percent = false,
-  }) {
-    final c = _toDouble(candidate);
-    final a = _toDouble(active);
-
-    if (c == null || a == null) return '-';
-
-    final diff = c - a;
+  String _formatDiff(dynamic value, {bool percent = false}) {
+    final number = _toDouble(value);
+    if (number == null) return '-';
 
     if (percent) {
-      final value = diff.abs() <= 1 ? diff * 100 : diff;
-      final sign = value >= 0 ? '+' : '';
-      return '$sign${value.toStringAsFixed(2)}%';
+      final converted = number * 100;
+      final sign = converted >= 0 ? '+' : '';
+      return '$sign${converted.toStringAsFixed(2)}%';
     }
 
-    final sign = diff >= 0 ? '+' : '';
-    return '$sign${diff.toStringAsFixed(4)}';
+    final sign = number >= 0 ? '+' : '';
+    return '$sign${number.toStringAsFixed(4)}';
   }
 
-  Color _diffColor(dynamic candidate, dynamic active) {
-    final c = _toDouble(candidate);
-    final a = _toDouble(active);
+  Color _diffColor(dynamic value) {
+    final number = _toDouble(value);
 
-    if (c == null || a == null) return AppColors.secondaryText;
-
-    if (c > a) return Colors.greenAccent;
-    if (c < a) return AppColors.highRisk;
+    if (number == null) return AppColors.secondaryText;
+    if (number > 0) return Colors.greenAccent;
+    if (number < 0) return AppColors.highRisk;
 
     return AppColors.secondaryText;
   }
@@ -2015,8 +1993,8 @@ class _ModelComparisonDialog extends StatelessWidget {
     required String label,
     required String candidate,
     required String active,
-    required String difference,
-    required Color differenceColor,
+    required String diff,
+    required Color diffColor,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 9),
@@ -2054,9 +2032,9 @@ class _ModelComparisonDialog extends StatelessWidget {
           ),
           Expanded(
             child: Text(
-              difference,
+              diff,
               style: TextStyle(
-                color: differenceColor,
+                color: diffColor,
                 fontWeight: FontWeight.w800,
                 fontSize: 13,
               ),
@@ -2069,49 +2047,36 @@ class _ModelComparisonDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String candidateName =
-        candidateData['modelDisplayName']?.toString() ??
-        candidateData['modelType']?.toString() ??
-        'Candidate Model';
+    final candidateMetrics =
+        result['candidateMetrics'] as Map<String, dynamic>? ?? {};
+    final activeMetrics =
+        result['activeMetrics'] as Map<String, dynamic>? ?? {};
+    final differences = result['differences'] as Map<String, dynamic>? ?? {};
 
-    final String activeName =
-        activeData['modelDisplayName']?.toString() ??
-        activeData['modelType']?.toString() ??
-        'Active Model';
+    final recommendation = result['recommendation']?.toString() ?? '-';
 
-    final String candidateVersion =
-        candidateData['modelVersionId']?.toString() ?? '-';
-
-    final String activeVersion =
-        activeData['modelVersionId']?.toString() ?? '-';
-
-    final candidateMacroF1 = _toDouble(candidateData['macroF1']);
-    final activeMacroF1 = _toDouble(activeData['macroF1']);
-
-    String recommendation = 'Review both models before deployment.';
+    String recommendationText = 'Review both models before deployment.';
     Color recommendationColor = AppColors.secondaryText;
 
-    if (candidateMacroF1 != null && activeMacroF1 != null) {
-      if (candidateMacroF1 > activeMacroF1) {
-        recommendation =
-            'Candidate model performs better based on Macro F1-score.';
-        recommendationColor = Colors.greenAccent;
-      } else if (candidateMacroF1 < activeMacroF1) {
-        recommendation =
-            'Active model still performs better based on Macro F1-score.';
-        recommendationColor = AppColors.highRisk;
-      } else {
-        recommendation =
-            'Candidate and active models have the same Macro F1-score.';
-      }
+    if (recommendation == 'candidate_better') {
+      recommendationText =
+          'Candidate performs better on the same evaluation dataset.';
+      recommendationColor = Colors.greenAccent;
+    } else if (recommendation == 'active_better') {
+      recommendationText =
+          'Active model performs better on the same evaluation dataset.';
+      recommendationColor = AppColors.highRisk;
+    } else if (recommendation == 'same_macro_f1') {
+      recommendationText =
+          'Candidate and active models have the same Macro F1-score.';
     }
 
     return Dialog(
       backgroundColor: AppColors.cardBackground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Container(
-        width: 850,
-        constraints: const BoxConstraints(maxHeight: 720),
+        width: 900,
+        constraints: const BoxConstraints(maxHeight: 760),
         padding: const EdgeInsets.all(20),
         child: SingleChildScrollView(
           child: Column(
@@ -2121,7 +2086,7 @@ class _ModelComparisonDialog extends StatelessWidget {
                 children: [
                   const Expanded(
                     child: Text(
-                      'Compare Candidate vs Active Model',
+                      'Fair Model Comparison',
                       style: TextStyle(
                         color: AppColors.primaryText,
                         fontSize: 20,
@@ -2139,7 +2104,14 @@ class _ModelComparisonDialog extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+
+              const Text(
+                'Both models are evaluated on the same dataset split.',
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+              ),
+
+              const SizedBox(height: 14),
 
               Container(
                 width: double.infinity,
@@ -2154,36 +2126,25 @@ class _ModelComparisonDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Candidate: $candidateName',
-                      style: const TextStyle(
-                        color: AppColors.primaryText,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    _InfoRow(
+                      label: 'Model Type',
+                      value: result['modelType']?.toString() ?? '-',
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Candidate Version: $candidateVersion',
-                      style: const TextStyle(
-                        color: AppColors.secondaryText,
-                        fontSize: 12,
-                      ),
+                    const SizedBox(height: 8),
+                    _InfoRow(
+                      label: 'Candidate Version',
+                      value:
+                          result['candidateModelVersionId']?.toString() ?? '-',
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Active: $activeName',
-                      style: const TextStyle(
-                        color: AppColors.primaryText,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    const SizedBox(height: 8),
+                    _InfoRow(
+                      label: 'Active Version',
+                      value: result['activeModelVersionId']?.toString() ?? '-',
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Active Version: $activeVersion',
-                      style: const TextStyle(
-                        color: AppColors.secondaryText,
-                        fontSize: 12,
-                      ),
+                    const SizedBox(height: 8),
+                    _InfoRow(
+                      label: 'Evaluation Rows',
+                      value: result['evaluationRows']?.toString() ?? '-',
                     ),
                   ],
                 ),
@@ -2248,69 +2209,40 @@ class _ModelComparisonDialog extends StatelessWidget {
 
                     _metricRow(
                       label: 'Accuracy',
-                      candidate: _formatPercent(candidateData['accuracy']),
-                      active: _formatPercent(activeData['accuracy']),
-                      difference: _formatDiff(
-                        candidateData['accuracy'],
-                        activeData['accuracy'],
-                        percent: true,
-                      ),
-                      differenceColor: _diffColor(
-                        candidateData['accuracy'],
-                        activeData['accuracy'],
-                      ),
+                      candidate: _formatPercent(candidateMetrics['accuracy']),
+                      active: _formatPercent(activeMetrics['accuracy']),
+                      diff: _formatDiff(differences['accuracy'], percent: true),
+                      diffColor: _diffColor(differences['accuracy']),
                     ),
                     _metricRow(
                       label: 'Macro Precision',
-                      candidate: _formatScore(candidateData['macroPrecision']),
-                      active: _formatScore(activeData['macroPrecision']),
-                      difference: _formatDiff(
-                        candidateData['macroPrecision'],
-                        activeData['macroPrecision'],
+                      candidate: _formatScore(
+                        candidateMetrics['macroPrecision'],
                       ),
-                      differenceColor: _diffColor(
-                        candidateData['macroPrecision'],
-                        activeData['macroPrecision'],
-                      ),
+                      active: _formatScore(activeMetrics['macroPrecision']),
+                      diff: _formatDiff(differences['macroPrecision']),
+                      diffColor: _diffColor(differences['macroPrecision']),
                     ),
                     _metricRow(
                       label: 'Macro Recall',
-                      candidate: _formatScore(candidateData['macroRecall']),
-                      active: _formatScore(activeData['macroRecall']),
-                      difference: _formatDiff(
-                        candidateData['macroRecall'],
-                        activeData['macroRecall'],
-                      ),
-                      differenceColor: _diffColor(
-                        candidateData['macroRecall'],
-                        activeData['macroRecall'],
-                      ),
+                      candidate: _formatScore(candidateMetrics['macroRecall']),
+                      active: _formatScore(activeMetrics['macroRecall']),
+                      diff: _formatDiff(differences['macroRecall']),
+                      diffColor: _diffColor(differences['macroRecall']),
                     ),
                     _metricRow(
                       label: 'Macro F1',
-                      candidate: _formatScore(candidateData['macroF1']),
-                      active: _formatScore(activeData['macroF1']),
-                      difference: _formatDiff(
-                        candidateData['macroF1'],
-                        activeData['macroF1'],
-                      ),
-                      differenceColor: _diffColor(
-                        candidateData['macroF1'],
-                        activeData['macroF1'],
-                      ),
+                      candidate: _formatScore(candidateMetrics['macroF1']),
+                      active: _formatScore(activeMetrics['macroF1']),
+                      diff: _formatDiff(differences['macroF1']),
+                      diffColor: _diffColor(differences['macroF1']),
                     ),
                     _metricRow(
                       label: 'Weighted F1',
-                      candidate: _formatScore(candidateData['weightedF1']),
-                      active: _formatScore(activeData['weightedF1']),
-                      difference: _formatDiff(
-                        candidateData['weightedF1'],
-                        activeData['weightedF1'],
-                      ),
-                      differenceColor: _diffColor(
-                        candidateData['weightedF1'],
-                        activeData['weightedF1'],
-                      ),
+                      candidate: _formatScore(candidateMetrics['weightedF1']),
+                      active: _formatScore(activeMetrics['weightedF1']),
+                      diff: _formatDiff(differences['weightedF1']),
+                      diffColor: _diffColor(differences['weightedF1']),
                     ),
                   ],
                 ),
@@ -2329,7 +2261,7 @@ class _ModelComparisonDialog extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  recommendation,
+                  recommendationText,
                   style: TextStyle(
                     color: recommendationColor,
                     fontWeight: FontWeight.w700,
